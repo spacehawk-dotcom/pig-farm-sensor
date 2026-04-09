@@ -17,7 +17,7 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const tuya = new TuyaContext({
-  baseUrl: 'https://openapi.tuyaus.com', // 한국은 일반적으로 미국 서버(tuyaus) 사용
+  baseUrl: 'https://openapi.tuyacn.com', // 한국은 일반적으로 미국 서버(tuyaus) 사용
   accessKey: (process.env.TUYA_ACCESS_KEY || '').trim(),
   secretKey: (process.env.TUYA_SECRET_KEY || '').trim(),
 });
