@@ -1,0 +1,70 @@
+const { schedule } = require('@netlify/functions');
+const admin = require('firebase-admin');
+const { TuyaContext } = require('@tuya/tuya-connector-nodejs');
+
+// 1. 파이어베이스 초기화 (Netlify 환경 변수 사용)
+if (!admin.apps.length) {
+  // Netlify 환경 변수에 등록한 파이어베이스 키를 불러옵니다.
+  // (개행 문자가 깨지는 것을 방지하기 위해 replace 처리)
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
+  
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: privateKey,
+    })
+  });
+}
+const db = admin.firestore();
+
+// 2. 투야 초기화 (Netlify 환경 변수 사용)
+const tuya = new TuyaContext({
+  baseUrl: 'https://openapi.tuyaus.com',
+  accessKey: process.env.TUYA_ACCESS_KEY,
+  secretKey: process.env.TUYA_SECRET_KEY,
+});
+
+// 실제 센서 ID 입력 (따옴표 안에 숫자/영문으로 된 실제 ID를 넣으세요)
+const INSIDE_SENSOR_ID = '실제_투야_디바이스_ID를_여기에_입력';
+
+// 실제 실행될 핵심 함수
+const fetchAndSave = async () => {
+  try {
+    const response = await tuya.request({
+      method: 'GET',
+      path: `/v1.0/iot-03/devices/${INSIDE_SENSOR_ID}/status`,
+    });
+
+    if (!response.success) {
+      console.error('투야 데이터 수집 실패:', response.msg);
+      return { statusCode: 500 };
+    }
+
+    let temp = 0;
+    let humidity = 0;
+
+    response.result.forEach(item => {
+      if (item.code === 'va_temperature' || item.code === 'temp_current') temp = item.value / 10;
+      if (item.code === 'va_humidity' || item.code === 'humidity_value') humidity = item.value;
+    });
+
+    const sensorLog = {
+      barnId: 'barn_01',
+      insideTemp: temp,
+      insideHumidity: humidity,
+      timestamp: admin.firestore.FieldValue.serverTimestamp()
+    };
+
+    await db.collection('sensor_logs').add(sensorLog);
+    console.log("데이터 저장 완료!");
+    
+    return { statusCode: 200 };
+  } catch (error) {
+    console.error('에러 발생:', error);
+    return { statusCode: 500 };
+  }
+};
+
+// 매 10분마다 실행
+exports.handler = schedule('*/10 * * * *', fetchAndSave);

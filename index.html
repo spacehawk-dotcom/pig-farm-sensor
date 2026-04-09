@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>온도 관리 및 분석 대시보드</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* 🔒 수정 불가(Read-only) 영역에 대한 시각적 피드백 */
+    .readonly-cell {
+      background-color: #f3f4f6; /* Tailwind gray-100 */
+      cursor: not-allowed;
+      transition: background-color 0.2s;
+    }
+    .readonly-cell:hover {
+      background-color: #e5e7eb; /* Tailwind gray-200 */
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans p-4 md:p-8">
+
+  <div class="max-w-5xl mx-auto">
+    
+    <!-- 헤더 영역 -->
+    <header class="mb-8 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900 flex items-center">
+          <span class="text-4xl mr-3">📊</span> 농장 환경 실시간 모니터링
+        </h1>
+        <p class="text-gray-500 mt-2">투야(Tuya) 센서 및 사육 현황 데이터 연동 대시보드</p>
+      </div>
+      <div class="bg-green-100 text-green-800 px-4 py-2 rounded-full font-semibold text-sm">
+        🟢 시스템 정상 가동 중
+      </div>
+    </header>
+
+    <!-- 데이터 테이블 영역 -->
+    <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-green-600 text-white text-sm uppercase tracking-wider">
+              <th class="p-4 font-semibold border-b-2 border-green-700">돈사명</th>
+              <th class="p-4 font-semibold border-b-2 border-green-700 text-center">현재 일령 🐷</th>
+              <th class="p-4 font-semibold border-b-2 border-green-700 text-center">내부 온도 🌡️</th>
+              <th class="p-4 font-semibold border-b-2 border-green-700 text-center">내부 습도 💧</th>
+              <th class="p-4 font-semibold border-b-2 border-green-700 text-center">데이터 갱신 시간 🕒</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200" id="table-body">
+            
+            <!-- 1동 데이터 행 -->
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="p-4 font-bold text-gray-900">
+                1동 (자돈사)
+                <div class="text-xs text-gray-500 font-normal mt-1">사육두수: <span id="pig-count">400</span>두</div>
+              </td>
+              
+              <!-- 수정 불가 영역들 -->
+              <td class="p-4 text-center readonly-cell border-l border-gray-100">
+                <div class="flex items-center justify-center font-bold text-lg text-blue-700">
+                  <span id="pig-age">--</span><span class="text-sm font-normal text-gray-500 ml-1">일령</span>
+                </div>
+              </td>
+              
+              <td class="p-4 text-center readonly-cell border-l border-gray-100 relative group">
+                <div class="flex items-center justify-center font-bold text-2xl text-red-600">
+                  <span id="inside-temp">--</span><span class="text-sm font-normal text-gray-500 ml-1">°C</span>
+                </div>
+                <!-- 툴팁 -->
+                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+                  센서 자동 연동 (수정 불가)
+                </div>
+              </td>
+              
+              <td class="p-4 text-center readonly-cell border-l border-gray-100 relative group">
+                <div class="flex items-center justify-center font-bold text-xl text-blue-500">
+                  <span id="inside-humid">--</span><span class="text-sm font-normal text-gray-500 ml-1">%</span>
+                </div>
+                <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block bg-gray-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap">
+                  센서 자동 연동 (수정 불가)
+                </div>
+              </td>
+              
+              <td class="p-4 text-center text-sm text-gray-500 readonly-cell border-l border-gray-100">
+                <span id="last-update">대기 중...</span>
+              </td>
+            </tr>
+
+            <!-- 2동 데이터 행 (예시 추가) -->
+            <tr class="hover:bg-gray-50 transition-colors">
+              <td class="p-4 font-bold text-gray-900">
+                2동 (육성사)
+                <div class="text-xs text-gray-500 font-normal mt-1">사육두수: <span class="text-gray-400">데이터 없음</span></div>
+              </td>
+              <td class="p-4 text-center readonly-cell border-l border-gray-100 text-gray-400">-</td>
+              <td class="p-4 text-center readonly-cell border-l border-gray-100 text-gray-400">-</td>
+              <td class="p-4 text-center readonly-cell border-l border-gray-100 text-gray-400">-</td>
+              <td class="p-4 text-center readonly-cell border-l border-gray-100 text-gray-400">-</td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 범례 및 안내 영역 -->
+    <div class="mt-6 flex flex-wrap gap-4 text-sm text-gray-600">
+      <div class="flex items-center">
+        <div class="w-4 h-4 bg-gray-100 border border-gray-300 rounded mr-2"></div>
+        회색 배경 셀은 센서 및 연동 데이터로 임의 수정이 불가능합니다.
+      </div>
+      <div class="flex items-center ml-auto text-blue-600 cursor-pointer hover:underline">
+        <span class="mr-1">📈</span> 육성율 분석 차트 보기 (준비 중)
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 파이어베이스 연동 및 실행 로직 -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, collection, query, where, orderBy, limit, onSnapshot, doc } 
+      from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // 사장님의 실제 Firebase 설정
+    const firebaseConfig = {
+      apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
+      authDomain: "sungamfarm.firebaseapp.com",
+      projectId: "sungamfarm",
+      storageBucket: "sungamfarm.firebasestorage.app",
+      messagingSenderId: "811107235779",
+      appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
+    };
+
+    // DOM 요소 찾기
+    const tempEl = document.getElementById('inside-temp');
+    const humidEl = document.getElementById('inside-humid');
+    const updateEl = document.getElementById('last-update');
+    const ageEl = document.getElementById('pig-age');
+
+    // 실제 파이어베이스 연동 실행
+    try {
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      // 1. 투야 센서 실시간 데이터 가져오기 (sensor_logs 컬렉션)
+      // 파이어베이스 인덱스 에러 방지를 위해 단순 쿼리 후 자바스크립트에서 필터링 및 정렬
+      const sensorRef = collection(db, "sensor_logs");
+
+      onSnapshot(sensorRef, (snapshot) => {
+        let latestData = null;
+        let latestTime = 0;
+
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          // barn_01 데이터만 필터링하고 가장 최신 데이터 찾기
+          if (data.barnId === "barn_01" && data.timestamp) {
+            const time = data.timestamp.toMillis();
+            if (time > latestTime) {
+              latestTime = time;
+              latestData = data;
+            }
+          }
+        });
+
+        if (latestData) {
+          tempEl.innerText = latestData.insideTemp !== undefined ? latestData.insideTemp : '--';
+          humidEl.innerText = latestData.insideHumidity !== undefined ? latestData.insideHumidity : '--';
+          
+          if (latestData.timestamp) {
+            updateEl.innerText = latestData.timestamp.toDate().toLocaleTimeString();
+            // 갱신 시각적 효과
+            updateEl.style.color = '#10B981';
+            setTimeout(() => updateEl.style.color = '', 500);
+          }
+        }
+      }, (error) => {
+        console.error("센서 데이터 수신 오류:", error);
+        updateEl.innerText = "데이터 접근 권한 없음";
+      });
+
+      // 2. 사육 현황 가져와서 일령 계산하기 (barns 컬렉션)
+      onSnapshot(doc(db, "barns", "barn_01"), (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.entryDate && data.entryAge) {
+            const entryDate = new Date(data.entryDate);
+            const today = new Date();
+            const diffTime = Math.abs(today - entryDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            ageEl.innerText = diffDays + data.entryAge;
+          }
+        }
+      }, (error) => {
+        console.error("사육 현황 수신 오류:", error);
+      });
+
+    } catch (error) {
+      console.error("파이어베이스 초기화 에러:", error);
+      updateEl.innerText = "초기화 에러";
+    }
+  </script>
+</body>
+</html>
