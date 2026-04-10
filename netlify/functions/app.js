@@ -2,50 +2,64 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 exports.handler = async (event, context) => {
-    // 1. 환경 변수 설정 (넷리파이 설정창에 입력하신 값들을 가져옵니다)
     const ACCESS_ID = process.env.TUYA_ACCESS_ID;
     const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
-    const BASE_URL = 'https://openapi.tuyaeu.com'; // 유럽 서버 주소 고정
+    const BASE_URL = 'https://openapi.tuyaeu.com'; // 유럽 서버
 
-    // 2. 사장님의 12개 센서 리스트 (이미 등록된 ID들)
+    // 사장님의 센서 12개 리스트 (ID 확인 필수!)
     const devices = [
         { id: 'bf3a297e3c2c203b0dlq2t', name: '이유_1배치' },
         { id: 'bfd2815413e3900144gwjv', name: '이유_2배치' },
-        // ... 나머지 10개 센서 ID도 여기에 쭉 나열되어 있어야 합니다.
+        // 나머지 센서 ID들도 여기에 {id: '...', name: '...'} 형식으로 추가하세요.
     ];
 
     try {
-        // [토큰 가져오기 및 투야 API 호출 로직 생략 - 기존 로직 유지]
+        // 1. 토큰 가져오기
+        const t = Date.now();
+        const str = ACCESS_ID + t;
+        const sign = crypto.createHmac('sha256', ACCESS_SECRET).update(str).digest('hex').toUpperCase();
         
-        // 데이터 분석 핵심 부분 (여기를 이렇게 고쳐야 0도가 안 뜹니다!)
-        const results = devices.map(dev => {
-            const deviceStatus = getTuyaStatus(dev.id); // 투야에서 받아온 상태값
+        const tokenRes = await axios.get(`${BASE_URL}/v1.0/token?grant_type=1`, {
+            headers: { t, sign, client_id: ACCESS_ID }
+        });
+        const token = tokenRes.data.result.access_token;
+
+        // 2. 모든 기기 데이터 수집
+        const results = await Promise.all(devices.map(async (dev) => {
+            const t2 = Date.now();
+            const str2 = ACCESS_ID + token + t2;
+            const sign2 = crypto.createHmac('sha256', ACCESS_SECRET).update(str2).digest('hex').toUpperCase();
+
+            const res = await axios.get(`${BASE_URL}/v1.0/devices/${dev.id}/status`, {
+                headers: { t: t2, sign: sign2, client_id: ACCESS_ID, access_token: token }
+            });
+
+            const status = res.data.result || [];
             
-            // 이름이 달라도 온도를 찾아내는 마법의 로직
-            const tempObj = deviceStatus.find(s => 
-                ['va_temperature', 'Temperature', 'temp_current'].includes(s.code)
-            );
-            const humiObj = deviceStatus.find(s => 
-                ['va_humidity', 'Humidity', 'humidity_value'].includes(s.code)
-            );
+            // 온도/습도 코드 자동 감지 로직
+            const tempObj = status.find(s => ['va_temperature', 'Temperature', 'temp_current'].includes(s.code));
+            const humiObj = status.find(s => ['va_humidity', 'Humidity', 'humidity_value'].includes(s.code));
 
             let temp = tempObj ? parseFloat(tempObj.value) : 0;
             let humi = humiObj ? parseFloat(humiObj.value) : 0;
 
-            // 투야 특유의 소수점 처리 (255 -> 25.5)
+            // 소수점 처리 (255 -> 25.5)
             if (temp > 100) temp = temp / 10;
             if (humi > 100) humi = humi / 10;
 
             return { name: dev.name, temp: temp.toFixed(1), humi: humi.toFixed(1) };
-        });
+        }));
 
         return {
             statusCode: 200,
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(results)
         };
 
     } catch (error) {
-        console.error("데이터 수집 실패:", error);
-        return { statusCode: 500, body: error.message };
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ error: error.message })
+        };
     }
 };
