@@ -17,11 +17,11 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const tuya = new TuyaContext({
-  baseUrl: 'https://openapi.tuyacn.com', // 한국은 일반적으로 미국 서버(tuyaus) 사용
+  /* 사장님의 진짜 번지수: 미국 서부 서버 주소 */
+  baseUrl: 'https://openapi.tuyaus.com', 
   accessKey: (process.env.TUYA_ACCESS_KEY || '').trim(),
   secretKey: (process.env.TUYA_SECRET_KEY || '').trim(),
 });
-
 // ============================================================================
 // 2. 사장님의 농장 12개 센서 목록 (돈사명과 투야 기기 ID)
 // ============================================================================
