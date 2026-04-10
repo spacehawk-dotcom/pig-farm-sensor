@@ -17,8 +17,8 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 const tuya = new TuyaContext({
-  /* 사장님의 진짜 번지수: 미국 서부 서버 주소 */
-  baseUrl: 'https://openapi.tuyaus.com', 
+  /* 사장님의 진짜 번지수: 유럽 중부 서버 주소 */
+  baseUrl: 'https://openapi.tuyaeu.com', 
   accessKey: (process.env.TUYA_ACCESS_KEY || '').trim(),
   secretKey: (process.env.TUYA_SECRET_KEY || '').trim(),
 });
