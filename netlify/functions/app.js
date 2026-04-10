@@ -22,8 +22,9 @@ const tuya = new TuyaContext({
   accessKey: (process.env.TUYA_ACCESS_KEY || '').trim(),
   secretKey: (process.env.TUYA_SECRET_KEY || '').trim(),
 });
+
 // ============================================================================
-// 2. 사장님의 농장 12개 센서 목록 (돈사명과 투야 기기 ID)
+// 2. 농장 12개 센서 목록 (돈사명과 투야 기기 ID)
 // ============================================================================
 const SENSOR_LIST = [
   // 이유사 (5개)
@@ -51,16 +52,13 @@ const SENSOR_LIST = [
 const fetchAndSave = async () => {
   console.log("투야 센서 12개 데이터 수집 시작...");
 
-  // 목록에 있는 12개 센서를 하나씩 돌면서 작업
   for (const sensor of SENSOR_LIST) {
     try {
-      // 투야 서버에 센서 현재 상태(온/습도) 요청
       const response = await tuya.request({
         method: 'GET',
         path: `/v1.0/iot-03/devices/${sensor.deviceId}/status`,
       });
 
-      // 기기 오프라인 등 통신 실패 시 에러만 띄우고 다음 센서로 넘어감
       if (!response.success) {
         console.error(`[${sensor.barnId}] 데이터 가져오기 실패:`, response.msg);
         continue; 
@@ -68,38 +66,43 @@ const fetchAndSave = async () => {
 
       let temp = 0;
       let humidity = 0;
+      
+      // ★ 원인 분석을 위해 투야에서 온 원본 데이터를 문자열로 저장해 둡니다.
+      const rawDataString = JSON.stringify(response.result);
 
-      // 투야에서 보내준 데이터 중 온도와 습도 값 뽑아내기
       response.result.forEach(item => {
-        const code = item.code.toLowerCase(); // 소문자로 통일해서 비교
-        
-        // 1. 온도 찾기: 'temp'라는 단어가 포함된 모든 코드 대응
-        if (code.includes('temp') || code === 't') {
-          // 기기에 따라 255로 오면 25.5로, 25.5로 오면 그대로 처리
-          temp = item.value > 100 ? item.value / 10 : item.value;
+        // 코드 이름을 소문자로 변환
+        const code = item.code ? item.code.toLowerCase() : ''; 
+        // 값을 숫자로 강제 변환 시도 (문자 'c' 등이 오면 NaN이 됨)
+        const numValue = Number(item.value);
+
+        // 1. 온도 찾기
+        if (code.includes('temp') || code === 'va_temperature' || code === 't') {
+          if (!isNaN(numValue)) {
+            temp = numValue > 100 ? numValue / 10 : numValue;
+          }
         }
         
-        // 2. 습도 찾기: 'hum'이라는 단어가 포함된 모든 코드 대응
-        if (code.includes('hum') || code === 'h') {
-          // 습도도 마찬가지로 100이 넘으면 10으로 나눠줌
-          humidity = item.value > 100 ? item.value / 10 : item.value;
+        // 2. 습도 찾기
+        if (code.includes('hum') || code === 'va_humidity' || code === 'h') {
+          if (!isNaN(numValue)) {
+            humidity = numValue > 100 ? numValue / 10 : numValue;
+          }
         }
       });
 
-      // 만약 값이 0으로 들어온다면 (통신은 성공했으나 데이터가 비정상일 때) 로그에 표시
-      if (temp === 0 && humidity === 0) {
-        console.warn(`⚠️ [${sensor.barnId}] 데이터가 0입니다. 기기 모델별 코드 확인이 필요할 수 있습니다.`);
+      // ★ 핵심: 값이 여전히 0이거나 비정상이라면, 원본 데이터를 로그에 쫙 뿌려줍니다.
+      if (temp === 0 || humidity === 0) {
+        console.warn(`⚠️ [${sensor.barnId}] 데이터 이상 감지! 기기 원본 데이터: ${rawDataString}`);
       }
 
-      // 파이어베이스에 저장할 데이터 형식 구성
       const sensorLog = {
-        barnId: sensor.barnId,  // 예: '이유_1배치'
+        barnId: sensor.barnId, 
         insideTemp: temp,
         insideHumidity: humidity,
-        timestamp: admin.firestore.FieldValue.serverTimestamp() // 서버 시간 기록
+        timestamp: admin.firestore.FieldValue.serverTimestamp()
       };
 
-      // 파이어베이스 'sensor_logs' 컬렉션에 추가
       await db.collection('sensor_logs').add(sensorLog);
       console.log(`✅ [${sensor.barnId}] 온도: ${temp}°C, 습도: ${humidity}% 저장 완료!`);
       
@@ -112,5 +115,4 @@ const fetchAndSave = async () => {
   return { statusCode: 200 };
 };
 
-// 네플리파이에 10분('10m')마다 fetchAndSave 함수를 실행하라고 스케줄러 등록
 exports.handler = schedule('@every 10m', fetchAndSave);
