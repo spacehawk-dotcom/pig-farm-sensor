@@ -71,9 +71,25 @@ const fetchAndSave = async () => {
 
       // 투야에서 보내준 데이터 중 온도와 습도 값 뽑아내기
       response.result.forEach(item => {
-        if (item.code === 'va_temperature' || item.code === 'temp_current') temp = item.value / 10;
-        if (item.code === 'va_humidity' || item.code === 'humidity_value') humidity = item.value;
+        const code = item.code.toLowerCase(); // 소문자로 통일해서 비교
+        
+        // 1. 온도 찾기: 'temp'라는 단어가 포함된 모든 코드 대응
+        if (code.includes('temp') || code === 't') {
+          // 기기에 따라 255로 오면 25.5로, 25.5로 오면 그대로 처리
+          temp = item.value > 100 ? item.value / 10 : item.value;
+        }
+        
+        // 2. 습도 찾기: 'hum'이라는 단어가 포함된 모든 코드 대응
+        if (code.includes('hum') || code === 'h') {
+          // 습도도 마찬가지로 100이 넘으면 10으로 나눠줌
+          humidity = item.value > 100 ? item.value / 10 : item.value;
+        }
       });
+
+      // 만약 값이 0으로 들어온다면 (통신은 성공했으나 데이터가 비정상일 때) 로그에 표시
+      if (temp === 0 && humidity === 0) {
+        console.warn(`⚠️ [${sensor.barnId}] 데이터가 0입니다. 기기 모델별 코드 확인이 필요할 수 있습니다.`);
+      }
 
       // 파이어베이스에 저장할 데이터 형식 구성
       const sensorLog = {
