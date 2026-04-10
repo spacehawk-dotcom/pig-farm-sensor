@@ -64,43 +64,45 @@ const fetchAndSave = async () => {
         continue; 
       }
 
-// ... (앞부분 생략)
-
+// ... (기존 루프 안에서)
       let temp = 0;
       let humidity = 0;
 
-      response.result.forEach(item => {
+      // 로그 확인용: 빈 데이터가 아닌데도 못 찾는 경우를 대비
+      const rawData = response.result;
+
+      rawData.forEach(item => {
         const code = item.code.toLowerCase();
         const val = Number(item.value);
 
-        // 1. 온도 찾기 (기존 temp 외에 'va_temperature' 등 다른 이름들 추가 대응)
-        if (code.includes('temp') || code === 'va_temperature' || code === 't') {
-          if (!isNaN(val)) {
+        // 1. 온도 찾기: 코드명에 temp, t, va_ 가 들어가는 모든 숫자 데이터
+        if (code.includes('temp') || code.includes('va_') || code === 't') {
+          if (!isNaN(val) && val !== 0) {
+            // 100 이상이면 10으로 나누고(255 -> 25.5), 아니면 그대로 사용
             temp = val > 100 ? val / 10 : val;
           }
         }
         
-        // 2. 습도 찾기 (기존 hum 외에 'va_humidity' 등 추가 대응)
-        if (code.includes('hum') || code === 'va_humidity' || code === 'h') {
-          if (!isNaN(val)) {
+        // 2. 습도 찾기: 코드명에 hum, h, va_ 가 들어가는 모든 숫자 데이터
+        if (code.includes('hum') || code.includes('va_') || code === 'h') {
+          if (!isNaN(val) && val !== 0 && !code.includes('temp')) {
             humidity = val > 100 ? val / 10 : val;
           }
         }
-        
-        // ★ 추가: 만약 위 방법으로도 안 잡히는 모델을 위한 '비상용' 로직
-        // 데이터 값이 숫자이고, 온습도 범위(0~100) 안에 있다면 자동으로 할당 시도
-        if (temp === 0 && (code === 'va_temperature' || code.includes('temperature'))) {
-           temp = val > 100 ? val / 10 : val;
+
+        // 3. ★ 최후의 수단: 코드가 위 조건에 안 걸려도 값이 들어있다면 매칭
+        // 투야 일부 모델은 'va_temperature' 대신 'va_temp' 등을 씁니다.
+        if (temp === 0 && (code.startsWith('va_') || code.length === 1)) {
+           if (!isNaN(val) && val !== 0) temp = val > 100 ? val / 10 : val;
         }
       });
 
-      // ★ 핵심 수정: 데이터가 여전히 0이면 저장을 하지 않고 '건너뛰기' (데이터 오염 방지)
+      // 데이터가 둘 다 0이면 (여전히 못 찾았다면) 원본 구조를 로그에 상세히 출력
       if (temp === 0 && humidity === 0) {
-        console.warn(`⚠️ [${sensor.barnId}] 이 모델은 특수 코드를 사용합니다. 로그를 더 분석해야 합니다.`);
-        continue; // 파이어베이스에 0을 넣지 않고 다음 센서로 넘어갑니다.
+        console.warn(`🚨 [${sensor.barnId}] 분석 실패! 원본 데이터: ${JSON.stringify(rawData)}`);
+        continue; 
       }
 
-      // ... (파이어베이스 저장 로직)
       const sensorLog = {
         barnId: sensor.barnId, 
         insideTemp: temp,
