@@ -28,8 +28,8 @@ const tuya = new TuyaContext({
 // ============================================================================
 const SENSOR_LIST = [
   // 이유사 (5개)
-  { barnId: '이유_1배치', deviceId: 'ebff088984a475cb2btqrn' },
-  { barnId: '이유_2배치', deviceId: 'eb0ca8871a16995b59kovf' },
+  { barnId: '이유_1배치', deviceId: 'bf3a297e3c2c203b0dlq2t' },
+  { barnId: '이유_2배치', deviceId: 'bfd2815413e3900144gwjv' },
   { barnId: '이유_3배치', deviceId: 'eb3f8ddd587bd4119escz2' },
   { barnId: '이유_4배치', deviceId: 'eb4e7b8af36acb727dp0nt' },
   { barnId: '이유_5배치', deviceId: 'eb5d316f6812ea62a6xmlh' },
