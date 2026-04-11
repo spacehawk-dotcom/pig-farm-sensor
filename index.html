@@ -3,116 +3,97 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>성감농장 온도 관리 대시보드</title>
+  <title>성암농장 실시간 모니터링</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .readonly-cell { background-color: #f3f4f6; cursor: not-allowed; transition: background-color 0.2s; }
-    .readonly-cell:hover { background-color: #e5e7eb; }
+    .readonly-cell { background-color: #f9fafb; transition: all 0.3s; }
     .status-badge { animation: pulse 2s infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-800 font-sans p-4 md:p-8">
-
+<body class="bg-gray-50 p-4 md:p-8">
   <div class="max-w-5xl mx-auto">
     <header class="mb-8 flex items-center justify-between">
       <div>
-        <h1 class="text-3xl font-bold text-gray-900 flex items-center">
-          <span class="text-4xl mr-3">🏠</span> 성감농장 실시간 모니터링
-        </h1>
-        <p class="text-gray-500 mt-2">투야 유럽 서버 전용 데이터 대시보드 (Gochang, Jeonbuk)</p>
+        <h1 class="text-3xl font-bold text-gray-900">🏠 성암농장 모니터링</h1>
+        <p class="text-gray-500">투야 유럽 서버 (독일 센터) 실시간 연결</p>
       </div>
-      <div id="system-status" class="bg-green-100 text-green-800 px-4 py-2 rounded-full font-semibold text-sm status-badge">
-        🟢 시스템 정상 가동 중
+      <div id="system-status" class="bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold text-sm status-badge">
+        🔵 데이터 수집 중...
       </div>
     </header>
 
     <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left border-collapse">
-          <thead>
-            <tr class="bg-green-600 text-white text-sm uppercase tracking-wider">
-              <th class="p-4 font-semibold border-b-2 border-green-700">돈사명</th>
-              <th class="p-4 font-semibold border-b-2 border-green-700 text-center">내부 온도 🌡️</th>
-              <th class="p-4 font-semibold border-b-2 border-green-700 text-center">내부 습도 💧</th>
-              <th class="p-4 font-semibold border-b-2 border-green-700 text-center">데이터 갱신 시간 🕒</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-200" id="table-body">
-            <tr id="row-barn_01" class="hover:bg-gray-50">
-              <td class="p-4 font-bold text-gray-900">이유 1배치 (자돈사)</td>
-              <td class="p-4 text-center readonly-cell border-l"><span id="temp-barn_01" class="text-2xl font-bold text-red-600">--</span> °C</td>
-              <td class="p-4 text-center readonly-cell border-l"><span id="humi-barn_01" class="text-xl font-bold text-blue-500">--</span> %</td>
-              <td class="p-4 text-center text-sm text-gray-500 readonly-cell border-l" id="update-barn_01">대기 중...</td>
-            </tr>
-            <tr id="row-barn_02" class="hover:bg-gray-50">
-              <td class="p-4 font-bold text-gray-900">이유 2배치 (자돈사)</td>
-              <td class="p-4 text-center readonly-cell border-l"><span id="temp-barn_02" class="text-2xl font-bold text-red-600">--</span> °C</td>
-              <td class="p-4 text-center readonly-cell border-l"><span id="humi-barn_02" class="text-xl font-bold text-blue-500">--</span> %</td>
-              <td class="p-4 text-center text-sm text-gray-500 readonly-cell border-l" id="update-barn_02">대기 중...</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <table class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-green-600 text-white text-sm">
+            <th class="p-4">돈사 구역</th>
+            <th class="p-4 text-center">온도 🌡️</th>
+            <th class="p-4 text-center">습도 💧</th>
+            <th class="p-4 text-center">갱신 시간</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-200" id="sensor-table"></tbody>
+      </table>
     </div>
   </div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getFirestore, collection, query, orderBy, limit, onSnapshot } 
-      from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  <script>
+    const sensorNames = [
+      '이유_1배치', '이유_2배치', '이유_3배치', '이유_4배치', '이유_5배치',
+      '육성_1배치', '육성_2배치', '육성_3배치', '육성_4배치', '육성_5배치', '육성_6배치', '외부온도'
+    ];
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
-      authDomain: "sungamfarm.firebaseapp.com",
-      projectId: "sungamfarm",
-      storageBucket: "sungamfarm.firebasestorage.app",
-      messagingSenderId: "811107235779",
-      appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
-    };
+    const tableBody = document.getElementById('sensor-table');
+    
+    // 테이블 미리 그리기
+    sensorNames.forEach(name => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td class="p-4 font-bold text-gray-700">${name}</td>
+        <td class="p-4 text-center readonly-cell border-l">
+            <span id="${name}-temp" class="text-2xl font-bold text-red-500">--</span> °C
+        </td>
+        <td class="p-4 text-center readonly-cell border-l">
+            <span id="${name}-humi" class="text-xl font-bold text-blue-500">--</span> %
+        </td>
+        <td class="p-4 text-center text-sm text-gray-400 readonly-cell border-l" id="${name}-time">대기 중...</td>
+      `;
+      tableBody.appendChild(row);
+    });
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    async function fetchTuyaData() {
+      const statusBadge = document.getElementById('system-status');
+      try {
+        const response = await fetch('/.netlify/functions/app');
+        const data = await response.json();
+        
+        const now = new Date().toLocaleTimeString();
+        statusBadge.innerHTML = '🟢 실시간 연결 중';
+        statusBadge.className = 'bg-green-100 text-green-800 px-4 py-2 rounded-full font-semibold text-sm status-badge';
 
-    // 센서 로그 실시간 감시 함수
-    const monitorSensor = (barnId) => {
-      const sensorRef = collection(db, "sensor_logs");
-      // 최신 데이터 10개 정도를 가져와서 해당 돈사의 가장 최신 것만 필터링
-      onSnapshot(sensorRef, (snapshot) => {
-        let latestDoc = null;
-        let maxTime = 0;
+        data.forEach(sensor => {
+          const tempEl = document.getElementById(`${sensor.name}-temp`);
+          const humiEl = document.getElementById(`${sensor.name}-humi`);
+          const timeEl = document.getElementById(`${sensor.name}-time`);
 
-        snapshot.forEach(doc => {
-          const d = doc.data();
-          if (d.barnId === barnId && d.timestamp) {
-            const time = d.timestamp.toMillis();
-            if (time > maxTime) {
-              maxTime = time;
-              latestDoc = d;
+          if (sensor.temp != "0.0") {
+            if (tempEl) tempEl.innerText = sensor.temp;
+            if (humiEl) humiEl.innerText = sensor.humi;
+            if (timeEl) {
+              timeEl.innerText = now;
+              timeEl.className = "p-4 text-center text-sm text-green-600 font-medium readonly-cell border-l";
             }
           }
         });
+      } catch (error) {
+        statusBadge.innerHTML = '🔴 연결 지연 (재시도 중)';
+        statusBadge.className = 'bg-red-100 text-red-800 px-4 py-2 rounded-full font-semibold text-sm';
+      }
+    }
 
-        if (latestDoc) {
-          const tempEl = document.getElementById(`temp-${barnId}`);
-          const humiEl = document.getElementById(`humi-${barnId}`);
-          const updateEl = document.getElementById(`update-${barnId}`);
-
-          // 투야 유럽 서버 대응용 로직 (이름이 Temperature든 va_temperature든 상관없이 표시)
-          tempEl.innerText = latestDoc.insideTemp || latestDoc.Temperature || '--';
-          humiEl.innerText = latestDoc.insideHumidity || latestDoc.Humidity || '--';
-          updateEl.innerText = latestDoc.timestamp.toDate().toLocaleTimeString();
-          
-          // 갱신 효과
-          tempEl.parentElement.style.backgroundColor = '#ecfdf5';
-          setTimeout(() => tempEl.parentElement.style.backgroundColor = '', 500);
-        }
-      });
-    };
-
-    // 이유 1, 2배치 감시 시작
-    monitorSensor('barn_01');
-    monitorSensor('barn_02');
+    fetchTuyaData();
+    setInterval(fetchTuyaData, 60000); // 1분마다 자동 갱신
   </script>
 </body>
 </html>
