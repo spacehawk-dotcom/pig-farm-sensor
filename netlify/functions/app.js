@@ -2,6 +2,7 @@ const axios = require('axios');
 const crypto = require('crypto');
 const admin = require('firebase-admin');
 
+// 1. 파이어베이스 초기화 (가장 안전한 방식)
 if (!admin.apps.length) {
     admin.initializeApp({
         databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com" 
@@ -11,11 +12,10 @@ if (!admin.apps.length) {
 const db = admin.database();
 
 exports.handler = async (event, context) => {
-    const ACCESS_ID = 'vfdhuhsr8f4n53m7mcep'.trim();
-    const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797'.trim();
+    const ACCESS_ID = 'vfdhuhsr8f4n53m7mcep';
+    const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797';
     const BASE_URL = 'https://openapi.tuyaeu.com'; 
 
-    // 사장님이 주신 ID들로 꽉 채웠습니다!
     const devices = [
         { id: 'bf3a297e3c2c203b0dlq2t', name: '이유_1배치' },
         { id: 'bfd2815413e3900144gwjv', name: '이유_2배치' },
@@ -37,7 +37,11 @@ exports.handler = async (event, context) => {
         if (!tokenRes.data.success) throw new Error("토큰 실패: " + tokenRes.data.msg);
         const token = tokenRes.data.result.access_token;
 
-        const results = await Promise.all(devices.map(async (dev) => {
+        // 데이터를 앱 화면 구조에 맞게 재구성합니다.
+        const updateData = {};
+        const currentTime = new Date().toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
+
+        for (const dev of devices) {
             try {
                 const t2 = Date.now().toString();
                 const str2 = ACCESS_ID + token + t2;
@@ -57,25 +61,28 @@ exports.handler = async (event, context) => {
                 if (temp > 100) temp = temp / 10;
                 if (humi > 100) humi = humi / 10;
 
-                return { id: dev.id, name: dev.name, temp: temp.toFixed(1), humi: humi.toFixed(1) };
+                // 핵심: env.html이 읽을 수 있게 "이름"을 키값으로 저장합니다.
+                updateData[dev.name] = {
+                    temp: temp.toFixed(1),
+                    humi: humi.toFixed(0),
+                    timestamp: currentTime
+                };
             } catch (e) {
-                return { id: dev.id, name: dev.name, temp: "0.0", humi: "0" };
+                updateData[dev.name] = { temp: "0.0", humi: "0", timestamp: "연결실패" };
             }
-        }));
+        }
 
-        // 파이어베이스 실시간 데이터베이스에 저장
-        await db.ref('sensor_logs').set({
-            data: results,
-            lastUpdated: new Date().toLocaleString("ko-KR", {timeZone: "Asia/Seoul"})
-        });
+        // 2. 파이어베이스 실시간 창고에 덮어쓰기!
+        await db.ref('sensor_logs').set(updateData);
 
         return {
             statusCode: 200,
             headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify(results)
+            body: JSON.stringify({ success: true, time: currentTime })
         };
 
     } catch (error) {
+        console.error("Critical Error:", error.message);
         return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
     }
 };
