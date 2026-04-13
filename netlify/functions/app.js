@@ -1,47 +1,34 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const admin = require('firebase-admin');
+
+// [중요] 파이어베이스 초기화 (한 번만 실행되도록 설정)
+if (!admin.apps.length) {
+    admin.initializeApp({
+        // 사장님의 실시간 데이터베이스 주소를 여기에 꼭 넣어주세요!
+        databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com" 
+    });
+}
+
+const db = admin.database();
 
 exports.handler = async (event, context) => {
-    // 1. 아이디와 비번을 따옴표 안에 직접 입력 (공백 주의!)
     const ACCESS_ID = 'vfdhuhsr8f4n53m7mcep'.trim();
     const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797'.trim();
-    
-    // 2. 사장님이 확인하신 서부 유럽(Central Europe) 주소
     const BASE_URL = 'https://openapi.tuyaeu.com'; 
 
-    // 🚨 사장님! 아래 작은 따옴표('') 안에만 복사한 ID를 쏙 넣어주세요.
-    // 따옴표나 끝에 있는 쉼표(,)가 지워지면 다시 502 에러가 납니다!
     const devices = [
-        { id: '여기에_이유1_ID_입력', name: '이유_1배치' },
-        { id: 'bfd2815413e3900144gwjv', name: '이유_2배치' }, // 이건 잘 작동하는 ID
-        { id: '여기에_이유3_ID_입력', name: '이유_3배치' },
-        { id: '여기에_이유4_ID_입력', name: '이유_4배치' },
-        { id: '여기에_이유5_ID_입력', name: '이유_5배치' },
-        { id: '여기에_육성1_ID_입력', name: '육성_1배치' },
-        { id: '여기에_육성2_ID_입력', name: '육성_2배치' },
-        { id: '여기에_육성3_ID_입력', name: '육성_3배치' },
-        { id: '여기에_육성4_ID_입력', name: '육성_4배치' },
-        { id: '여기에_육성5_ID_입력', name: '육성_5배치' },
-        { id: '여기에_육성6_ID_입력', name: '육성_6배치' },
-        { id: '여기에_외부온도_ID_입력', name: '외부온도' }
+        { id: 'bfd2815413e3900144gwjv', name: '이유_2배치' },
+        // ... 사장님이 가지고 계신 다른 ID들도 여기에 추가하시면 됩니다.
     ];
 
     try {
-        if (!ACCESS_ID || !ACCESS_SECRET) {
-            throw new Error("넷리파이에 아이디/비밀번호가 없습니다.");
-        }
-
         const t = Date.now().toString();
         const str = ACCESS_ID + t;
         const sign = crypto.createHmac('sha256', ACCESS_SECRET).update(str).digest('hex').toUpperCase();
         
         const tokenRes = await axios.get(`${BASE_URL}/v1.0/token?grant_type=1`, {
-            headers: { 
-                client_id: ACCESS_ID, 
-                sign: sign, 
-                t: t,
-                sign_method: 'HMAC-SHA256'
-            }
+            headers: { client_id: ACCESS_ID, sign: sign, t: t, sign_method: 'HMAC-SHA256' }
         });
         
         if (!tokenRes.data.success) throw new Error("토큰 실패: " + tokenRes.data.msg);
@@ -49,26 +36,17 @@ exports.handler = async (event, context) => {
 
         const results = await Promise.all(devices.map(async (dev) => {
             try {
-                // ID가 한글이거나 이상하면 투야 서버에 물어보지 않고 바로 0도 처리 (에러 방지)
-                if (dev.id.includes('여기에_')) return { name: dev.name, temp: "0.0", humi: "0" };
-
                 const t2 = Date.now().toString();
                 const str2 = ACCESS_ID + token + t2;
                 const sign2 = crypto.createHmac('sha256', ACCESS_SECRET).update(str2).digest('hex').toUpperCase();
                 
                 const res = await axios.get(`${BASE_URL}/v1.0/devices/${dev.id}/status`, {
-                    headers: { 
-                        client_id: ACCESS_ID, 
-                        access_token: token, 
-                        sign: sign2, 
-                        t: t2,
-                        sign_method: 'HMAC-SHA256'
-                    }
+                    headers: { client_id: ACCESS_ID, access_token: token, sign: sign2, t: t2, sign_method: 'HMAC-SHA256' }
                 });
 
                 const status = res.data.result || [];
-                const tempObj = status.find(s => ['va_temperature', 'Temperature', 'temp_current'].includes(s.code));
-                const humiObj = status.find(s => ['va_humidity', 'Humidity', 'humidity_value'].includes(s.code));
+                const tempObj = status.find(s => ['va_temperature', 'temp_current'].includes(s.code));
+                const humiObj = status.find(s => ['va_humidity', 'humidity_value'].includes(s.code));
 
                 let temp = tempObj ? parseFloat(tempObj.value) : 0;
                 let humi = humiObj ? parseFloat(humiObj.value) : 0;
@@ -76,11 +54,18 @@ exports.handler = async (event, context) => {
                 if (temp > 100) temp = temp / 10;
                 if (humi > 100) humi = humi / 10;
 
-                return { name: dev.name, temp: temp.toFixed(1), humi: humi.toFixed(1) };
+                return { id: dev.id, name: dev.name, temp: temp.toFixed(1), humi: humi.toFixed(1) };
             } catch (e) {
-                return { name: dev.name, temp: "0.0", humi: "0" };
+                return { id: dev.id, name: dev.name, temp: "0.0", humi: "0" };
             }
         }));
+
+        // 🔥 [사장님, 이 부분이 핵심입니다!] 
+        // 가져온 데이터를 파이어베이스 '실시간 창고'의 sensor_logs 서랍에 집어넣습니다.
+        await db.ref('sensor_logs').set({
+            data: results,
+            lastUpdated: new Date().toLocaleString("ko-KR", {timeZone: "Asia/Seoul"})
+        });
 
         return {
             statusCode: 200,
