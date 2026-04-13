@@ -1,20 +1,8 @@
-const axios = require('axios');
-const crypto = require('crypto');
-const admin = require('firebase-admin');
-
-// 1. 파이어베이스 초기화 (가장 안전한 방식)
-if (!admin.apps.length) {
-    admin.initializeApp({
-        databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com" 
-    });
-}
-
-const db = admin.database();
+// 1. 최상단에 admin 설정 확인 (실시간 DB용)
+const db = admin.database(); 
 
 exports.handler = async (event, context) => {
-    const ACCESS_ID = 'vfdhuhsr8f4n53m7mcep';
-    const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797';
-    const BASE_URL = 'https://openapi.tuyaeu.com'; 
+    // ... (ACCESS_ID, ACCESS_SECRET 설정 부분은 그대로 두세요) ...
 
     const devices = [
         { id: 'bf3a297e3c2c203b0dlq2t', name: '이유_1배치' },
@@ -26,63 +14,51 @@ exports.handler = async (event, context) => {
     ];
 
     try {
-        const t = Date.now().toString();
-        const str = ACCESS_ID + t;
-        const sign = crypto.createHmac('sha256', ACCESS_SECRET).update(str).digest('hex').toUpperCase();
-        
-        const tokenRes = await axios.get(`${BASE_URL}/v1.0/token?grant_type=1`, {
-            headers: { client_id: ACCESS_ID, sign: sign, t: t, sign_method: 'HMAC-SHA256' }
-        });
-        
-        if (!tokenRes.data.success) throw new Error("토큰 실패: " + tokenRes.data.msg);
-        const token = tokenRes.data.result.access_token;
+        const results = {};
 
-        // 데이터를 앱 화면 구조에 맞게 재구성합니다.
-        const updateData = {};
-        const currentTime = new Date().toLocaleString("ko-KR", {timeZone: "Asia/Seoul"});
-
-        for (const dev of devices) {
+        // 모든 기기에서 온도/습도를 순서대로 가져옵니다.
+        for (const device of devices) {
             try {
-                const t2 = Date.now().toString();
-                const str2 = ACCESS_ID + token + t2;
-                const sign2 = crypto.createHmac('sha256', ACCESS_SECRET).update(str2).digest('hex').toUpperCase();
+                // 투야 API 호출 (헤더 생성 함수 getHeaders는 기존 것 사용)
+                const response = await axios.get(
+                    `${BASE_URL}/v1.0/devices/${device.id}/status`,
+                    { headers: getHeaders(`${BASE_URL}/v1.0/devices/${device.id}/status`) }
+                );
+
+                const status = response.data.result;
                 
-                const res = await axios.get(`${BASE_URL}/v1.0/devices/${dev.id}/status`, {
-                    headers: { client_id: ACCESS_ID, access_token: token, sign: sign2, t: t2, sign_method: 'HMAC-SHA256' }
-                });
+                // 투야 데이터에서 온도와 습도 값을 찾아냅니다.
+                const temp = status.find(s => s.code.includes('temp'))?.value / 10 || 0;
+                const humi = status.find(s => s.code.includes('humidity'))?.value || 0;
 
-                const status = res.data.result || [];
-                const tempObj = status.find(s => ['va_temperature', 'temp_current', 'Temperature'].includes(s.code));
-                const humiObj = status.find(s => ['va_humidity', 'humidity_value', 'Humidity'].includes(s.code));
-
-                let temp = tempObj ? parseFloat(tempObj.value) : 0;
-                let humi = humiObj ? parseFloat(humiObj.value) : 0;
-
-                if (temp > 100) temp = temp / 10;
-                if (humi > 100) humi = humi / 10;
-
-                // 핵심: env.html이 읽을 수 있게 "이름"을 키값으로 저장합니다.
-                updateData[dev.name] = {
-                    temp: temp.toFixed(1),
-                    humi: humi.toFixed(0),
-                    timestamp: currentTime
+                // 🌟 [핵심] env.html이 기다리는 구역 이름을 키값으로 설정!
+                results[device.name] = {
+                    temp: temp.toFixed(1), // "25.4" 형식
+                    humi: humi,            // "60" 형식
+                    timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
                 };
-            } catch (e) {
-                updateData[dev.name] = { temp: "0.0", humi: "0", timestamp: "연결실패" };
+
+            } catch (err) {
+                console.error(`${device.name} 가져오기 실패:`, err.message);
+                // 실패 시 앱 화면에 '연결실패'라고 빨간색으로 뜨게 합니다.
+                results[device.name] = {
+                    temp: "--",
+                    humi: "--",
+                    timestamp: "연결실패"
+                };
             }
         }
 
-        // 2. 파이어베이스 실시간 창고에 덮어쓰기!
-        await db.ref('sensor_logs').set(updateData);
-
-        return {
-            statusCode: 200,
-            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ success: true, time: currentTime })
+        // 2. 사장님의 실시간 창고(sensor_logs)에 통째로 덮어쓰기!
+        await db.ref('sensor_logs').set(results);
+        
+        return { 
+            statusCode: 200, 
+            body: JSON.stringify({ message: "성암농장 데이터 배달 완료!", data: results }) 
         };
 
     } catch (error) {
-        console.error("Critical Error:", error.message);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        console.error("전체 공정 에러:", error);
+        return { statusCode: 500, body: error.message };
     }
 };
