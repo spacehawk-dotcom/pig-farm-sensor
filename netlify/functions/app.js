@@ -2,10 +2,12 @@ const axios = require('axios');
 const crypto = require('crypto');
 
 exports.handler = async (event, context) => {
-    // 공백 자동 제거 기능 포함
-    const ACCESS_ID = (process.env.TUYA_ACCESS_ID || '').trim();
-    const ACCESS_SECRET = (process.env.TUYA_ACCESS_SECRET || '').trim();
-    const BASE_URL = 'https://openapi.tuyaeu.com';
+    // 1. 아이디와 비번을 따옴표 안에 직접 입력 (공백 주의!)
+    const ACCESS_ID = 'vfdhuhsr8f4n53m7mcep'.trim();
+    const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797'.trim();
+    
+    // 2. 사장님이 확인하신 서부 유럽(Central Europe) 주소
+    const BASE_URL = 'https://openapi.tuyaeu.com'; 
 
     // 🚨 사장님! 아래 작은 따옴표('') 안에만 복사한 ID를 쏙 넣어주세요.
     // 따옴표나 끝에 있는 쉼표(,)가 지워지면 다시 502 에러가 납니다!

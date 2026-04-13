@@ -105,7 +105,10 @@
         <section>
             <div class="flex justify-between items-end mb-3 px-1">
                 <h2 class="text-base font-black text-slate-800 flex items-center gap-2 w-full"><i data-lucide="truck" class="text-blue-500 w-5 h-5"></i> 출하 기록 및 예정 <span class="text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 hidden sm:inline">터치 시 상세 확인</span>
-                    <button onclick="window.openModal('expected_shipment_monthly')" class="ml-auto text-[11px] font-black bg-purple-50 text-purple-700 px-2 py-1 rounded-lg border border-purple-100 flex items-center gap-1 active:scale-95 transition-all"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> 출하예측</button>
+                    <div class="ml-auto flex gap-1">
+                        <button onclick="window.openModal('shipment_log_export')" class="text-[11px] font-black bg-blue-50 text-blue-700 px-2 py-1 rounded-lg border border-blue-100 flex items-center gap-1 active:scale-95 transition-all"><i data-lucide="download" class="w-3.5 h-3.5"></i> 출하기록</button>
+                        <button onclick="window.openModal('expected_shipment_monthly')" class="text-[11px] font-black bg-purple-50 text-purple-700 px-2 py-1 rounded-lg border border-purple-100 flex items-center gap-1 active:scale-95 transition-all"><i data-lucide="trending-up" class="w-3.5 h-3.5"></i> 출하예측</button>
+                    </div>
                 </h2>
             </div>
             <div id="recent-shipment-list" class="flex overflow-x-auto gap-3 pb-2 no-scrollbar"></div>
@@ -602,8 +605,8 @@
                 <input type="text" class="h-exp w-14 bg-slate-50 rounded py-1 px-1 text-[11px] font-bold shrink-0 text-center" value="${expDate}" placeholder="MM/DD">
                 <input type="text" class="h-farrow w-14 bg-slate-50 rounded py-1 px-1 text-[11px] font-bold shrink-0 text-center" value="${farrowDate}" placeholder="MM/DD">
                 <input type="number" class="h-born flex-1 min-w-0 bg-slate-50 rounded py-1 px-1 text-[11px] font-black text-center shrink-0" value="${born}" placeholder="포유">
-                <input type="number" class="h-weaned flex-1 min-w-0 bg-slate-50 rounded py-1 px-1 text-[11px] font-black text-center shrink-0" value="${weaned}" placeholder="이동">
-                <input type="number" class="h-move flex-1 min-w-0 bg-slate-50 rounded py-1 px-1 text-[11px] font-black text-center shrink-0" value="${move}" placeholder="이유">
+                <input type="text" class="h-weaned flex-1 min-w-0 bg-slate-50 rounded py-1 px-1 text-[11px] font-black text-center shrink-0" value="${weaned}" placeholder="이동">
+                <input type="text" class="h-move flex-1 min-w-0 bg-slate-50 rounded py-1 px-1 text-[11px] font-black text-center shrink-0" value="${move}" placeholder="이유">
                 <div class="w-6 flex justify-center shrink-0">
                     <button onclick="document.getElementById('${rowId}').remove()" class="text-rose-400 p-1">
                         <i data-lucide="x-circle" class="w-4 h-4"></i>
@@ -651,6 +654,84 @@
                 XLSX.writeFile(wb, `성암농장_리포트_${start}_to_${end}.xlsx`);
                 utils.showToast("엑셀 파일이 생성되었습니다.");
             } catch (e) { console.error("Excel Export Error:", e); utils.showToast("엑셀 생성 중 오류가 발생했습니다."); } finally { btn.disabled = false; btn.innerText = "리포트 생성 및 다운로드"; }
+        };
+
+        window.exportShipmentLogToExcel = () => {
+            try {
+                const start = document.getElementById('log-start').value;
+                const end = document.getElementById('log-end').value;
+
+                if (!state.shipments || state.shipments.length === 0) {
+                    utils.showToast("출하 기록이 없습니다.");
+                    return;
+                }
+
+                const filteredShipments = state.shipments.filter(r => r.date >= start && r.date <= end);
+
+                if (filteredShipments.length === 0) {
+                    utils.showToast("해당 기간에 출하 기록이 없습니다.");
+                    return;
+                }
+
+                const dateGroups = {};
+                filteredShipments.forEach(r => {
+                    if (!dateGroups[r.date]) dateGroups[r.date] = { date: r.date, totalCount: 0, totalAgeSum: 0, validRecordsCount: 0 };
+                    
+                    dateGroups[r.date].totalCount += (r.count || 0);
+
+                    let rDate = r.stockingDate || '';
+                    if(!rDate && r.batchId) {
+                        const b = state.gBatches.find(x => x.id === r.batchId);
+                        if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date;
+                    }
+                    if (rDate) {
+                        const age = utils.getDiffDays(rDate, r.date) + 20;
+                        dateGroups[r.date].totalAgeSum += age * (r.count || 0);
+                        dateGroups[r.date].validRecordsCount += (r.count || 0);
+                    }
+                });
+
+                const excelData = Object.values(dateGroups).sort((a,b) => String(b.date).localeCompare(String(a.date))).map(g => {
+                    const avgAge = g.validRecordsCount > 0 ? Math.round(g.totalAgeSum / g.validRecordsCount) : '-';
+                    const weight = state.shipmentSummaries[g.date]?.avgWeight || '-';
+                    const memo = state.shipmentSummaries[g.date]?.memo || '';
+                    return {
+                        '출하일': g.date,
+                        '총 출하두수': g.totalCount,
+                        '평균 일령': avgAge,
+                        '평균 체중(kg)': weight,
+                        '비고': memo
+                    };
+                });
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(excelData), "일별 출하요약");
+                
+                const detailData = filteredShipments.map(s => {
+                    let rDate = s.stockingDate || '';
+                    if(!rDate && s.batchId) {
+                        const b = state.gBatches.find(x => x.id === s.batchId);
+                        if(b) rDate = (b.penDates && b.penDates[s.penIndex]) || b.weaningDate || b.date;
+                    }
+                    const age = rDate ? utils.getDiffDays(rDate, s.date) + 20 : '-';
+                    return {
+                        '출하일': s.date,
+                        '배치': s.batchId === 8 ? '후보사' : s.batchId + '배치',
+                        '칸': (s.penIndex + 1) + '번',
+                        '두수': s.count,
+                        '일령': age
+                    };
+                }).sort((a,b) => String(b['출하일']).localeCompare(String(a['출하일'])));
+                
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailData), "출하상세내역");
+
+                XLSX.writeFile(wb, `출하기록_${start}_to_${end}.xlsx`);
+                utils.showToast("출하 기록 엑셀이 생성되었습니다.");
+                window.closeModal();
+            } catch(e) {
+                console.error("Shipment Excel Export Error:", e);
+                utils.showToast("엑셀 생성 중 오류가 발생했습니다.");
+            }
         };
 
         window.exportExpectedFarrowingToExcel = () => {
@@ -854,6 +935,36 @@
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="trending-up" class="text-purple-500"></i> 월별 출하 예측</div>`, 
                     html: html, 
+                    hideSave: true 
+                };
+            },
+            shipment_log_export: () => {
+                const today = utils.getTodayStr();
+                const oneMonthAgo = new Date(); 
+                oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+                const startStr = oneMonthAgo.toISOString().split('T')[0];
+                
+                return { 
+                    title: '<div class="flex items-center gap-2"><i data-lucide="truck" class="text-blue-500"></i> 출하 기록 다운로드</div>', 
+                    html: `
+                    <div class="space-y-5">
+                        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                            <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">출력 기간 설정</p>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] font-bold text-blue-500 pl-1">시작일</label>
+                                    <input type="date" id="log-start" value="${startStr}" class="bg-white border border-blue-200">
+                                </div>
+                                <div class="flex flex-col gap-1">
+                                    <label class="text-[9px] font-bold text-blue-500 pl-1">종료일</label>
+                                    <input type="date" id="log-end" value="${today}" class="bg-white border border-blue-200">
+                                </div>
+                            </div>
+                        </div>
+                        <button onclick="window.exportShipmentLogToExcel()" class="w-full py-5 bg-blue-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all">
+                            <i data-lucide="download" class="w-6 h-6"></i> 엑셀 파일 다운로드
+                        </button>
+                    </div>`, 
                     hideSave: true 
                 };
             },
@@ -1279,8 +1390,8 @@
                     expDate: row.querySelector('.h-exp').value,
                     date: row.querySelector('.h-farrow').value, 
                     born: parseInt(row.querySelector('.h-born').value) || 0, 
-                    weaned: parseInt(row.querySelector('.h-weaned').value) || 0, 
-                    move: parseInt(row.querySelector('.h-move').value) || 0 
+                    weaned: row.querySelector('.h-weaned').value, 
+                    move: row.querySelector('.h-move').value 
                 })).sort((a, b) => a.parity - b.parity);
                 const data = { sowNo: document.getElementById('s-no').value, parity: parseInt(document.getElementById('s-parity').value)||0, currentStatus: document.getElementById('s-status').value, matingDate: document.getElementById('s-mating').value, history };
                 if (id === 'new') await db.collection(COLS.SOWS).add(data); else await db.doc(`${COLS.SOWS}/${id}`).update(data);
