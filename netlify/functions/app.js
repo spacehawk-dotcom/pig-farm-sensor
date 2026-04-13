@@ -2,10 +2,8 @@ const axios = require('axios');
 const crypto = require('crypto');
 const admin = require('firebase-admin');
 
-// [중요] 파이어베이스 초기화 (한 번만 실행되도록 설정)
 if (!admin.apps.length) {
     admin.initializeApp({
-        // 사장님의 실시간 데이터베이스 주소를 여기에 꼭 넣어주세요!
         databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com" 
     });
 }
@@ -17,9 +15,14 @@ exports.handler = async (event, context) => {
     const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797'.trim();
     const BASE_URL = 'https://openapi.tuyaeu.com'; 
 
+    // 사장님이 주신 ID들로 꽉 채웠습니다!
     const devices = [
+        { id: 'bf3a297e3c2c203b0dlq2t', name: '이유_1배치' },
         { id: 'bfd2815413e3900144gwjv', name: '이유_2배치' },
-        // ... 사장님이 가지고 계신 다른 ID들도 여기에 추가하시면 됩니다.
+        { id: 'bf93b8a56123596b3cqm5q', name: '이유_3배치' },
+        { id: 'bfc20cd2af7ace2e1ashgo', name: '이유_4배치' },
+        { id: 'bf9e07f0335ffd36cbakuf', name: '이유_5배치' },
+        { id: 'bf4eaae9ac91ea9819nnva', name: '육성_1배치' }
     ];
 
     try {
@@ -45,8 +48,8 @@ exports.handler = async (event, context) => {
                 });
 
                 const status = res.data.result || [];
-                const tempObj = status.find(s => ['va_temperature', 'temp_current'].includes(s.code));
-                const humiObj = status.find(s => ['va_humidity', 'humidity_value'].includes(s.code));
+                const tempObj = status.find(s => ['va_temperature', 'temp_current', 'Temperature'].includes(s.code));
+                const humiObj = status.find(s => ['va_humidity', 'humidity_value', 'Humidity'].includes(s.code));
 
                 let temp = tempObj ? parseFloat(tempObj.value) : 0;
                 let humi = humiObj ? parseFloat(humiObj.value) : 0;
@@ -60,8 +63,7 @@ exports.handler = async (event, context) => {
             }
         }));
 
-        // 🔥 [사장님, 이 부분이 핵심입니다!] 
-        // 가져온 데이터를 파이어베이스 '실시간 창고'의 sensor_logs 서랍에 집어넣습니다.
+        // 파이어베이스 실시간 데이터베이스에 저장
         await db.ref('sensor_logs').set({
             data: results,
             lastUpdated: new Date().toLocaleString("ko-KR", {timeZone: "Asia/Seoul"})
