@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>성암농장 모돈 관리</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  
+  <!-- Babel (브라우저에서 JSX 문법 실시간 해석) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Firebase SDK (호환 버전: 단일 HTML 환경용) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+    body { font-family: 'Noto Sans KR', sans-serif; -webkit-tap-highlight-color: transparent; }
+    /* 슬라이드 애니메이션 */
+    @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+  <!-- React 앱이 렌더링될 공간 -->
+  <div id="root"></div>
+
+  <!-- 여기서부터 React 코드를 브라우저가 실시간으로 해석합니다 -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- 에러를 유발했던 외부 아이콘 대신, 안정적인 내장 SVG 아이콘 컴포넌트로 대체 ---
+    const Search = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
+    const Plus = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
+    const ArrowLeft = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>;
+    const Trash2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+    const Activity = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
+    const Baby = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M8 11.5h.01"/><path d="M16 11.5h.01"/><path d="M9 15.5a4 4 0 0 0 6 0"/></svg>;
+    const FileText = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>;
+    const ChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6"/></svg>;
+    const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+
+    // --- 성암농장 실제 Firebase Configuration ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
+      authDomain: "sungamfarm.firebaseapp.com",
+      projectId: "sungamfarm",
+      storageBucket: "sungamfarm.firebasestorage.app",
+      messagingSenderId: "811107235779",
+      appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
+    };
+
+    // Firebase 초기화 (단일 HTML용 Compat 버전)
+    if (!firebase.apps.length) {
+      firebase.initializeApp(firebaseConfig);
+    }
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+    const SOWS_COLLECTION_PATH = 'farms/sungamfarm/sows';
+
+    function App() {
+      const [user, setUser] = useState(null);
+      const [sows, setSows] = useState([]);
+      const [loading, setLoading] = useState(true);
+      
+      // UI 상태 관리
+      const [searchQuery, setSearchQuery] = useState('');
+      const [selectedSowId, setSelectedSowId] = useState(null);
+      const [showAddSow, setShowAddSow] = useState(false);
+      const [showAddRecord, setShowAddRecord] = useState(false);
+      const [showSowListModal, setShowSowListModal] = useState(false);
+      const [listFilter, setListFilter] = useState(null); // { type: 'status' | 'parity' | 'expectedMonth', value: any }
+
+      // 폼 상태
+      const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
+      const [newRecord, setNewRecord] = useState({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
+
+      // --- Auth & Data Fetching ---
+      useEffect(() => {
+        auth.signInAnonymously().catch(err => console.error("Auth error:", err));
+        
+        const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+          setUser(currentUser);
+          if (!currentUser) setLoading(false);
+        });
+        
+        return () => unsubscribeAuth();
+      }, []);
+
+      useEffect(() => {
+        if (!user) return;
+
+        const unsubSows = db.collection(SOWS_COLLECTION_PATH).onSnapshot(
+          (snapshot) => {
+            const sowsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            sowsData.sort((a, b) => String(a.sowNo || '').localeCompare(String(b.sowNo || '')));
+            setSows(sowsData);
+            setLoading(false);
+          },
+          (error) => {
+            console.error("Error fetching sows:", error);
+            setLoading(false);
+          }
+        );
+
+        return () => unsubSows();
+      }, [user]);
+
+      // 헬퍼: 예정일 계산
+      const getExpectedFarrow = (matingDate) => {
+        if (!matingDate) return '';
+        const d = new Date(matingDate);
+        if (isNaN(d.getTime())) return '';
+        d.setDate(d.getDate() + 115);
+        return d.toISOString().split('T')[0];
+      };
+
+      // --- Data Processing ---
+      const filteredSows = useMemo(() => {
+        let result = sows;
+
+        // 1. 필터 적용
+        if (listFilter) {
+          if (listFilter.type === 'status') {
+            result = result.filter(sow => (sow.currentStatus || '이유') === listFilter.value);
+          } else if (listFilter.type === 'parity') {
+            result = result.filter(sow => (Number(sow.parity) || 0) === Number(listFilter.value));
+          } else if (listFilter.type === 'expectedMonth') {
+            result = result.filter(sow => {
+              if (!sow.matingDate || sow.currentStatus === '포유' || sow.currentStatus === '재발') return false;
+              const expDateStr = getExpectedFarrow(sow.matingDate);
+              return expDateStr && expDateStr.substring(0, 7) === listFilter.value;
+            });
+          }
+        }
+
+        // 2. 검색어 적용
+        if (searchQuery) {
+          result = result.filter(sow => 
+            String(sow.sowNo).toLowerCase().includes(searchQuery.toLowerCase())
+          );
+        }
+
+        return result;
+      }, [sows, searchQuery, listFilter]);
+
+      const currentSow = useMemo(() => {
+        return sows.find(s => s.id === selectedSowId) || null;
+      }, [sows, selectedSowId]);
+
+      // 대시보드 통계 계산
+      const dashboardStats = useMemo(() => {
+        const stats = {
+          total: sows.length,
+          status: { '이유': 0, '임신': 0, '포유': 0, '재발': 0 },
+          parity: {},
+          monthlyFarrowing: {},
+          yearlyWeaned: 0
+        };
+        
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+        
+        sows.forEach(sow => {
+          const status = sow.currentStatus || '이유';
+          if (stats.status[status] !== undefined) stats.status[status]++;
+          
+          const p = Number(sow.parity) || 0;
+          if (stats.parity[p] !== undefined) stats.parity[p]++;
+          else stats.parity[p] = 1;
+
+          if (sow.matingDate && sow.currentStatus !== '포유' && sow.currentStatus !== '재발') {
+            const expDateStr = getExpectedFarrow(sow.matingDate);
+            if (expDateStr) {
+              const ym = expDateStr.substring(0, 7);
+              stats.monthlyFarrowing[ym] = (stats.monthlyFarrowing[ym] || 0) + 1;
+            }
+          }
+          
+          if (sow.history && sow.history.length > 0) {
+            sow.history.forEach(record => {
+              if (record.date && record.date >= oneYearAgoStr) {
+                stats.yearlyWeaned += Number(record.weaned || 0);
+              }
+            });
+          }
+        });
+
+        stats.psy = stats.total > 0 ? (stats.yearlyWeaned / stats.total).toFixed(1) : "0.0";
+        stats.msy = stats.total > 0 ? (parseFloat(stats.psy) * 0.95).toFixed(1) : "0.0";
+
+        return stats;
+      }, [sows]);
+
+      const sowStats = useMemo(() => {
+        if (!currentSow || !currentSow.history || currentSow.history.length === 0) {
+          return { totalLitters: 0, avgBorn: 0, avgWeaned: 0 };
+        }
+        
+        const history = currentSow.history;
+        const totalLitters = history.length;
+        const totalBorn = history.reduce((sum, r) => sum + Number(r.born || 0), 0);
+        const totalWeaned = history.reduce((sum, r) => sum + Number(r.weaned || 0), 0);
+        
+        return {
+          totalLitters,
+          avgBorn: (totalBorn / totalLitters).toFixed(1),
+          avgWeaned: (totalWeaned / totalLitters).toFixed(1)
+        };
+      }, [currentSow]);
+
+      // --- Handlers ---
+      const handleAddSow = async (e) => {
+        e.preventDefault();
+        if (!user || !newSow.sowNo) return;
+        try {
+          await db.collection(SOWS_COLLECTION_PATH).add({
+            sowNo: newSow.sowNo,
+            parity: Number(newSow.parity) || 0,
+            currentStatus: newSow.currentStatus || '이유',
+            matingDate: '',
+            history: []
+          });
+          setNewSow({ sowNo: '', parity: 0, currentStatus: '이유' });
+          setShowAddSow(false);
+        } catch (err) {
+          console.error("Error adding sow:", err);
+        }
+      };
+
+      const handleDeleteSow = async (id) => {
+        if (!user || !window.confirm("정말로 이 모돈과 모든 기록을 삭제하시겠습니까?")) return;
+        try {
+          await db.collection(SOWS_COLLECTION_PATH).doc(id).delete();
+          if (selectedSowId === id) setSelectedSowId(null);
+        } catch (err) {
+          console.error("Error deleting sow:", err);
+        }
+      };
+
+      const handleUpdateStatus = async (field, value) => {
+        if (!user || !currentSow) return;
+        try {
+          await db.collection(SOWS_COLLECTION_PATH).doc(currentSow.id).update({
+            [field]: value
+          });
+        } catch (err) {
+          console.error(`Error updating ${field}:`, err);
+        }
+      };
+
+      const handleAddRecord = async (e) => {
+        e.preventDefault();
+        if (!user || !currentSow) return;
+        try {
+          const newHistoryItem = {
+            parity: Number(newRecord.parity) || 0,
+            date: newRecord.date || '',
+            expDate: newRecord.expDate || '',
+            born: Number(newRecord.born) || 0,
+            weaned: Number(newRecord.weaned) || 0,
+            move: Number(newRecord.move) || 0
+          };
+          
+          const updatedHistory = [...(currentSow.history || []), newHistoryItem]
+            .sort((a, b) => b.parity - a.parity);
+
+          await db.collection(SOWS_COLLECTION_PATH).doc(currentSow.id).update({
+            history: updatedHistory,
+            parity: Math.max(currentSow.parity, newHistoryItem.parity)
+          });
+          
+          setNewRecord({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
+          setShowAddRecord(false);
+        } catch (err) {
+          console.error("Error adding record:", err);
+        }
+      };
+
+      const handleDeleteRecord = async (indexToRemove) => {
+        if (!user || !currentSow || !window.confirm("이 기록을 삭제하시겠습니까?")) return;
+        try {
+          const updatedHistory = currentSow.history.filter((_, idx) => idx !== indexToRemove);
+          await db.collection(SOWS_COLLECTION_PATH).doc(currentSow.id).update({
+            history: updatedHistory
+          });
+        } catch (err) {
+          console.error("Error deleting record:", err);
+        }
+      };
+
+      const openFilteredList = (type, value) => {
+        setListFilter({ type, value });
+        setSearchQuery('');
+        setShowSowListModal(true);
+      };
+
+      const openAllList = () => {
+        setListFilter(null);
+        setSearchQuery('');
+        setShowSowListModal(true);
+      };
+
+      const getStatusColor = (status) => {
+        switch(status) {
+          case '포유': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+          case '임신': return 'text-blue-600 bg-blue-50 border-blue-200';
+          case '재발': return 'text-rose-600 bg-rose-50 border-rose-200';
+          default: return 'text-slate-600 bg-slate-100 border-slate-200';
+        }
+      };
+
+      // --- Renderers ---
+      if (loading) {
+        return <div className="flex items-center justify-center h-screen bg-slate-50"><p className="text-lg font-bold text-slate-500 animate-pulse">농장 데이터베이스 연결 중...</p></div>;
+      }
+
+      // --- View 2: 모돈 상세 및 성적 뷰 ---
+      if (currentSow) {
+        const historyList = currentSow.history || [];
+        
+        return (
+          <div className="min-h-screen bg-slate-50 pb-20 md:pb-10 font-sans">
+            <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm flex items-center justify-between">
+              <button onClick={() => setSelectedSowId(null)} className="flex items-center text-slate-500 hover:text-slate-800 transition p-2 bg-slate-100 rounded-lg">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div className="flex flex-col items-center">
+                <h1 className="text-xl font-black text-slate-800 tracking-tight">No. {currentSow.sowNo}</h1>
+                <span className="text-xs font-bold text-slate-400">{currentSow.parity}산</span>
+              </div>
+              <button onClick={() => handleDeleteSow(currentSow.id)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition" title="모돈 삭제">
+                <Trash2 className="w-5 h-5" />
+              </button>
+            </header>
+
+            <main className="max-w-3xl mx-auto p-4 space-y-5">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-slate-50 p-3 rounded-xl">
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">현재 상태</label>
+                    <select 
+                      value={currentSow.currentStatus || '이유'} 
+                      onChange={(e) => handleUpdateStatus('currentStatus', e.target.value)}
+                      className={`w-full bg-transparent font-black text-sm outline-none ${getStatusColor(currentSow.currentStatus).split(' ')[0]}`}
+                    >
+                      <option value="이유">이유</option>
+                      <option value="임신">임신</option>
+                      <option value="포유">포유</option>
+                      <option value="재발">재발</option>
+                    </select>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-xl">
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">현재 산차</label>
+                    <div className="flex items-center">
+                      <input 
+                        type="number" 
+                        value={currentSow.parity || 0} 
+                        onChange={(e) => handleUpdateStatus('parity', Number(e.target.value))}
+                        className="w-full bg-transparent font-black text-slate-800 text-sm outline-none"
+                      />
+                      <span className="text-xs font-bold text-slate-400 ml-1">산</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-rose-50 p-3 rounded-xl border border-rose-100">
+                    <label className="text-[10px] font-bold text-rose-600 block mb-1">최근 종부일 (교배)</label>
+                    <input 
+                      type="date" 
+                      value={currentSow.matingDate || ''} 
+                      onChange={(e) => handleUpdateStatus('matingDate', e.target.value)}
+                      className="w-full bg-transparent font-black text-rose-700 text-sm outline-none" 
+                    />
+                  </div>
+                  <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center">
+                    <label className="text-[10px] font-bold text-rose-600 block mb-1">분만 예정일</label>
+                    <span className="font-black text-rose-700 text-sm">
+                      {currentSow.matingDate ? getExpectedFarrow(currentSow.matingDate) : '미입력'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-bold text-slate-500 mb-0.5">총 분만</span>
+                  <p className="text-xl font-black text-slate-800">{sowStats.totalLitters}<span className="text-xs font-bold ml-0.5">회</span></p>
+                </div>
+                <div className="bg-white p-3 rounded-2xl border border-emerald-100 text-center flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-bold text-emerald-600 mb-0.5">평균 산자수</span>
+                  <p className="text-xl font-black text-emerald-700">{sowStats.avgBorn}<span className="text-xs font-bold ml-0.5">두</span></p>
+                </div>
+                <div className="bg-white p-3 rounded-2xl border border-blue-100 text-center flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-bold text-blue-600 mb-0.5">평균 이유수</span>
+                  <p className="text-xl font-black text-blue-700">{sowStats.avgWeaned}<span className="text-xs font-bold ml-0.5">두</span></p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="flex justify-between items-center p-4 border-b border-slate-100">
+                  <h2 className="text-sm font-black text-slate-800 leading-none">생산 기록</h2>
+                  <button onClick={() => setShowAddRecord(true)} className="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 active:scale-95 transition">
+                    <Plus className="w-3 h-3" /> 추가
+                  </button>
+                </div>
+
+                {historyList.length === 0 ? (
+                  <div className="text-center p-10 bg-slate-50">
+                    <p className="text-slate-400 text-xs font-bold">등록된 번식 기록이 없습니다.</p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-50">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-500 text-center">
+                      <span className="w-10">산차</span>
+                      <span className="flex-1">분만일</span>
+                      <span className="w-12">산자</span>
+                      <span className="w-12">이유</span>
+                      <span className="w-12">이동</span>
+                      <span className="w-6"></span>
+                    </div>
+                    {historyList.map((record, idx) => (
+                      <div key={idx} className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-slate-800 text-center hover:bg-slate-50 transition">
+                        <span className="w-10 bg-slate-100 py-1 rounded text-slate-600">{record.parity}산</span>
+                        <span className="flex-1 text-[13px]">{record.date || record.expDate || '-'}</span>
+                        <span className="w-12 text-emerald-600">{record.born || 0}</span>
+                        <span className="w-12 text-blue-600">{record.weaned || 0}</span>
+                        <span className="w-12 text-slate-500">{record.move || 0}</span>
+                        <button onClick={() => handleDeleteRecord(idx)} className="w-6 flex justify-center text-rose-300 hover:text-rose-500 transition">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </main>
+
+            {showAddRecord && (
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+                <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-black text-slate-800">생산 기록 추가</h3>
+                    <button onClick={() => setShowAddRecord(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><Plus className="w-5 h-5 rotate-45" /></button>
+                  </div>
+                  <form onSubmit={handleAddRecord} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">산차</label>
+                        <input type="number" required value={newRecord.parity} onChange={e => setNewRecord({...newRecord, parity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" placeholder={`예: ${Number(currentSow.parity) + 1}`} />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">분만일</label>
+                        <input type="date" value={newRecord.date} onChange={e => setNewRecord({...newRecord, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-emerald-600 block mb-1">산자수</label>
+                        <input type="number" value={newRecord.born} onChange={e => setNewRecord({...newRecord, born: e.target.value})} className="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm font-black text-emerald-700 outline-none" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-blue-600 block mb-1">이유두수</label>
+                        <input type="number" value={newRecord.weaned} onChange={e => setNewRecord({...newRecord, weaned: e.target.value})} className="w-full bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm font-black text-blue-700 outline-none" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">이동/도태</label>
+                        <input type="number" value={newRecord.move} onChange={e => setNewRecord({...newRecord, move: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" placeholder="0" />
+                      </div>
+                    </div>
+                    <button type="submit" className="w-full mt-4 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg">저장하기</button>
+                  </form>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+
+      // --- View 1: 메인 대시보드 뷰 ---
+      return (
+        <div className="min-h-screen bg-slate-50 pb-24 font-sans">
+          <header className="bg-white border-b border-slate-200 sticky top-0 z-10 p-4 shadow-sm">
+            <div className="max-w-3xl mx-auto flex justify-between items-center">
+              <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center">
+                <Baby className="w-6 h-6 mr-2 text-rose-500" /> 모돈 관리 <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold">LIVE</span>
+              </h1>
+              <button onClick={openAllList} className="bg-slate-800 text-white px-3 py-1.5 rounded-lg shadow-sm text-xs font-bold flex items-center gap-1 active:scale-95 transition">
+                <Search className="w-3.5 h-3.5" /> 검색/목록
+              </button>
+            </div>
+          </header>
+
+          <main className="max-w-3xl mx-auto p-4">
+            {sows.length > 0 ? (
+              <div className="mb-6 space-y-5" style={{ animation: "slideUp 0.3s ease-out" }}>
+                
+                {/* 핵심 생산 지표 */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="col-span-2 bg-slate-800 text-white p-4 rounded-2xl flex justify-between items-center shadow-md">
+                    <span className="text-sm font-bold text-slate-300">전체 사육 두수</span>
+                    <span className="text-3xl font-black">{dashboardStats.total}<span className="text-base ml-1 font-bold">두</span></span>
+                  </div>
+                  <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold text-indigo-200">최근 1년 PSY</span>
+                      <Activity className="w-4 h-4 text-indigo-300 opacity-50" />
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{dashboardStats.psy}</span>
+                      <span className="text-sm font-bold ml-1 text-indigo-100">두</span>
+                    </div>
+                  </div>
+                  <div className="bg-gradient-to-br from-violet-500 to-violet-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[11px] font-bold text-violet-200">예상 MSY <span className="font-normal opacity-70">(95%)</span></span>
+                      <Activity className="w-4 h-4 text-violet-300 opacity-50" />
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{dashboardStats.msy}</span>
+                      <span className="text-sm font-bold ml-1 text-violet-100">두</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 상태별 현황 (클릭 시 필터) */}
+                <div className="grid grid-cols-4 gap-2">
+                  <div onClick={() => openFilteredList('status', '이유')} className="bg-slate-200/60 p-3 rounded-2xl border border-slate-200 text-center flex flex-col justify-center cursor-pointer hover:border-slate-400 active:scale-95 transition-all">
+                    <span className="text-[11px] font-bold text-slate-500 mb-1">이유/대기</span>
+                    <span className="text-xl font-black text-slate-700">{dashboardStats.status['이유']}</span>
+                  </div>
+                  <div onClick={() => openFilteredList('status', '임신')} className="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex flex-col justify-center cursor-pointer hover:border-blue-300 active:scale-95 transition-all">
+                    <span className="text-[11px] font-bold text-blue-600 mb-1">임신</span>
+                    <span className="text-xl font-black text-blue-700">{dashboardStats.status['임신']}</span>
+                  </div>
+                  <div onClick={() => openFilteredList('status', '포유')} className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 text-center flex flex-col justify-center cursor-pointer hover:border-emerald-300 active:scale-95 transition-all">
+                    <span className="text-[11px] font-bold text-emerald-600 mb-1">포유</span>
+                    <span className="text-xl font-black text-emerald-700">{dashboardStats.status['포유']}</span>
+                  </div>
+                  <div onClick={() => openFilteredList('status', '재발')} className="bg-rose-50 p-3 rounded-2xl border border-rose-100 text-center flex flex-col justify-center cursor-pointer hover:border-rose-300 active:scale-95 transition-all">
+                    <span className="text-[11px] font-bold text-rose-600 mb-1">재발</span>
+                    <span className="text-xl font-black text-rose-700">{dashboardStats.status['재발']}</span>
+                  </div>
+                </div>
+
+                {/* 산차별 현황 (클릭 시 필터) */}
+                <div>
+                  <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
+                    산차별 현황 <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded ml-1 font-bold">가로로 스크롤</span>
+                  </h3>
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                    {Object.keys(dashboardStats.parity).sort((a,b) => Number(a) - Number(b)).map(p => (
+                      <div key={p} onClick={() => openFilteredList('parity', Number(p))} className="min-w-[64px] bg-white border border-slate-200 rounded-xl p-3 flex flex-col items-center shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 active:scale-95 transition-all">
+                        <span className="text-[10px] font-bold text-slate-400 mb-0.5">{p}산</span>
+                        <span className="text-lg font-black text-slate-800">{dashboardStats.parity[p]}<span className="text-[10px] font-bold ml-0.5">두</span></span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 월별 분만 예정 현황 (클릭 시 필터) */}
+                <div>
+                  <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
+                    월별 분만 예정 복수 <span className="text-[9px] bg-rose-50 text-rose-600 border border-rose-100 px-1.5 py-0.5 rounded ml-1 font-bold">교배일 기준</span>
+                  </h3>
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                    {Object.keys(dashboardStats.monthlyFarrowing).length === 0 ? (
+                      <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
+                        등록된 교배 일정(분만 예정)이 없습니다.
+                      </div>
+                    ) : (
+                      Object.keys(dashboardStats.monthlyFarrowing).sort().map(ym => {
+                        const [yyyy, mm] = ym.split('-');
+                        return (
+                          <div key={ym} onClick={() => openFilteredList('expectedMonth', ym)} className="min-w-[90px] bg-white border border-rose-100 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm snap-start shrink-0 cursor-pointer hover:border-rose-300 active:scale-95 transition-all">
+                            <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div>
+                            <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">{yyyy}년 {parseInt(mm)}월</span>
+                            <div className="flex items-baseline pl-1">
+                              <span className="text-2xl font-black text-rose-600">{dashboardStats.monthlyFarrowing[ym]}</span>
+                              <span className="text-[10px] font-bold ml-0.5 text-rose-400">복</span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* 전체 리스트 보기 버튼 */}
+                <button onClick={openAllList} className="w-full bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex justify-between items-center font-black active:scale-95 transition-transform mt-2">
+                  <div className="flex items-center">
+                    <FileText className="w-5 h-5 mr-2 text-blue-500" />
+                    전체 개체 리스트 보기
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-slate-100 text-slate-500 px-2 py-1 rounded text-xs">{sows.length}두</span>
+                    <ChevronRight className="w-5 h-5 text-slate-400" />
+                  </div>
+                </button>
+              </div>
+            ) : (
+              <div className="text-center py-20">
+                <div className="bg-slate-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Baby className="w-8 h-8 text-slate-400" />
+                </div>
+                <h3 className="text-sm font-black text-slate-600 mb-1">데이터베이스가 비어 있습니다.</h3>
+                <p className="text-xs text-slate-400">우측 하단의 + 버튼을 눌러 모돈을 등록하세요.</p>
+              </div>
+            )}
+          </main>
+
+          {/* --- 전체/필터 개체 리스트 팝업 (모달) --- */}
+          {showSowListModal && (
+            <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col" style={{ animation: "slideUp 0.2s ease-out" }}>
+              <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm flex items-center gap-3">
+                <button onClick={() => { setShowSowListModal(false); setListFilter(null); }} className="p-2 bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition">
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                <div className="relative flex-1">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Search className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="개체 번호 검색..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
+                  />
+                </div>
+              </header>
+
+              <div className="flex-1 overflow-y-auto p-4 max-w-3xl mx-auto w-full pb-24">
+                <div className="flex justify-between items-end mb-3 px-1 border-b border-slate-200 pb-2">
+                  <div className="flex flex-col">
+                    <h3 className="text-sm font-black text-slate-800">
+                      {searchQuery ? '검색 결과' : listFilter ? '분류된 개체 리스트' : '전체 개체 리스트'}
+                    </h3>
+                    {listFilter && (
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-1 w-max border border-blue-100">
+                        {listFilter.type === 'status' ? `${listFilter.value} 상태` : 
+                         listFilter.type === 'parity' ? `${listFilter.value}산` :
+                         `${listFilter.value.split('-')[0]}년 ${parseInt(listFilter.value.split('-')[1])}월 분만 예정`}
+                        <button onClick={(e) => { e.stopPropagation(); setListFilter(null); }} className="hover:text-rose-500 transition-colors bg-blue-100 rounded-full p-0.5 ml-1">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-xs font-bold text-blue-600">{filteredSows.length}두</span>
+                </div>
+
+                {filteredSows.length === 0 ? (
+                  <div className="text-center py-20">
+                    <div className="bg-slate-200 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Baby className="w-8 h-8 text-slate-400" />
+                    </div>
+                    <h3 className="text-sm font-black text-slate-600 mb-1">조건에 맞는 모돈이 없습니다.</h3>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                    {filteredSows.map(sow => {
+                      const statusClass = getStatusColor(sow.currentStatus);
+                      return (
+                        <div 
+                          key={sow.id} 
+                          onClick={() => {
+                            setSelectedSowId(sow.id);
+                            setShowSowListModal(false);
+                          }}
+                          className="bg-white p-3 rounded-2xl border border-slate-100 hover:border-blue-300 shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden"
+                        >
+                          <div className="flex flex-col items-center gap-0.5 mb-3 mt-2">
+                            <span className="text-2xl font-black text-slate-800 leading-none tracking-tighter">{sow.sowNo}</span>
+                            <span className="text-xs font-bold text-slate-400 leading-none">{sow.parity}산</span>
+                          </div>
+                          <span className={`text-[13px] font-black w-full text-center py-1.5 rounded-xl border ${statusClass} leading-none`}>
+                            {sow.currentStatus || '이유'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 새 모돈 등록 플로팅 버튼 */}
+          <button 
+            onClick={() => { setShowSowListModal(false); setShowAddSow(true); }}
+            className="fixed bottom-6 right-6 bg-slate-800 text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-transform z-[60]"
+          >
+            <Plus className="w-6 h-6" />
+          </button>
+
+          {/* 새 모돈 등록 모달 */}
+          {showAddSow && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-black text-slate-800">새 모돈 등록</h3>
+                  <button onClick={() => setShowAddSow(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><Plus className="w-5 h-5 rotate-45" /></button>
+                </div>
+                <form onSubmit={handleAddSow} className="space-y-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">개체 관리 번호</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={newSow.sowNo} 
+                      onChange={e => setNewSow({...newSow, sowNo: e.target.value})} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" 
+                      placeholder="예: 23-11" 
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">현재 산차</label>
+                      <input 
+                        type="number" 
+                        value={newSow.parity} 
+                        onChange={e => setNewSow({...newSow, parity: e.target.value})} 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-500 block mb-1">초기 상태</label>
+                      <select 
+                        value={newSow.currentStatus} 
+                        onChange={e => setNewSow({...newSow, currentStatus: e.target.value})} 
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400"
+                      >
+                        <option value="이유">이유</option>
+                        <option value="임신">임신</option>
+                        <option value="포유">포유</option>
+                        <option value="재발">재발</option>
+                      </select>
+                    </div>
+                  </div>
+                  <button type="submit" className="w-full mt-4 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg">등록하기</button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
