@@ -4,8 +4,8 @@ const crypto = require('crypto');
 const ACCESS_ID = 'vfdhuhsr8f4n53m7mcep';
 const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797';
 
-// 🌟 한국 농장은 대부분 US 서버를 사용합니다. (이전 eu 서버에서 us로 변경했습니다)
-const BASE_URL = 'https://openapi.tuyaus.com'; 
+// 🌟 범인은 이 줄이었습니다! 사장님이 원래 개설하셨던 EU(유럽) 서버로 완벽 복구했습니다.
+const BASE_URL = 'https://openapi.tuyaeu.com'; 
 
 // [1단계] 투야 임시 출입증(토큰) 발급받기
 async function getTuyaToken() {
@@ -54,11 +54,9 @@ exports.handler = async (event, context) => {
     ];
 
     try {
-        // 출입증 발급 시작!
         const token = await getTuyaToken(); 
         const results = {};
 
-        // 6개 구역 돌면서 온도/습도 측정
         for (const device of devices) {
             try {
                 const status = await getDeviceStatus(device.id, token);
@@ -76,7 +74,6 @@ exports.handler = async (event, context) => {
             }
         }
 
-        // 파이어베이스 창고에 최종 저장
         const firebaseURL = "https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json";
         await axios.put(firebaseURL, results);
         
