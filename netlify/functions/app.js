@@ -1,14 +1,5 @@
 const axios = require('axios');
 const crypto = require('crypto');
-const admin = require('firebase-admin');
-
-// 파이어베이스 초기화 (가장 안전한 방식)
-if (!admin.apps.length) {
-    admin.initializeApp({
-        databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com"
-    });
-}
-const db = admin.database();
 
 // 투야 API 헤더 생성 함수
 function getHeaders(url) {
@@ -65,8 +56,9 @@ exports.handler = async (event, context) => {
             }
         }
 
-        // 🌟 실시간 창고(sensor_logs)에 데이터 저장
-        await db.ref('sensor_logs').set(results);
+        // 🌟 무거운 도구 대신 파이어베이스 주소로 직접 쏴버리는 가벼운 방식 적용!
+        const firebaseURL = "https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json";
+        await axios.put(firebaseURL, results);
         
         return { 
             statusCode: 200, 
@@ -75,7 +67,6 @@ exports.handler = async (event, context) => {
 
     } catch (error) {
         console.error("전체 에러:", error);
-        // 에러 발생 시 502가 아니라 500과 함께 에러 원인을 화면에 보여주도록 수정
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        return { statusCode: 500, body: JSON.stringify({ error: String(error) }) };
     }
 };
