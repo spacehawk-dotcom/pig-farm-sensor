@@ -17,16 +17,15 @@ async function getTuyaToken() {
     const res = await axios.get(BASE_URL + path, {
         headers: { 'client_id': ACCESS_ID, 'sign': sign, 't': t, 'sign_method': 'HMAC-SHA256' }
     });
-    
-    if (!res.data.success) throw new Error("출입증 실패: " + res.data.msg);
+    if (!res.data.success) throw new Error("토큰 발급 실패: " + res.data.msg);
     return res.data.result.access_token;
 }
 
-// 🌟 [핵심 변경] 기계를 직접 찌르지 않고, 투야 본사의 '장부(캐시)'를 읽어오는 함수입니다.
-async function getDeviceCache(deviceId, token) {
+// 🌟 다시 온도를 직접 캐묻는 방식으로 변경! (대신 거절 사유를 낱낱이 기록함)
+async function getDeviceStatus(deviceId, token) {
     const t = Date.now().toString();
     const method = 'GET';
-    const path = `/v1.0/devices/${deviceId}`; // 기존의 /status 를 빼고 장부 전체를 가져옵니다.
+    const path = `/v1.0/devices/${deviceId}/status`;
     const contentHash = crypto.createHash('sha256').update('').digest('hex');
     const stringToSign = [method, contentHash, '', path].join('\n');
     const signStr = ACCESS_ID + token + t + stringToSign;
@@ -36,8 +35,9 @@ async function getDeviceCache(deviceId, token) {
         headers: { 'client_id': ACCESS_ID, 'access_token': token, 'sign': sign, 't': t, 'sign_method': 'HMAC-SHA256' }
     });
     
+    // 투야가 거절하면, 거절한 진짜 이유(msg)를 에러로 뱉어냅니다.
     if (!res.data.success) throw new Error(res.data.msg);
-    return res.data.result.status; 
+    return res.data.result;
 }
 
 exports.handler = async (event, context) => {
@@ -56,36 +56,26 @@ exports.handler = async (event, context) => {
 
         for (const device of devices) {
             try {
-                // 수면 모드 기계도 문제없이 장부에서 값을 가져옵니다!
-                const status = await getDeviceCache(device.id, token);
-                
-                if (!status || status.length === 0) {
-                     results[device.name] = { temp: "--", humi: "--", timestamp: "기록없음" };
-                     continue;
-                }
-
-                const tempObj = status.find(s => s.code.includes('temp'));
-                const humiObj = status.find(s => s.code.includes('humidity') || s.code.includes('humi'));
-                
-                const temp = tempObj ? (tempObj.value / 10).toFixed(1) : "--";
-                const humi = humiObj ? humiObj.value : "--";
+                const status = await getDeviceStatus(device.id, token);
+                const temp = status.find(s => s.code.includes('temp'))?.value / 10 || 0;
+                const humi = status.find(s => s.code.includes('humidity') || s.code.includes('humi'))?.value || 0;
 
                 results[device.name] = {
-                    temp: temp,
+                    temp: temp.toFixed(1),
                     humi: humi,
                     timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
                 };
             } catch (err) {
                 console.error(`${device.name} 실패:`, err.message);
-                // 혹시라도 또 에러가 나면, '연결실패' 대신 진짜 에러 이유를 화면에 띄워줍니다!
-                results[device.name] = { temp: "--", humi: "--", timestamp: err.message.substring(0, 15) };
+                // 🌟 핵심! 연결실패 대신 투야의 '진짜 거절 사유'를 시간 자리에 띄워줍니다!
+                results[device.name] = { temp: "--", humi: "--", timestamp: err.message.substring(0, 25) };
             }
         }
 
         const firebaseURL = "https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json";
         await axios.put(firebaseURL, results);
         
-        return { statusCode: 200, body: JSON.stringify({ message: "성암농장 전체 구역 데이터 배달 완료!", data: results }) };
+        return { statusCode: 200, body: JSON.stringify({ message: "진단용 데이터 배달 완료", data: results }) };
 
     } catch (error) {
         console.error("전체 에러:", error);
