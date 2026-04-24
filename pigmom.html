@@ -80,7 +80,7 @@
       const [user, setUser] = useState(null);
       const [sows, setSows] = useState([]);
       const [weaningRecords, setWeaningRecords] = useState({}); 
-      const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0 }); 
+      const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0, yearlyShippedCount: 0 }); 
       const [loading, setLoading] = useState(true);
       
       // UI 상태 관리
@@ -96,7 +96,7 @@
       const [isEditingWeaning, setIsEditingWeaning] = useState(false);
       const [confirmWeaningDelete, setConfirmWeaningDelete] = useState(false); 
       const [weaningForm, setWeaningForm] = useState({ date: '', sowCount: '', totalWeaned: '' });
-      const [showFormulaModal, setShowFormulaModal] = useState(false); // PSY/MSY 계산식 팝업
+      const [showFormulaModal, setShowFormulaModal] = useState(false);
 
       // 폼 상태
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
@@ -104,8 +104,13 @@
 
       // --- Auth & Data Fetching ---
       useEffect(() => {
-        auth.signInAnonymously().catch(err => console.error("Auth error:", err));
+        // 1. 익명 로그인 시도
+        auth.signInAnonymously().catch(err => {
+          console.error("익명 로그인 실패:", err);
+          setLoading(false);
+        });
         
+        // 2. 인증 상태 변경 감지
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           setUser(currentUser);
           if (!currentUser) setLoading(false);
@@ -115,9 +120,10 @@
       }, []);
 
       useEffect(() => {
+        // 인증(로그인)이 완료되지 않으면 데이터베이스 접근 시도 금지
         if (!user) return;
 
-        // 1. 모돈 정보 가져오기 (null 방어 완벽 적용)
+        // 1. 모돈 정보 가져오기
         const unsubSows = db.collection(SOWS_COLLECTION_PATH).onSnapshot(
           (snapshot) => {
             const sowsData = snapshot.docs
@@ -133,6 +139,7 @@
           },
           (error) => {
             console.error("Error fetching sows:", error);
+            alert("모돈 데이터 가져오기 실패: " + error.message);
             setLoading(false);
           }
         );
@@ -149,7 +156,7 @@
           (error) => console.error("Error fetching weaning records:", error)
         );
 
-        // 3. 농장 설정(평균 상시 모돈수) 가져오기
+        // 3. 농장 설정(평균 상시 모돈수, 총 출하두수) 가져오기
         const unsubSettings = db.collection(SETTINGS_PATH).doc('main').onSnapshot(
           (doc) => {
             if (doc.exists && doc.data()) {
@@ -160,7 +167,7 @@
         );
 
         return () => { unsubSows(); unsubWeaning(); unsubSettings(); };
-      }, [user]);
+      }, [user]); // user 상태가 변경될 때만 실행 (로그인 완료 후)
 
       // 헬퍼: 분만 예정일 계산 (+115일)
       const getExpectedFarrow = (matingDate) => {
@@ -282,11 +289,13 @@
 
         const fSettings = farmSettings || {};
         const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
+        const yearlyShipped = fSettings.yearlyShippedCount || 0;
 
         stats.psy = avgSows > 0 ? (manualYearlyWeaned / avgSows).toFixed(1) : "0.0";
-        stats.msy = avgSows > 0 ? (parseFloat(stats.psy) * 0.95).toFixed(1) : "0.0";
+        stats.msy = avgSows > 0 ? (yearlyShipped / avgSows).toFixed(1) : "0.0";
         stats.avgSows = avgSows;
         stats.manualYearlyWeaned = manualYearlyWeaned;
+        stats.yearlyShipped = yearlyShipped;
 
         return stats;
       }, [sows, weaningRecords, farmSettings]);
@@ -356,9 +365,11 @@
 
 
       // --- Handlers ---
-      const handleSaveAvgSowCount = (val) => {
+      const handleSaveSetting = (field, val) => {
         const numberVal = Number(val);
-        db.collection(SETTINGS_PATH).doc('main').set({ avgSowCount: numberVal }, { merge: true });
+        db.collection(SETTINGS_PATH).doc('main').set({ [field]: numberVal }, { merge: true }).catch(err => {
+          alert("설정 저장 실패: " + err.message);
+        });
       };
 
       const handleAddSow = async (e) => {
@@ -377,6 +388,7 @@
           setShowAddSow(false);
         } catch (err) {
           console.error("Error adding sow:", err);
+          alert("추가 실패: " + err.message);
         }
       };
 
@@ -387,6 +399,7 @@
           if (selectedSowId === id) setSelectedSowId(null);
         } catch (err) {
           console.error("Error deleting sow:", err);
+          alert("삭제 실패: " + err.message);
         }
       };
 
@@ -429,6 +442,7 @@
           setShowAddRecord(false);
         } catch (err) {
           console.error("Error adding record:", err);
+          alert("기록 추가 실패: " + err.message);
         }
       };
 
@@ -476,6 +490,7 @@
           setWeaningForm({ date: '', sowCount: '', totalWeaned: '' });
         } catch (err) {
           console.error("Error saving weaning record:", err);
+          alert("이유 성적 저장 실패: " + err.message);
         }
       };
 
@@ -732,24 +747,41 @@
 
           <main className="max-w-3xl mx-auto p-4">
             {sows.length > 0 ? (
-              <div className="mb-6 space-y-5" style={{ animation: "slideUp 0.3s ease-out" }}>
+              <div className="mb-6 space-y-5 animate-[slideUp_0.3s_ease-out]">
                 
-                {/* 핵심 생산 지표 */}
+                {/* 핵심 생산 지표 (연평균 상시 모돈수 및 연간 총 출하두수 입력 지원) */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="col-span-2 bg-slate-800 text-white p-4 rounded-2xl flex justify-between items-center shadow-md">
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-300">연평균 상시 모돈수</span>
-                      <span className="text-[10px] text-slate-500 mt-0.5">현재 등록: {(dashboardStats || {}).total || 0}두 (PSY 분모)</span>
+                  <div className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md">
+                    <div className="flex flex-col mb-2">
+                      <span className="text-[11px] font-bold text-slate-300">연평균 상시 모돈수</span>
+                      <span className="text-[9px] text-slate-500">현재 등록: {(dashboardStats || {}).total || 0}두</span>
                     </div>
                     <div className="flex items-baseline">
                       <input
                          type="number"
-                         className="w-20 bg-slate-700 text-white text-3xl font-black text-right border-b-2 border-slate-600 focus:border-blue-400 outline-none px-1"
+                         className="w-16 bg-slate-700 text-white text-xl font-black text-right border-b-2 border-slate-600 focus:border-blue-400 outline-none px-1"
                          value={(farmSettings || {}).avgSowCount || ''}
                          placeholder={String((dashboardStats || {}).total || 0)}
-                         onChange={(e) => handleSaveAvgSowCount(e.target.value)}
+                         onChange={(e) => handleSaveSetting('avgSowCount', e.target.value)}
                       />
-                      <span className="text-base ml-1 font-bold text-slate-400">두</span>
+                      <span className="text-xs ml-1 font-bold text-slate-400">두</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md">
+                    <div className="flex flex-col mb-2">
+                      <span className="text-[11px] font-bold text-slate-300">올해 누적 출하두수</span>
+                      <span className="text-[9px] text-slate-500">사육현황 연간 누계</span>
+                    </div>
+                    <div className="flex items-baseline">
+                      <input
+                         type="number"
+                         className="w-16 bg-slate-700 text-white text-xl font-black text-right border-b-2 border-slate-600 focus:border-blue-400 outline-none px-1"
+                         value={(farmSettings || {}).yearlyShippedCount || ''}
+                         placeholder="0"
+                         onChange={(e) => handleSaveSetting('yearlyShippedCount', e.target.value)}
+                      />
+                      <span className="text-xs ml-1 font-bold text-slate-400">두</span>
                     </div>
                   </div>
 
@@ -759,7 +791,7 @@
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex flex-col">
-                        <span className="text-[11px] font-bold text-indigo-200">최근 1년 PSY</span>
+                        <span className="text-[11px] font-bold text-indigo-200">현재 PSY</span>
                         <span className="text-[9px] text-indigo-300 mt-0.5">수기 이유두수 기준</span>
                       </div>
                       <Activity className="w-4 h-4 text-indigo-300 opacity-50" />
@@ -776,8 +808,8 @@
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex flex-col">
-                        <span className="text-[11px] font-bold text-violet-200">예상 MSY</span>
-                        <span className="text-[9px] text-violet-300 mt-0.5">육성률 95% 기준</span>
+                        <span className="text-[11px] font-bold text-violet-200">현재 MSY</span>
+                        <span className="text-[9px] text-violet-300 mt-0.5">올해 누적 출하량 기준</span>
                       </div>
                       <Activity className="w-4 h-4 text-violet-300 opacity-50" />
                     </div>
@@ -813,7 +845,7 @@
                   <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
                     산차별 현황 <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded ml-1 font-bold">가로로 스크롤</span>
                   </h3>
-                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                     {Object.keys((dashboardStats || {}).parity || {}).sort((a,b) => Number(a) - Number(b)).map(p => (
                       <div key={p} onClick={() => openFilteredList('parity', Number(p))} className="min-w-[64px] bg-white border border-slate-200 rounded-xl p-3 flex flex-col items-center shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 active:scale-95 transition-all">
                         <span className="text-[10px] font-bold text-slate-400 mb-0.5">{p}산</span>
@@ -828,7 +860,7 @@
                   <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
                     월별 분만 예정 복수 <span className="text-[9px] bg-rose-50 text-rose-600 border border-rose-100 px-1.5 py-0.5 rounded ml-1 font-bold">교배일 기준</span>
                   </h3>
-                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                     {Object.keys((dashboardStats || {}).monthlyFarrowing || {}).length === 0 ? (
                       <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
                         등록된 교배 일정(분만 예정)이 없습니다.
@@ -931,7 +963,7 @@
 
           {/* --- 전체/필터 개체 리스트 팝업 (모달) --- */}
           {showSowListModal && (
-            <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col" style={{ animation: "slideUp 0.2s ease-out" }}>
+            <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col animate-[slideUp_0.2s_ease-out]">
               <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm flex items-center gap-3">
                 <button onClick={() => { setShowSowListModal(false); setListFilter(null); }} className="p-2 bg-slate-100 rounded-lg text-slate-500 hover:text-slate-800 transition">
                   <ArrowLeft className="w-5 h-5" />
@@ -945,7 +977,7 @@
                     placeholder="개체 번호 검색..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400"
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all"
                   />
                 </div>
               </header>
@@ -1010,7 +1042,7 @@
           {/* --- 주간 이유 직접 기록 관리 팝업 --- */}
           {showWeaningModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6">
                   <div className="flex flex-col">
                     <h3 className="text-lg font-black text-slate-800">이유 성적 기록</h3>
@@ -1112,7 +1144,7 @@
           {/* --- PSY / MSY 계산식 팝업 --- */}
           {showFormulaModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-black text-slate-800">PSY / MSY 계산식</h3>
                   <button onClick={() => setShowFormulaModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
@@ -1120,7 +1152,7 @@
                 
                 <div className="space-y-4">
                   <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                    <h4 className="text-xs font-black text-indigo-600 mb-2">PSY (모돈당 연간 이유두수)</h4>
+                    <h4 className="text-xs font-black text-indigo-600 mb-2">현재 PSY (모돈당 연간 이유두수)</h4>
                     <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 총 이유두수 ÷ 연평균 상시 모돈수</p>
                     <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
                       {(dashboardStats || {}).manualYearlyWeaned || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-indigo-600">{(dashboardStats || {}).psy || '0.0'}</span>
@@ -1129,11 +1161,12 @@
                   </div>
 
                   <div className="bg-violet-50 p-4 rounded-xl border border-violet-100">
-                    <h4 className="text-xs font-black text-violet-600 mb-2">예상 MSY (모돈당 연간 출하두수)</h4>
-                    <p className="text-[11px] font-bold text-slate-600 mb-2">PSY × 예상 육성률 (95%)</p>
+                    <h4 className="text-xs font-black text-violet-600 mb-2">현재 MSY (모돈당 연간 출하두수)</h4>
+                    <p className="text-[11px] font-bold text-slate-600 mb-2">올해 누적 출하두수 ÷ 연평균 상시 모돈수</p>
                     <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
-                      {(dashboardStats || {}).psy || '0.0'} × 0.95 = <span className="text-violet-600">{(dashboardStats || {}).msy || '0.0'}</span>
+                      {(dashboardStats || {}).yearlyShipped || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-violet-600">{(dashboardStats || {}).msy || '0.0'}</span>
                     </div>
+                    <p className="text-[9px] text-slate-500 mt-2">* 사용자가 사육현황을 보고 직접 입력한 올해 누적 출하량 기준</p>
                   </div>
                 </div>
                 
@@ -1153,7 +1186,7 @@
           {/* 새 모돈 등록 모달 */}
           {showAddSow && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-black text-slate-800">새 모돈 등록</h3>
                   <button onClick={() => setShowAddSow(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-5 h-5" /></button>

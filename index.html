@@ -318,14 +318,28 @@
             try {
                 auth.onAuthStateChanged(async user => { 
                     if (user) { 
-                        await initializeDataIfNeeded(); 
-                        setupDataSync(); 
+                        try {
+                            await initializeDataIfNeeded(); 
+                            setupDataSync(); 
+                        } catch (e) {
+                            console.error("Firestore init error:", e);
+                            isLocalEnv = true;
+                            renderAll();
+                            utils.showToast("DB 접근 권한이 거부되었습니다. Firebase 보안 규칙을 확인하세요.", 5000);
+                        }
                     } else {
-                        await auth.signInAnonymously();
+                        try {
+                            await auth.signInAnonymously();
+                        } catch(e) {
+                            console.error("Auth error:", e);
+                            isLocalEnv = true;
+                            renderAll();
+                            utils.showToast("인증이 실패했습니다. Firebase 콘솔에서 익명 로그인을 활성화해주세요.", 5000);
+                        }
                     }
                 });
             } catch (err) { 
-                console.error("Auth Error:", err); 
+                console.error("Firebase Setup Error:", err); 
                 isLocalEnv = true; 
                 renderAll(); 
             }
@@ -339,7 +353,13 @@
         }
 
         function setupDataSync() {
-            const errLog = e => console.error("Sync Error:", e);
+            const errLog = e => {
+                console.error("Sync Error:", e);
+                if (e.code === 'permission-denied') {
+                    if (!isLocalEnv) utils.showToast("Firebase 보안 규칙(Rules) 때문에 동기화가 중단되었습니다.");
+                    isLocalEnv = true;
+                }
+            };
             db.doc(`${COLS.STOCKS}/current`).onSnapshot(s => { if(s.exists) { state.stocks = s.data(); renderStocks(); } }, errLog);
             db.collection(COLS.WEANING).onSnapshot(s => { state.wBatches = s.docs.map(d => utils.normalizeBatch(d.data(), 'weaning')).sort((a,b)=>String(a.id||'').localeCompare(String(b.id||''))); renderWeaning(); renderStocks(); }, errLog);
             db.collection(COLS.GROWER).onSnapshot(s => { state.gBatches = s.docs.map(d => ({ ...utils.normalizeBatch(d.data(), 'grower') })).sort((a,b)=>String(a.id||'').localeCompare(String(b.id||''))); checkScheduledShipments(); renderGrower(); renderRecentShipments(); renderStocks(); }, errLog);
@@ -783,6 +803,7 @@
             const inputEl = document.getElementById('target-age-input');
             const descEl = document.getElementById('expected-shipment-desc');
             const resultsEl = document.getElementById('expected-shipment-results');
+            const annualSummaryEl = document.getElementById('expected-shipment-annual-summary');
             if (!inputEl || !resultsEl) return;
 
             const targetAge = parseInt(inputEl.value) || 170;
@@ -791,6 +812,7 @@
             if (descEl) descEl.innerText = `* 각 칸의 기준일(입식일)로부터 ${targetAge}일령이 되는 달을 기준으로 합산합니다.`;
 
             const monthlyCounts = {};
+            const yearlyCounts = {};
             const batches = [...state.wBatches, ...state.gBatches];
             
             batches.forEach(b => {
@@ -803,14 +825,30 @@
                             const d = utils.parseDate(penDate);
                             if (d) {
                                 d.setDate(d.getDate() + daysToAdd);
-                                const yearMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                                const yyyy = d.getFullYear();
+                                const yearMonth = `${yyyy}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                                
                                 if (!monthlyCounts[yearMonth]) monthlyCounts[yearMonth] = 0;
                                 monthlyCounts[yearMonth] += count;
+                                
+                                if (!yearlyCounts[yyyy]) yearlyCounts[yyyy] = 0;
+                                yearlyCounts[yyyy] += count;
                             }
                         }
                     }
                 }
             });
+
+            if (annualSummaryEl) {
+                const sortedYears = Object.keys(yearlyCounts).sort();
+                const annualHtml = sortedYears.map(y => `
+                    <div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex-1 text-center min-w-[120px] shadow-sm">
+                        <p class="text-[11px] font-bold text-indigo-600 mb-1">${y}년 총 출하예측</p>
+                        <p class="text-2xl font-black text-indigo-800">${yearlyCounts[y]}<span class="text-[11px] ml-1 font-bold text-indigo-500">두</span></p>
+                    </div>
+                `).join('');
+                annualSummaryEl.innerHTML = annualHtml || '<div class="text-xs text-slate-400 w-full text-center">예측 데이터 없음</div>';
+            }
 
             const currentYearMonth = utils.getTodayStr().substring(0, 7);
             const allSortedMonths = Object.keys(monthlyCounts).sort();
@@ -927,13 +965,14 @@
                             <span class="text-xs font-bold text-purple-600">일령</span>
                         </div>
                     </div>
+                    <div id="expected-shipment-annual-summary" class="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
                     <p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 기준일(입식일)로부터 170일령이 되는 달을 기준으로 합산합니다.</p>
-                    <div id="expected-shipment-results" class="grid grid-cols-2 gap-3 max-h-[50vh] overflow-y-auto no-scrollbar pb-2 px-1">
+                    <div id="expected-shipment-results" class="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto no-scrollbar pb-2 px-1">
                     </div>
                 `;
 
                 return { 
-                    title: `<div class="flex items-center gap-2"><i data-lucide="trending-up" class="text-purple-500"></i> 월별 출하 예측</div>`, 
+                    title: `<div class="flex items-center gap-2"><i data-lucide="trending-up" class="text-purple-500"></i> 출하 예측 리포트</div>`, 
                     html: html, 
                     hideSave: true 
                 };
@@ -944,25 +983,63 @@
                 oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
                 const startStr = oneMonthAgo.toISOString().split('T')[0];
                 
+                const currentYear = new Date().getFullYear();
+                const monthlyTotals = {};
+                let annualTotal = 0;
+
+                state.shipments.forEach(s => {
+                    if (!s.date) return;
+                    if (s.date.startsWith(currentYear.toString())) {
+                        const month = s.date.substring(5, 7);
+                        const count = parseInt(s.count) || 0;
+                        monthlyTotals[month] = (monthlyTotals[month] || 0) + count;
+                        annualTotal += count;
+                    }
+                });
+
+                const months = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+                let statsHtml = `<div class="bg-indigo-50 p-4 rounded-2xl border border-indigo-100 mb-2 shadow-sm">
+                    <div class="flex justify-between items-end mb-3 px-1">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] font-bold text-indigo-400 mb-0.5 uppercase tracking-wider">${currentYear} Year</span>
+                            <h4 class="text-[14px] font-black text-indigo-800 leading-none">올해 누적 출하량</h4>
+                        </div>
+                        <span class="text-2xl font-black text-indigo-600 leading-none">${annualTotal.toLocaleString()}<span class="text-[11px] ml-1 font-bold text-indigo-400">두</span></span>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5">`;
+                
+                months.forEach(m => {
+                    const count = monthlyTotals[m] || 0;
+                    const opacity = count > 0 ? 'opacity-100 ring-1 ring-indigo-200' : 'opacity-50 border border-slate-100';
+                    statsHtml += `
+                        <div class="bg-white py-2 rounded-xl text-center shadow-sm ${opacity} flex flex-col justify-center transition-all">
+                            <span class="text-[9px] font-bold text-slate-400 mb-0.5">${parseInt(m)}월</span>
+                            <span class="text-[12px] font-black text-indigo-700">${count > 0 ? count.toLocaleString() : '-'}</span>
+                        </div>
+                    `;
+                });
+                statsHtml += `</div></div>`;
+                
                 return { 
-                    title: '<div class="flex items-center gap-2"><i data-lucide="truck" class="text-blue-500"></i> 출하 기록 다운로드</div>', 
+                    title: '<div class="flex items-center gap-2"><i data-lucide="truck" class="text-blue-500"></i> 출하 기록 조회 및 다운로드</div>', 
                     html: `
-                    <div class="space-y-5">
-                        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3">
+                    <div class="space-y-4">
+                        ${statsHtml}
+                        <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3 shadow-sm">
                             <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">출력 기간 설정</p>
                             <div class="grid grid-cols-2 gap-3">
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[9px] font-bold text-blue-500 pl-1">시작일</label>
-                                    <input type="date" id="log-start" value="${startStr}" class="bg-white border border-blue-200">
+                                    <input type="date" id="log-start" value="${startStr}" class="bg-white border border-blue-200 focus:border-blue-400 transition-colors">
                                 </div>
                                 <div class="flex flex-col gap-1">
                                     <label class="text-[9px] font-bold text-blue-500 pl-1">종료일</label>
-                                    <input type="date" id="log-end" value="${today}" class="bg-white border border-blue-200">
+                                    <input type="date" id="log-end" value="${today}" class="bg-white border border-blue-200 focus:border-blue-400 transition-colors">
                                 </div>
                             </div>
                         </div>
-                        <button onclick="window.exportShipmentLogToExcel()" class="w-full py-5 bg-blue-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all">
-                            <i data-lucide="download" class="w-6 h-6"></i> 엑셀 파일 다운로드
+                        <button onclick="window.exportShipmentLogToExcel()" class="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all">
+                            <i data-lucide="download" class="w-5 h-5"></i> 엑셀 파일 다운로드
                         </button>
                     </div>`, 
                     hideSave: true 
@@ -1563,7 +1640,27 @@
             }
         };
 
-        async function processSave(type) { const btn = document.getElementById('save-btn'); btn.disabled = true; btn.innerText = '저장 중...'; try { await saveActions[type](); window.closeModal(); saveDailyHistory(); } catch (e) { utils.showToast("처리 실패: " + e.message); } finally { btn.disabled = false; btn.innerText = '확인 및 저장'; } }
+        async function processSave(type) { 
+            const btn = document.getElementById('save-btn'); 
+            btn.disabled = true; 
+            btn.innerText = '저장 중...'; 
+            try { 
+                await saveActions[type](); 
+                window.closeModal(); 
+                if (!isLocalEnv) saveDailyHistory(); 
+                if (isLocalEnv) renderAll(); // 로컬 환경일 경우 수동으로 UI 업데이트
+            } catch (e) { 
+                console.error(e);
+                if (e.code === 'permission-denied' || (e.message && e.message.includes('permission'))) {
+                    utils.showToast("저장 실패: 파이어베이스 Security Rules 권한이 없습니다.");
+                } else {
+                    utils.showToast("처리 실패: " + e.message); 
+                }
+            } finally { 
+                btn.disabled = false; 
+                btn.innerText = '확인 및 저장'; 
+            } 
+        }
         window.onload = init;
     </script>
 </body>
