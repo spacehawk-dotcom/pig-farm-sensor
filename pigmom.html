@@ -15,6 +15,9 @@
   <!-- Babel (브라우저에서 JSX 문법 실시간 해석) -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+  <!-- SheetJS (엑셀 다운로드 라이브러리 추가) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
   <!-- Firebase SDK (호환 버전: 단일 HTML 환경용) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -26,6 +29,9 @@
     /* 슬라이드 애니메이션 */
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     .no-scrollbar::-webkit-scrollbar { display: none; }
+    /* input number 스피너 숨기기 */
+    input[type=number]::-webkit-inner-spin-button, 
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -37,7 +43,7 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo } = React;
 
-    // --- 에러를 유발했던 외부 아이콘 대신, 안정적인 내장 SVG 아이콘 컴포넌트로 대체 ---
+    // --- 내장 SVG 아이콘 컴포넌트 ---
     const Search = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
     const Plus = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
     const ArrowLeft = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>;
@@ -47,6 +53,7 @@
     const FileText = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>;
     const ChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6"/></svg>;
     const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+    const Download = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
 
     // --- 성암농장 실제 Firebase Configuration ---
     const firebaseConfig = {
@@ -58,17 +65,22 @@
       appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
     };
 
-    // Firebase 초기화 (단일 HTML용 Compat 버전)
+    // Firebase 초기화
     if (!firebase.apps.length) {
       firebase.initializeApp(firebaseConfig);
     }
     const auth = firebase.auth();
     const db = firebase.firestore();
+    
     const SOWS_COLLECTION_PATH = 'farms/sungamfarm/sows';
+    const WEANING_RECORDS_PATH = 'farms/sungamfarm/weaning_records'; 
+    const SETTINGS_PATH = 'farms/sungamfarm/settings'; 
 
     function App() {
       const [user, setUser] = useState(null);
       const [sows, setSows] = useState([]);
+      const [weaningRecords, setWeaningRecords] = useState({}); 
+      const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0 }); 
       const [loading, setLoading] = useState(true);
       
       // UI 상태 관리
@@ -77,7 +89,14 @@
       const [showAddSow, setShowAddSow] = useState(false);
       const [showAddRecord, setShowAddRecord] = useState(false);
       const [showSowListModal, setShowSowListModal] = useState(false);
-      const [listFilter, setListFilter] = useState(null); // { type: 'status' | 'parity' | 'expectedMonth', value: any }
+      const [listFilter, setListFilter] = useState(null);
+      
+      // 직접 기록용 주간 이유 팝업 상태
+      const [showWeaningModal, setShowWeaningModal] = useState(false);
+      const [isEditingWeaning, setIsEditingWeaning] = useState(false);
+      const [confirmWeaningDelete, setConfirmWeaningDelete] = useState(false); 
+      const [weaningForm, setWeaningForm] = useState({ date: '', sowCount: '', totalWeaned: '' });
+      const [showFormulaModal, setShowFormulaModal] = useState(false); // PSY/MSY 계산식 팝업
 
       // 폼 상태
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
@@ -98,10 +117,17 @@
       useEffect(() => {
         if (!user) return;
 
+        // 1. 모돈 정보 가져오기 (null 방어 완벽 적용)
         const unsubSows = db.collection(SOWS_COLLECTION_PATH).onSnapshot(
           (snapshot) => {
-            const sowsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            sowsData.sort((a, b) => String(a.sowNo || '').localeCompare(String(b.sowNo || '')));
+            const sowsData = snapshot.docs
+              .map(doc => {
+                const data = doc.data();
+                return data ? { id: doc.id, ...data } : null;
+              })
+              .filter(sow => sow && (sow || {}).sowNo); 
+            
+            sowsData.sort((a, b) => String((a || {}).sowNo || '').localeCompare(String((b || {}).sowNo || '')));
             setSows(sowsData);
             setLoading(false);
           },
@@ -111,41 +137,98 @@
           }
         );
 
-        return () => unsubSows();
+        // 2. 직접 기록한 주간 이유 기록 정보 가져오기
+        const unsubWeaning = db.collection(WEANING_RECORDS_PATH).onSnapshot(
+          (snapshot) => {
+            const records = {};
+            snapshot.docs.forEach(doc => { 
+              if(doc.data()) records[doc.id] = doc.data(); 
+            });
+            setWeaningRecords(records);
+          },
+          (error) => console.error("Error fetching weaning records:", error)
+        );
+
+        // 3. 농장 설정(평균 상시 모돈수) 가져오기
+        const unsubSettings = db.collection(SETTINGS_PATH).doc('main').onSnapshot(
+          (doc) => {
+            if (doc.exists && doc.data()) {
+              setFarmSettings(doc.data());
+            }
+          },
+          (error) => console.error("Error fetching settings:", error)
+        );
+
+        return () => { unsubSows(); unsubWeaning(); unsubSettings(); };
       }, [user]);
 
-      // 헬퍼: 예정일 계산
+      // 헬퍼: 분만 예정일 계산 (+115일)
       const getExpectedFarrow = (matingDate) => {
         if (!matingDate) return '';
-        const d = new Date(matingDate);
-        if (isNaN(d.getTime())) return '';
+        const parts = String(matingDate).split('-');
+        if (parts.length !== 3) return '';
+        
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        
+        const d = new Date(year, month, day);
         d.setDate(d.getDate() + 115);
-        return d.toISOString().split('T')[0];
+        
+        const yy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        
+        return `${yy}-${mm}-${dd}`;
+      };
+
+      // 헬퍼: 분만일 기준 이유하는 목요일 계산
+      const getWeaningThursday = (farrowDateStr) => {
+        if (!farrowDateStr) return null;
+        const parts = String(farrowDateStr).split('-');
+        if (parts.length !== 3) return null;
+        
+        const year = parseInt(parts[0], 10);
+        const month = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        
+        const d = new Date(year, month, day);
+        
+        const currentDay = d.getDay(); 
+        const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay; 
+        
+        d.setDate(d.getDate() + diffToMonday + 24);
+        
+        const yy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        
+        return `${yy}-${mm}-${dd}`;
       };
 
       // --- Data Processing ---
       const filteredSows = useMemo(() => {
-        let result = sows;
+        let result = sows.filter(Boolean);
 
-        // 1. 필터 적용
         if (listFilter) {
-          if (listFilter.type === 'status') {
-            result = result.filter(sow => (sow.currentStatus || '이유') === listFilter.value);
-          } else if (listFilter.type === 'parity') {
-            result = result.filter(sow => (Number(sow.parity) || 0) === Number(listFilter.value));
-          } else if (listFilter.type === 'expectedMonth') {
+          const filterObj = listFilter || {};
+          if (filterObj.type === 'status') {
+            result = result.filter(sow => sow && ((sow || {}).currentStatus || '이유') === filterObj.value);
+          } else if (filterObj.type === 'parity') {
+            result = result.filter(sow => sow && (Number((sow || {}).parity) || 0) === Number(filterObj.value));
+          } else if (filterObj.type === 'expectedMonth') {
             result = result.filter(sow => {
-              if (!sow.matingDate || sow.currentStatus === '포유' || sow.currentStatus === '재발') return false;
-              const expDateStr = getExpectedFarrow(sow.matingDate);
-              return expDateStr && expDateStr.substring(0, 7) === listFilter.value;
+              const s = sow || {};
+              if (!s.matingDate || s.currentStatus === '포유' || s.currentStatus === '재발') return false;
+              const expDateStr = getExpectedFarrow(s.matingDate);
+              return expDateStr && expDateStr.substring(0, 7) === filterObj.value;
             });
           }
         }
 
-        // 2. 검색어 적용
         if (searchQuery) {
           result = result.filter(sow => 
-            String(sow.sowNo).toLowerCase().includes(searchQuery.toLowerCase())
+            sow && String((sow || {}).sowNo || '').toLowerCase().includes(String(searchQuery).toLowerCase())
           );
         }
 
@@ -153,80 +236,140 @@
       }, [sows, searchQuery, listFilter]);
 
       const currentSow = useMemo(() => {
-        return sows.find(s => s.id === selectedSowId) || null;
+        return sows.find(s => s && (s || {}).id === selectedSowId) || null;
       }, [sows, selectedSowId]);
 
       // 대시보드 통계 계산
       const dashboardStats = useMemo(() => {
         const stats = {
-          total: sows.length,
+          total: sows.filter(Boolean).length,
           status: { '이유': 0, '임신': 0, '포유': 0, '재발': 0 },
           parity: {},
-          monthlyFarrowing: {},
-          yearlyWeaned: 0
+          monthlyFarrowing: {}
         };
         
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+        const yy = oneYearAgo.getFullYear();
+        const mm = String(oneYearAgo.getMonth() + 1).padStart(2, '0');
+        const dd = String(oneYearAgo.getDate()).padStart(2, '0');
+        const oneYearAgoStr = `${yy}-${mm}-${dd}`;
         
-        sows.forEach(sow => {
-          const status = sow.currentStatus || '이유';
+        sows.filter(Boolean).forEach(sow => {
+          const s = sow || {};
+          const status = s.currentStatus || '이유';
           if (stats.status[status] !== undefined) stats.status[status]++;
           
-          const p = Number(sow.parity) || 0;
+          const p = Number(s.parity) || 0;
           if (stats.parity[p] !== undefined) stats.parity[p]++;
           else stats.parity[p] = 1;
 
-          if (sow.matingDate && sow.currentStatus !== '포유' && sow.currentStatus !== '재발') {
-            const expDateStr = getExpectedFarrow(sow.matingDate);
+          if (s.matingDate && s.currentStatus !== '포유' && s.currentStatus !== '재발') {
+            const expDateStr = getExpectedFarrow(s.matingDate);
             if (expDateStr) {
               const ym = expDateStr.substring(0, 7);
               stats.monthlyFarrowing[ym] = (stats.monthlyFarrowing[ym] || 0) + 1;
             }
           }
-          
-          if (sow.history && sow.history.length > 0) {
-            sow.history.forEach(record => {
-              if (record.date && record.date >= oneYearAgoStr) {
-                stats.yearlyWeaned += Number(record.weaned || 0);
-              }
-            });
+        });
+
+        let manualYearlyWeaned = 0;
+        Object.entries(weaningRecords).forEach(([date, data]) => {
+          if (date >= oneYearAgoStr && data) {
+            manualYearlyWeaned += Number((data || {}).totalWeaned || 0);
           }
         });
 
-        stats.psy = stats.total > 0 ? (stats.yearlyWeaned / stats.total).toFixed(1) : "0.0";
-        stats.msy = stats.total > 0 ? (parseFloat(stats.psy) * 0.95).toFixed(1) : "0.0";
+        const fSettings = farmSettings || {};
+        const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
+
+        stats.psy = avgSows > 0 ? (manualYearlyWeaned / avgSows).toFixed(1) : "0.0";
+        stats.msy = avgSows > 0 ? (parseFloat(stats.psy) * 0.95).toFixed(1) : "0.0";
+        stats.avgSows = avgSows;
+        stats.manualYearlyWeaned = manualYearlyWeaned;
 
         return stats;
-      }, [sows]);
+      }, [sows, weaningRecords, farmSettings]);
 
+      // 모돈별 통계
       const sowStats = useMemo(() => {
-        if (!currentSow || !currentSow.history || currentSow.history.length === 0) {
+        const s = currentSow || {};
+        if (!s.history || !Array.isArray(s.history)) {
           return { totalLitters: 0, avgBorn: 0, avgWeaned: 0 };
         }
         
-        const history = currentSow.history;
+        const history = s.history.filter(Boolean);
         const totalLitters = history.length;
-        const totalBorn = history.reduce((sum, r) => sum + Number(r.born || 0), 0);
-        const totalWeaned = history.reduce((sum, r) => sum + Number(r.weaned || 0), 0);
+        const totalBorn = history.reduce((sum, r) => sum + Number((r || {}).born || 0), 0);
+        const totalWeaned = history.reduce((sum, r) => sum + Number((r || {}).weaned || 0), 0);
         
         return {
           totalLitters,
-          avgBorn: (totalBorn / totalLitters).toFixed(1),
-          avgWeaned: (totalWeaned / totalLitters).toFixed(1)
+          avgBorn: totalLitters > 0 ? (totalBorn / totalLitters).toFixed(1) : "0.0",
+          avgWeaned: totalLitters > 0 ? (totalWeaned / totalLitters).toFixed(1) : "0.0"
         };
       }, [currentSow]);
 
+      // 매주 목요일 기준 주간 이유 자동 계산
+      const weaningStats = useMemo(() => {
+        const statsMap = {};
+        
+        sows.filter(Boolean).forEach(sow => {
+          const s = sow || {};
+          if (!s.history || !Array.isArray(s.history)) return;
+          
+          s.history.filter(Boolean).forEach(record => {
+            const r = record || {};
+            if (!r.date) return; 
+            
+            const wCount = Number(r.weaned) || 0;
+            const mCount = Number(r.move) || 0;
+            const totalWeaned = wCount + mCount;
+
+            const weaningThursday = getWeaningThursday(r.date);
+            if (!weaningThursday) return;
+
+            if (!statsMap[weaningThursday]) {
+              statsMap[weaningThursday] = { date: weaningThursday, sows: [], totalWeanedAuto: 0 };
+            }
+            if (!statsMap[weaningThursday].sows.find(item => item && (item || {}).id === s.id)) {
+               statsMap[weaningThursday].sows.push(s);
+            }
+            statsMap[weaningThursday].totalWeanedAuto += totalWeaned;
+          });
+        });
+
+        return Object.values(statsMap).sort((a, b) => String((b || {}).date || '').localeCompare(String((a || {}).date || '')));
+      }, [sows]);
+
+      const currentWeaningStat = useMemo(() => {
+        return weaningStats.find(s => s && (s || {}).date === (weaningForm || {}).date) || null;
+      }, [weaningStats, weaningForm]);
+
+      // 수동으로 입력한 주간 이유 성적 배열
+      const sortedWeaningRecords = useMemo(() => {
+        return Object.entries(weaningRecords)
+          .filter(([date, data]) => Boolean(data))
+          .map(([date, data]) => ({ date, ...data }))
+          .sort((a, b) => String((b || {}).date || '').localeCompare(String((a || {}).date || '')));
+      }, [weaningRecords]);
+
+
       // --- Handlers ---
+      const handleSaveAvgSowCount = (val) => {
+        const numberVal = Number(val);
+        db.collection(SETTINGS_PATH).doc('main').set({ avgSowCount: numberVal }, { merge: true });
+      };
+
       const handleAddSow = async (e) => {
         e.preventDefault();
-        if (!user || !newSow.sowNo) return;
+        const ns = newSow || {};
+        if (!user || !ns.sowNo) return;
         try {
           await db.collection(SOWS_COLLECTION_PATH).add({
-            sowNo: newSow.sowNo,
-            parity: Number(newSow.parity) || 0,
-            currentStatus: newSow.currentStatus || '이유',
+            sowNo: ns.sowNo || '',
+            parity: Number(ns.parity) || 0,
+            currentStatus: ns.currentStatus || '이유',
             matingDate: '',
             history: []
           });
@@ -248,9 +391,10 @@
       };
 
       const handleUpdateStatus = async (field, value) => {
-        if (!user || !currentSow) return;
+        const s = currentSow || {};
+        if (!user || !s.id) return;
         try {
-          await db.collection(SOWS_COLLECTION_PATH).doc(currentSow.id).update({
+          await db.collection(SOWS_COLLECTION_PATH).doc(s.id).update({
             [field]: value
           });
         } catch (err) {
@@ -260,23 +404,25 @@
 
       const handleAddRecord = async (e) => {
         e.preventDefault();
-        if (!user || !currentSow) return;
+        const s = currentSow || {};
+        const nr = newRecord || {};
+        if (!user || !s.id) return;
         try {
           const newHistoryItem = {
-            parity: Number(newRecord.parity) || 0,
-            date: newRecord.date || '',
-            expDate: newRecord.expDate || '',
-            born: Number(newRecord.born) || 0,
-            weaned: Number(newRecord.weaned) || 0,
-            move: Number(newRecord.move) || 0
+            parity: Number(nr.parity) || 0,
+            date: nr.date || '',
+            expDate: nr.expDate || '',
+            born: Number(nr.born) || 0,
+            weaned: Number(nr.weaned) || 0,
+            move: Number(nr.move) || 0
           };
           
-          const updatedHistory = [...(currentSow.history || []), newHistoryItem]
-            .sort((a, b) => b.parity - a.parity);
+          const updatedHistory = [...(s.history || []).filter(Boolean), newHistoryItem]
+            .sort((a, b) => (Number((b || {}).parity) || 0) - (Number((a || {}).parity) || 0));
 
-          await db.collection(SOWS_COLLECTION_PATH).doc(currentSow.id).update({
+          await db.collection(SOWS_COLLECTION_PATH).doc(s.id).update({
             history: updatedHistory,
-            parity: Math.max(currentSow.parity, newHistoryItem.parity)
+            parity: Math.max(Number(s.parity) || 0, newHistoryItem.parity || 0)
           });
           
           setNewRecord({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
@@ -287,14 +433,62 @@
       };
 
       const handleDeleteRecord = async (indexToRemove) => {
-        if (!user || !currentSow || !window.confirm("이 기록을 삭제하시겠습니까?")) return;
+        const s = currentSow || {};
+        if (!user || !s.id || !window.confirm("이 기록을 삭제하시겠습니까?")) return;
         try {
-          const updatedHistory = currentSow.history.filter((_, idx) => idx !== indexToRemove);
-          await db.collection(SOWS_COLLECTION_PATH).doc(currentSow.id).update({
+          const updatedHistory = (s.history || []).filter(Boolean).filter((_, idx) => idx !== indexToRemove);
+          await db.collection(SOWS_COLLECTION_PATH).doc(s.id).update({
             history: updatedHistory
           });
         } catch (err) {
           console.error("Error deleting record:", err);
+        }
+      };
+
+      const openWeaningModal = (record = null) => {
+        setConfirmWeaningDelete(false); 
+        if (record) {
+          const r = record || {};
+          setWeaningForm({ date: r.date || '', sowCount: r.sowCount || '', totalWeaned: r.totalWeaned || '' });
+          setIsEditingWeaning(true);
+        } else {
+          const today = new Date();
+          const yy = today.getFullYear();
+          const mm = String(today.getMonth() + 1).padStart(2, '0');
+          const dd = String(today.getDate()).padStart(2, '0');
+          setWeaningForm({ date: `${yy}-${mm}-${dd}`, sowCount: '', totalWeaned: '' });
+          setIsEditingWeaning(false);
+        }
+        setShowWeaningModal(true);
+      };
+
+      const handleSaveWeaning = async (e) => {
+        e.preventDefault();
+        const wf = weaningForm || {};
+        if (!user || !wf.date) return;
+        try {
+          await db.collection(WEANING_RECORDS_PATH).doc(wf.date).set({
+            sowCount: Number(wf.sowCount) || 0,
+            totalWeaned: Number(wf.totalWeaned) || 0,
+            updatedAt: new Date().toISOString()
+          });
+          setShowWeaningModal(false);
+          setWeaningForm({ date: '', sowCount: '', totalWeaned: '' });
+        } catch (err) {
+          console.error("Error saving weaning record:", err);
+        }
+      };
+
+      const handleDeleteWeaning = async (e) => {
+        if (e) e.preventDefault();
+        const wf = weaningForm || {};
+        if (!user || !wf.date) return;
+        try {
+          await db.collection(WEANING_RECORDS_PATH).doc(wf.date).delete();
+          setShowWeaningModal(false);
+          setConfirmWeaningDelete(false);
+        } catch (err) {
+          console.error("Error deleting weaning record:", err);
         }
       };
 
@@ -319,6 +513,37 @@
         }
       };
 
+      // 엑셀 다운로드
+      const downloadWeaningExcel = () => {
+        if (sortedWeaningRecords.length === 0) {
+          alert("다운로드할 주간 이유 성적 데이터가 없습니다.");
+          return;
+        }
+        
+        const excelData = sortedWeaningRecords.map(stat => {
+          const st = stat || {};
+          return {
+            '이유일': st.date || '-',
+            '이유 모돈수 (복)': st.sowCount || 0,
+            '총 이유두수 (두)': st.totalWeaned || 0,
+            '복당 평균 이유두수': st.sowCount > 0 ? (Number(st.totalWeaned) / Number(st.sowCount)).toFixed(1) : 0
+          };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const wscols = [{wch:15}, {wch:15}, {wch:15}, {wch:20}];
+        worksheet['!cols'] = wscols;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "수동기록_이유성적");
+        
+        const today = new Date();
+        const yy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        XLSX.writeFile(workbook, `성암농장_이유성적_${yy}-${mm}-${dd}.xlsx`);
+      };
+
       // --- Renderers ---
       if (loading) {
         return <div className="flex items-center justify-center h-screen bg-slate-50"><p className="text-lg font-bold text-slate-500 animate-pulse">농장 데이터베이스 연결 중...</p></div>;
@@ -326,7 +551,8 @@
 
       // --- View 2: 모돈 상세 및 성적 뷰 ---
       if (currentSow) {
-        const historyList = currentSow.history || [];
+        const s = currentSow || {};
+        const historyList = (s.history || []).filter(Boolean); 
         
         return (
           <div className="min-h-screen bg-slate-50 pb-20 md:pb-10 font-sans">
@@ -335,10 +561,10 @@
                 <ArrowLeft className="w-5 h-5" />
               </button>
               <div className="flex flex-col items-center">
-                <h1 className="text-xl font-black text-slate-800 tracking-tight">No. {currentSow.sowNo}</h1>
-                <span className="text-xs font-bold text-slate-400">{currentSow.parity}산</span>
+                <h1 className="text-xl font-black text-slate-800 tracking-tight">No. {s.sowNo || '-'}</h1>
+                <span className="text-xs font-bold text-slate-400">{s.parity || 0}산</span>
               </div>
-              <button onClick={() => handleDeleteSow(currentSow.id)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition" title="모돈 삭제">
+              <button onClick={() => handleDeleteSow(s.id)} className="p-2 text-rose-400 hover:bg-rose-50 rounded-lg transition" title="모돈 삭제">
                 <Trash2 className="w-5 h-5" />
               </button>
             </header>
@@ -349,9 +575,9 @@
                   <div className="bg-slate-50 p-3 rounded-xl">
                     <label className="text-[10px] font-bold text-slate-500 block mb-1">현재 상태</label>
                     <select 
-                      value={currentSow.currentStatus || '이유'} 
+                      value={s.currentStatus || '이유'} 
                       onChange={(e) => handleUpdateStatus('currentStatus', e.target.value)}
-                      className={`w-full bg-transparent font-black text-sm outline-none ${getStatusColor(currentSow.currentStatus).split(' ')[0]}`}
+                      className={"w-full bg-transparent font-black text-sm outline-none " + getStatusColor(s.currentStatus).split(' ')[0]}
                     >
                       <option value="이유">이유</option>
                       <option value="임신">임신</option>
@@ -364,7 +590,7 @@
                     <div className="flex items-center">
                       <input 
                         type="number" 
-                        value={currentSow.parity || 0} 
+                        value={s.parity || 0} 
                         onChange={(e) => handleUpdateStatus('parity', Number(e.target.value))}
                         className="w-full bg-transparent font-black text-slate-800 text-sm outline-none"
                       />
@@ -378,7 +604,7 @@
                     <label className="text-[10px] font-bold text-rose-600 block mb-1">최근 종부일 (교배)</label>
                     <input 
                       type="date" 
-                      value={currentSow.matingDate || ''} 
+                      value={s.matingDate || ''} 
                       onChange={(e) => handleUpdateStatus('matingDate', e.target.value)}
                       className="w-full bg-transparent font-black text-rose-700 text-sm outline-none" 
                     />
@@ -386,7 +612,7 @@
                   <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center">
                     <label className="text-[10px] font-bold text-rose-600 block mb-1">분만 예정일</label>
                     <span className="font-black text-rose-700 text-sm">
-                      {currentSow.matingDate ? getExpectedFarrow(currentSow.matingDate) : '미입력'}
+                      {s.matingDate ? getExpectedFarrow(s.matingDate) : '미입력'}
                     </span>
                   </div>
                 </div>
@@ -395,15 +621,15 @@
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-white p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
                   <span className="text-[10px] font-bold text-slate-500 mb-0.5">총 분만</span>
-                  <p className="text-xl font-black text-slate-800">{sowStats.totalLitters}<span className="text-xs font-bold ml-0.5">회</span></p>
+                  <p className="text-xl font-black text-slate-800">{(sowStats || {}).totalLitters || 0}<span className="text-xs font-bold ml-0.5">회</span></p>
                 </div>
                 <div className="bg-white p-3 rounded-2xl border border-emerald-100 text-center flex flex-col justify-center shadow-sm">
                   <span className="text-[10px] font-bold text-emerald-600 mb-0.5">평균 산자수</span>
-                  <p className="text-xl font-black text-emerald-700">{sowStats.avgBorn}<span className="text-xs font-bold ml-0.5">두</span></p>
+                  <p className="text-xl font-black text-emerald-700">{(sowStats || {}).avgBorn || '0.0'}<span className="text-xs font-bold ml-0.5">두</span></p>
                 </div>
                 <div className="bg-white p-3 rounded-2xl border border-blue-100 text-center flex flex-col justify-center shadow-sm">
                   <span className="text-[10px] font-bold text-blue-600 mb-0.5">평균 이유수</span>
-                  <p className="text-xl font-black text-blue-700">{sowStats.avgWeaned}<span className="text-xs font-bold ml-0.5">두</span></p>
+                  <p className="text-xl font-black text-blue-700">{(sowStats || {}).avgWeaned || '0.0'}<span className="text-xs font-bold ml-0.5">두</span></p>
                 </div>
               </div>
 
@@ -425,22 +651,25 @@
                       <span className="w-10">산차</span>
                       <span className="flex-1">분만일</span>
                       <span className="w-12">산자</span>
-                      <span className="w-12">이유</span>
                       <span className="w-12">이동</span>
+                      <span className="w-12">이유</span>
                       <span className="w-6"></span>
                     </div>
-                    {historyList.map((record, idx) => (
-                      <div key={idx} className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-slate-800 text-center hover:bg-slate-50 transition">
-                        <span className="w-10 bg-slate-100 py-1 rounded text-slate-600">{record.parity}산</span>
-                        <span className="flex-1 text-[13px]">{record.date || record.expDate || '-'}</span>
-                        <span className="w-12 text-emerald-600">{record.born || 0}</span>
-                        <span className="w-12 text-blue-600">{record.weaned || 0}</span>
-                        <span className="w-12 text-slate-500">{record.move || 0}</span>
-                        <button onClick={() => handleDeleteRecord(idx)} className="w-6 flex justify-center text-rose-300 hover:text-rose-500 transition">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
+                    {historyList.map((record, idx) => {
+                      const r = record || {};
+                      return (
+                        <div key={idx} className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-slate-800 text-center hover:bg-slate-50 transition">
+                          <span className="w-10 bg-slate-100 py-1 rounded text-slate-600">{r.parity || 0}산</span>
+                          <span className="flex-1 text-[13px]">{r.date || r.expDate || '-'}</span>
+                          <span className="w-12 text-emerald-600">{r.born || 0}</span>
+                          <span className="w-12 text-slate-500">{r.move || 0}</span>
+                          <span className="w-12 text-blue-600">{r.weaned || 0}</span>
+                          <button onClick={() => handleDeleteRecord(idx)} className="w-6 flex justify-center text-rose-300 hover:text-rose-500 transition">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -451,31 +680,31 @@
                 <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-black text-slate-800">생산 기록 추가</h3>
-                    <button onClick={() => setShowAddRecord(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><Plus className="w-5 h-5 rotate-45" /></button>
+                    <button onClick={() => setShowAddRecord(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
                   </div>
                   <form onSubmit={handleAddRecord} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 block mb-1">산차</label>
-                        <input type="number" required value={newRecord.parity} onChange={e => setNewRecord({...newRecord, parity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" placeholder={`예: ${Number(currentSow.parity) + 1}`} />
+                        <input type="number" required value={(newRecord || {}).parity || ''} onChange={e => setNewRecord({...newRecord, parity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" placeholder={`예: ${Number(s.parity || 0) + 1}`} />
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 block mb-1">분만일</label>
-                        <input type="date" value={newRecord.date} onChange={e => setNewRecord({...newRecord, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" />
+                        <input type="date" value={(newRecord || {}).date || ''} onChange={e => setNewRecord({...newRecord, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" />
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="text-[11px] font-bold text-emerald-600 block mb-1">산자수</label>
-                        <input type="number" value={newRecord.born} onChange={e => setNewRecord({...newRecord, born: e.target.value})} className="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm font-black text-emerald-700 outline-none" placeholder="0" />
-                      </div>
-                      <div>
-                        <label className="text-[11px] font-bold text-blue-600 block mb-1">이유두수</label>
-                        <input type="number" value={newRecord.weaned} onChange={e => setNewRecord({...newRecord, weaned: e.target.value})} className="w-full bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm font-black text-blue-700 outline-none" placeholder="0" />
+                        <input type="number" value={(newRecord || {}).born || ''} onChange={e => setNewRecord({...newRecord, born: e.target.value})} className="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300" placeholder="0" />
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 block mb-1">이동/도태</label>
-                        <input type="number" value={newRecord.move} onChange={e => setNewRecord({...newRecord, move: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none" placeholder="0" />
+                        <input type="number" value={(newRecord || {}).move || ''} onChange={e => setNewRecord({...newRecord, move: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-slate-400" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-blue-600 block mb-1">이유두수</label>
+                        <input type="number" value={(newRecord || {}).weaned || ''} onChange={e => setNewRecord({...newRecord, weaned: e.target.value})} className="w-full bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm font-black text-blue-700 outline-none focus:border-blue-300" placeholder="0" />
                       </div>
                     </div>
                     <button type="submit" className="w-full mt-4 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg">저장하기</button>
@@ -508,26 +737,52 @@
                 {/* 핵심 생산 지표 */}
                 <div className="grid grid-cols-2 gap-2">
                   <div className="col-span-2 bg-slate-800 text-white p-4 rounded-2xl flex justify-between items-center shadow-md">
-                    <span className="text-sm font-bold text-slate-300">전체 사육 두수</span>
-                    <span className="text-3xl font-black">{dashboardStats.total}<span className="text-base ml-1 font-bold">두</span></span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-slate-300">연평균 상시 모돈수</span>
+                      <span className="text-[10px] text-slate-500 mt-0.5">현재 등록: {(dashboardStats || {}).total || 0}두 (PSY 분모)</span>
+                    </div>
+                    <div className="flex items-baseline">
+                      <input
+                         type="number"
+                         className="w-20 bg-slate-700 text-white text-3xl font-black text-right border-b-2 border-slate-600 focus:border-blue-400 outline-none px-1"
+                         value={(farmSettings || {}).avgSowCount || ''}
+                         placeholder={String((dashboardStats || {}).total || 0)}
+                         onChange={(e) => handleSaveAvgSowCount(e.target.value)}
+                      />
+                      <span className="text-base ml-1 font-bold text-slate-400">두</span>
+                    </div>
                   </div>
-                  <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md">
+
+                  <div 
+                    onClick={() => setShowFormulaModal(true)} 
+                    className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md cursor-pointer hover:shadow-lg active:scale-95 transition-all"
+                  >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold text-indigo-200">최근 1년 PSY</span>
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-indigo-200">최근 1년 PSY</span>
+                        <span className="text-[9px] text-indigo-300 mt-0.5">수기 이유두수 기준</span>
+                      </div>
                       <Activity className="w-4 h-4 text-indigo-300 opacity-50" />
                     </div>
                     <div className="flex items-baseline">
-                      <span className="text-3xl font-black">{dashboardStats.psy}</span>
+                      <span className="text-3xl font-black">{(dashboardStats || {}).psy || '0.0'}</span>
                       <span className="text-sm font-bold ml-1 text-indigo-100">두</span>
                     </div>
                   </div>
-                  <div className="bg-gradient-to-br from-violet-500 to-violet-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden">
+
+                  <div 
+                    onClick={() => setShowFormulaModal(true)} 
+                    className="bg-gradient-to-br from-violet-500 to-violet-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
+                  >
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-[11px] font-bold text-violet-200">예상 MSY <span className="font-normal opacity-70">(95%)</span></span>
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-violet-200">예상 MSY</span>
+                        <span className="text-[9px] text-violet-300 mt-0.5">육성률 95% 기준</span>
+                      </div>
                       <Activity className="w-4 h-4 text-violet-300 opacity-50" />
                     </div>
                     <div className="flex items-baseline">
-                      <span className="text-3xl font-black">{dashboardStats.msy}</span>
+                      <span className="text-3xl font-black">{(dashboardStats || {}).msy || '0.0'}</span>
                       <span className="text-sm font-bold ml-1 text-violet-100">두</span>
                     </div>
                   </div>
@@ -537,19 +792,19 @@
                 <div className="grid grid-cols-4 gap-2">
                   <div onClick={() => openFilteredList('status', '이유')} className="bg-slate-200/60 p-3 rounded-2xl border border-slate-200 text-center flex flex-col justify-center cursor-pointer hover:border-slate-400 active:scale-95 transition-all">
                     <span className="text-[11px] font-bold text-slate-500 mb-1">이유/대기</span>
-                    <span className="text-xl font-black text-slate-700">{dashboardStats.status['이유']}</span>
+                    <span className="text-xl font-black text-slate-700">{((dashboardStats || {}).status || {})['이유'] || 0}</span>
                   </div>
                   <div onClick={() => openFilteredList('status', '임신')} className="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex flex-col justify-center cursor-pointer hover:border-blue-300 active:scale-95 transition-all">
                     <span className="text-[11px] font-bold text-blue-600 mb-1">임신</span>
-                    <span className="text-xl font-black text-blue-700">{dashboardStats.status['임신']}</span>
+                    <span className="text-xl font-black text-blue-700">{((dashboardStats || {}).status || {})['임신'] || 0}</span>
                   </div>
                   <div onClick={() => openFilteredList('status', '포유')} className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 text-center flex flex-col justify-center cursor-pointer hover:border-emerald-300 active:scale-95 transition-all">
                     <span className="text-[11px] font-bold text-emerald-600 mb-1">포유</span>
-                    <span className="text-xl font-black text-emerald-700">{dashboardStats.status['포유']}</span>
+                    <span className="text-xl font-black text-emerald-700">{((dashboardStats || {}).status || {})['포유'] || 0}</span>
                   </div>
                   <div onClick={() => openFilteredList('status', '재발')} className="bg-rose-50 p-3 rounded-2xl border border-rose-100 text-center flex flex-col justify-center cursor-pointer hover:border-rose-300 active:scale-95 transition-all">
                     <span className="text-[11px] font-bold text-rose-600 mb-1">재발</span>
-                    <span className="text-xl font-black text-rose-700">{dashboardStats.status['재발']}</span>
+                    <span className="text-xl font-black text-rose-700">{((dashboardStats || {}).status || {})['재발'] || 0}</span>
                   </div>
                 </div>
 
@@ -559,10 +814,10 @@
                     산차별 현황 <span className="text-[9px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded ml-1 font-bold">가로로 스크롤</span>
                   </h3>
                   <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
-                    {Object.keys(dashboardStats.parity).sort((a,b) => Number(a) - Number(b)).map(p => (
+                    {Object.keys((dashboardStats || {}).parity || {}).sort((a,b) => Number(a) - Number(b)).map(p => (
                       <div key={p} onClick={() => openFilteredList('parity', Number(p))} className="min-w-[64px] bg-white border border-slate-200 rounded-xl p-3 flex flex-col items-center shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 active:scale-95 transition-all">
                         <span className="text-[10px] font-bold text-slate-400 mb-0.5">{p}산</span>
-                        <span className="text-lg font-black text-slate-800">{dashboardStats.parity[p]}<span className="text-[10px] font-bold ml-0.5">두</span></span>
+                        <span className="text-lg font-black text-slate-800">{((dashboardStats || {}).parity || {})[p] || 0}<span className="text-[10px] font-bold ml-0.5">두</span></span>
                       </div>
                     ))}
                   </div>
@@ -574,19 +829,19 @@
                     월별 분만 예정 복수 <span className="text-[9px] bg-rose-50 text-rose-600 border border-rose-100 px-1.5 py-0.5 rounded ml-1 font-bold">교배일 기준</span>
                   </h3>
                   <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
-                    {Object.keys(dashboardStats.monthlyFarrowing).length === 0 ? (
+                    {Object.keys((dashboardStats || {}).monthlyFarrowing || {}).length === 0 ? (
                       <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
                         등록된 교배 일정(분만 예정)이 없습니다.
                       </div>
                     ) : (
-                      Object.keys(dashboardStats.monthlyFarrowing).sort().map(ym => {
+                      Object.keys((dashboardStats || {}).monthlyFarrowing || {}).sort().map(ym => {
                         const [yyyy, mm] = ym.split('-');
                         return (
                           <div key={ym} onClick={() => openFilteredList('expectedMonth', ym)} className="min-w-[90px] bg-white border border-rose-100 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm snap-start shrink-0 cursor-pointer hover:border-rose-300 active:scale-95 transition-all">
                             <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div>
                             <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">{yyyy}년 {parseInt(mm)}월</span>
                             <div className="flex items-baseline pl-1">
-                              <span className="text-2xl font-black text-rose-600">{dashboardStats.monthlyFarrowing[ym]}</span>
+                              <span className="text-2xl font-black text-rose-600">{((dashboardStats || {}).monthlyFarrowing || {})[ym] || 0}</span>
                               <span className="text-[10px] font-bold ml-0.5 text-rose-400">복</span>
                             </div>
                           </div>
@@ -607,6 +862,61 @@
                     <ChevronRight className="w-5 h-5 text-slate-400" />
                   </div>
                 </button>
+
+                {/* --- 주간 이유 성적 (직접 기록 방식) --- */}
+                <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-black text-blue-800">
+                      주간 이유 성적 <span className="text-[10px] bg-white text-blue-500 px-1.5 py-0.5 rounded font-bold ml-1">직접 기록</span>
+                    </h3>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => openWeaningModal()} 
+                        className="bg-blue-100 text-blue-700 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-blue-200"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> 추가
+                      </button>
+                      <button 
+                        onClick={downloadWeaningExcel} 
+                        className="bg-blue-600 text-white px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-blue-700"
+                      >
+                        <Download className="w-3.5 h-3.5" /> 엑셀
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                    {sortedWeaningRecords.length === 0 ? (
+                      <div className="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">
+                        직접 기록된 이유 성적이 없습니다.
+                      </div>
+                    ) : (
+                      sortedWeaningRecords.map(stat => {
+                        const st = stat || {};
+                        return (
+                          <div 
+                            key={st.date} 
+                            onClick={() => openWeaningModal(st)}
+                            className="min-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all"
+                          >
+                            <span className="text-[11px] font-black text-slate-500 mb-2">{(st.date || '').substring(5).replace('-', '/')} 이유</span>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded">
+                                <span className="text-[10px] font-bold text-slate-500">모돈</span>
+                                <span className="text-[13px] font-black text-slate-800">{st.sowCount || 0}<span className="text-[9px] font-normal ml-0.5">복</span></span>
+                              </div>
+                              <div className="flex justify-between items-center bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100">
+                                <span className="text-[10px] font-bold text-blue-600">이유</span>
+                                <span className="text-[14px] font-black text-blue-700">{st.totalWeaned || 0}<span className="text-[9px] font-normal ml-0.5">두</span></span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
               </div>
             ) : (
               <div className="text-center py-20">
@@ -648,9 +958,9 @@
                     </h3>
                     {listFilter && (
                       <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 mt-1 w-max border border-blue-100">
-                        {listFilter.type === 'status' ? `${listFilter.value} 상태` : 
-                         listFilter.type === 'parity' ? `${listFilter.value}산` :
-                         `${listFilter.value.split('-')[0]}년 ${parseInt(listFilter.value.split('-')[1])}월 분만 예정`}
+                        {(listFilter || {}).type === 'status' ? `${(listFilter || {}).value} 상태` : 
+                         (listFilter || {}).type === 'parity' ? `${(listFilter || {}).value}산` :
+                         `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 분만 예정`}
                         <button onClick={(e) => { e.stopPropagation(); setListFilter(null); }} className="hover:text-rose-500 transition-colors bg-blue-100 rounded-full p-0.5 ml-1">
                           <X className="w-3 h-3" />
                         </button>
@@ -670,28 +980,164 @@
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {filteredSows.map(sow => {
-                      const statusClass = getStatusColor(sow.currentStatus);
+                      const s = sow || {};
+                      const statusClass = getStatusColor(s.currentStatus);
                       return (
                         <div 
-                          key={sow.id} 
+                          key={s.id} 
                           onClick={() => {
-                            setSelectedSowId(sow.id);
+                            setSelectedSowId(s.id);
                             setShowSowListModal(false);
                           }}
                           className="bg-white p-3 rounded-2xl border border-slate-100 hover:border-blue-300 shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden"
                         >
                           <div className="flex flex-col items-center gap-0.5 mb-3 mt-2">
-                            <span className="text-2xl font-black text-slate-800 leading-none tracking-tighter">{sow.sowNo}</span>
-                            <span className="text-xs font-bold text-slate-400 leading-none">{sow.parity}산</span>
+                            <span className="text-2xl font-black text-slate-800 leading-none tracking-tighter">{s.sowNo || '-'}</span>
+                            <span className="text-xs font-bold text-slate-400 leading-none">{s.parity || 0}산</span>
                           </div>
-                          <span className={`text-[13px] font-black w-full text-center py-1.5 rounded-xl border ${statusClass} leading-none`}>
-                            {sow.currentStatus || '이유'}
+                          <span className={"text-[13px] font-black w-full text-center py-1.5 rounded-xl border leading-none " + statusClass}>
+                            {s.currentStatus || '이유'}
                           </span>
                         </div>
                       );
                     })}
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* --- 주간 이유 직접 기록 관리 팝업 --- */}
+          {showWeaningModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col">
+                    <h3 className="text-lg font-black text-slate-800">이유 성적 기록</h3>
+                    <span className="text-xs font-bold text-blue-600">{isEditingWeaning ? '기록 수정' : '새 기록 추가'}</span>
+                  </div>
+                  <button onClick={() => setShowWeaningModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800"><X className="w-5 h-5" /></button>
+                </div>
+
+                <div className="mb-4">
+                  <h4 className="text-[11px] font-bold text-slate-500 mb-2">해당 주차 이유 예정 모돈 ({(currentWeaningStat || {}).sows?.length || 0}두) <span className="font-normal text-blue-500">터치 시 이동</span></h4>
+                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto no-scrollbar pb-2">
+                    {((currentWeaningStat || {}).sows || []).map(sow => {
+                      const s = sow || {}; 
+                      return (
+                        <span 
+                          key={s.id} 
+                          onClick={() => {
+                            setSelectedSowId(s.id);
+                            setShowWeaningModal(false);
+                          }}
+                          className="bg-slate-100 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg text-[13px] border border-slate-200 cursor-pointer hover:bg-blue-100 hover:text-blue-700 hover:border-blue-300 transition-all active:scale-95 shadow-sm"
+                        >
+                          {s.sowNo || '-'}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveWeaning} className="space-y-4 border-t border-slate-100 pt-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">이유일 (날짜)</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={(weaningForm || {}).date || ''} 
+                      onChange={e => setWeaningForm({...weaningForm, date: e.target.value})} 
+                      disabled={isEditingWeaning}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    />
+                    {isEditingWeaning && <p className="text-[9px] text-slate-400 mt-1">수정 시 날짜는 변경할 수 없습니다. 삭제 후 다시 등록해주세요.</p>}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-600 block mb-1">이유 모돈수 (복)</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          required
+                          value={(weaningForm || {}).sowCount || ''} 
+                          onChange={e => setWeaningForm({...weaningForm, sowCount: e.target.value})} 
+                          className="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-3 text-lg font-black text-blue-800 outline-none focus:border-blue-400" 
+                          placeholder="0" 
+                        />
+                        <span className="text-sm font-bold text-slate-500">복</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-600 block mb-1">이유두수 (두)</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          required
+                          value={(weaningForm || {}).totalWeaned || ''} 
+                          onChange={e => setWeaningForm({...weaningForm, totalWeaned: e.target.value})} 
+                          className="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-3 text-lg font-black text-blue-800 outline-none focus:border-blue-400" 
+                          placeholder="0" 
+                        />
+                        <span className="text-sm font-bold text-slate-500">두</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button type="submit" className="w-full mt-4 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">저장하기</button>
+                  
+                  {isEditingWeaning && (
+                    !confirmWeaningDelete ? (
+                      <button type="button" onClick={() => setConfirmWeaningDelete(true)} className="w-full py-4 mt-2 bg-rose-50 text-rose-600 rounded-2xl font-black shadow-sm">
+                        이 기록 삭제하기
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 mt-2">
+                        <button type="button" onClick={() => setConfirmWeaningDelete(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black shadow-sm">
+                          삭제 취소
+                        </button>
+                        <button type="button" onClick={handleDeleteWeaning} className="flex-1 py-4 bg-rose-500 text-white rounded-2xl font-black shadow-sm">
+                          확인 (영구삭제)
+                        </button>
+                      </div>
+                    )
+                  )}
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* --- PSY / MSY 계산식 팝업 --- */}
+          {showFormulaModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-black text-slate-800">PSY / MSY 계산식</h3>
+                  <button onClick={() => setShowFormulaModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                    <h4 className="text-xs font-black text-indigo-600 mb-2">PSY (모돈당 연간 이유두수)</h4>
+                    <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 총 이유두수 ÷ 연평균 상시 모돈수</p>
+                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
+                      {(dashboardStats || {}).manualYearlyWeaned || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-indigo-600">{(dashboardStats || {}).psy || '0.0'}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-500 mt-2">* 수기 기록된 최근 365일간의 이유 성적 합산 기준</p>
+                  </div>
+
+                  <div className="bg-violet-50 p-4 rounded-xl border border-violet-100">
+                    <h4 className="text-xs font-black text-violet-600 mb-2">예상 MSY (모돈당 연간 출하두수)</h4>
+                    <p className="text-[11px] font-bold text-slate-600 mb-2">PSY × 예상 육성률 (95%)</p>
+                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
+                      {(dashboardStats || {}).psy || '0.0'} × 0.95 = <span className="text-violet-600">{(dashboardStats || {}).msy || '0.0'}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <button onClick={() => setShowFormulaModal(false)} className="w-full mt-6 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
               </div>
             </div>
           )}
@@ -710,7 +1156,7 @@
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-black text-slate-800">새 모돈 등록</h3>
-                  <button onClick={() => setShowAddSow(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><Plus className="w-5 h-5 rotate-45" /></button>
+                  <button onClick={() => setShowAddSow(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
                 </div>
                 <form onSubmit={handleAddSow} className="space-y-4">
                   <div>
@@ -718,7 +1164,7 @@
                     <input 
                       type="text" 
                       required 
-                      value={newSow.sowNo} 
+                      value={(newSow || {}).sowNo || ''} 
                       onChange={e => setNewSow({...newSow, sowNo: e.target.value})} 
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" 
                       placeholder="예: 23-11" 
@@ -729,7 +1175,7 @@
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">현재 산차</label>
                       <input 
                         type="number" 
-                        value={newSow.parity} 
+                        value={(newSow || {}).parity || ''} 
                         onChange={e => setNewSow({...newSow, parity: e.target.value})} 
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" 
                       />
@@ -737,7 +1183,7 @@
                     <div>
                       <label className="text-[11px] font-bold text-slate-500 block mb-1">초기 상태</label>
                       <select 
-                        value={newSow.currentStatus} 
+                        value={(newSow || {}).currentStatus || '이유'} 
                         onChange={e => setNewSow({...newSow, currentStatus: e.target.value})} 
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400"
                       >
