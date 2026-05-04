@@ -64,6 +64,16 @@
 
     <main class="max-w-2xl mx-auto p-4 space-y-6">
         
+        <!-- 외부 링크 네비게이션 버튼 -->
+        <section class="flex gap-2">
+            <a href="env.html" class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm">
+                <i data-lucide="thermometer" class="w-5 h-5 text-rose-500"></i> 환경모니터링
+            </a>
+            <a href="pigmom.html" class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm">
+                <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-500"></i> 모돈관리
+            </a>
+        </section>
+
         <!-- 상단 현황 그리드 영역 -->
         <section id="status-grid" class="grid grid-cols-5 gap-1.5"></section>
 
@@ -130,10 +140,13 @@
             <div id="grower-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
         </section>
 
-        <!-- 날짜별 변경사항 버튼 추가 -->
-        <section class="pt-4 border-t border-slate-200 mt-8">
-            <button onclick="window.openModal('daily_history')" class="w-full bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all">
-                <i data-lucide="history" class="w-5 h-5"></i> 날짜별 재고 변경사항 확인
+        <!-- 날짜별 변경사항 및 일령별 두수 확인 -->
+        <section class="pt-4 border-t border-slate-200 mt-8 grid grid-cols-2 gap-3">
+            <button onclick="window.openModal('daily_history')" class="w-full bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl shadow-sm flex flex-col justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-[13px]">
+                <i data-lucide="history" class="w-6 h-6 text-slate-400"></i> 재고 변경 내역
+            </button>
+            <button onclick="window.openModal('age_distribution')" class="w-full bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl shadow-sm flex flex-col justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-[13px]">
+                <i data-lucide="bar-chart-2" class="w-6 h-6 text-blue-400"></i> 일령별 두수 분포
             </button>
         </section>
     </main>
@@ -872,6 +885,83 @@
         };
 
         const modalRenderers = {
+            age_distribution: () => {
+                const todayStr = utils.getTodayStr();
+                const ageGroups = {};
+                let total = 0;
+                let countUnder60 = 0;
+                let count61To120 = 0;
+                let countOver120 = 0;
+                
+                [...state.wBatches, ...state.gBatches].forEach(b => {
+                    if (b.status === 'empty' || b.pens === 0) return;
+                    for (let i = 0; i < b.penDetails.length; i++) {
+                        const count = b.penDetails[i];
+                        if (count > 0) {
+                            const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date;
+                            if (penDate) {
+                                const age = utils.getDiffDays(penDate, todayStr) + 20;
+                                if (!ageGroups[age]) ageGroups[age] = { count: 0, pens: [] };
+                                ageGroups[age].count += count;
+                                
+                                const isGrower = state.gBatches.some(x => x.id === b.id);
+                                const stageName = isGrower ? (b.id === 8 ? '후보사' : `육성${b.id}`) : `이유${b.id}`;
+                                ageGroups[age].pens.push(`${stageName} ${i+1}칸`);
+                                
+                                total += count;
+                                if (age <= 60) countUnder60 += count;
+                                else if (age <= 120) count61To120 += count;
+                                else countOver120 += count;
+                            }
+                        }
+                    }
+                });
+
+                const sortedAges = Object.keys(ageGroups).map(Number).sort((a,b) => a - b);
+                
+                let listHtml = sortedAges.map(age => {
+                    const g = ageGroups[age];
+                    return `
+                    <div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-1.5 relative overflow-hidden">
+                        <div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div>
+                        <div class="flex justify-between items-center pl-2">
+                            <span class="text-[14px] font-black text-slate-700">${age}일령</span>
+                            <span class="text-[18px] font-black text-blue-600">${g.count.toLocaleString()}<span class="text-xs font-bold text-slate-400 ml-0.5">두</span></span>
+                        </div>
+                        <div class="pl-2 text-[9px] font-bold text-slate-400 truncate" title="${g.pens.join(', ')}">
+                            ${g.pens.join(', ')}
+                        </div>
+                    </div>`;
+                }).join('');
+
+                setTimeout(() => lucide.createIcons(), 50);
+                return {
+                    title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 일령별 두수 분포</div>`,
+                    html: `
+                    <div class="mb-2 bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center shadow-sm">
+                        <span class="text-xs font-black text-blue-600">이유/육성사 전체 집계</span>
+                        <span class="text-xl font-black text-blue-800">${total.toLocaleString()}<span class="text-sm ml-1 font-bold">두</span></span>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 mb-4">
+                        <div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-100 shadow-sm">
+                            <p class="text-[10px] font-bold text-emerald-600 mb-1">~60일령</p>
+                            <p class="text-[17px] font-black text-emerald-700">${countUnder60.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p>
+                        </div>
+                        <div class="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100 shadow-sm">
+                            <p class="text-[10px] font-bold text-indigo-600 mb-1">61~120일령</p>
+                            <p class="text-[17px] font-black text-indigo-700">${count61To120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p>
+                        </div>
+                        <div class="bg-rose-50 p-3 rounded-xl text-center border border-rose-100 shadow-sm">
+                            <p class="text-[10px] font-bold text-rose-600 mb-1">121일령~</p>
+                            <p class="text-[17px] font-black text-rose-700">${countOver120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 max-h-[45vh] overflow-y-auto no-scrollbar pb-2 px-1">
+                        ${listHtml || '<div class="col-span-2 text-center py-10 text-slate-400 font-bold text-xs">데이터가 없습니다.</div>'}
+                    </div>`,
+                    hideSave: true
+                };
+            },
             parity_distribution: () => {
                 const distribution = {};
                 state.sowList.forEach(s => {
