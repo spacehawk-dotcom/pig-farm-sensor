@@ -76,11 +76,15 @@
     const SOWS_COLLECTION_PATH = 'farms/sungamfarm/sows';
     const WEANING_RECORDS_PATH = 'farms/sungamfarm/weaning_records'; 
     const SETTINGS_PATH = 'farms/sungamfarm/settings'; 
+    const GILTS_COLLECTION_PATH = 'farms/sungamfarm/gilts'; // 후보돈 입식 기록 경로
+    const SHIPMENTS_COLLECTION_PATH = 'farms/sungamfarm/shipments'; // 사육현황 출하 기록 경로
 
     function App() {
       const [user, setUser] = useState(null);
       const [sows, setSows] = useState([]);
       const [weaningRecords, setWeaningRecords] = useState({}); 
+      const [giltRecords, setGiltRecords] = useState([]); // 후보돈 데이터 상태
+      const [shipments, setShipments] = useState([]); // 연동된 출하 데이터 상태
       const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0, yearlyShippedCount: 0 }); 
       const [loading, setLoading] = useState(true);
       
@@ -97,8 +101,16 @@
       const [isEditingWeaning, setIsEditingWeaning] = useState(false);
       const [confirmWeaningDelete, setConfirmWeaningDelete] = useState(false); 
       const [weaningForm, setWeaningForm] = useState({ date: '', sowCount: '', totalWeaned: '' });
+      
+      // 후보돈 입식 팝업 상태
+      const [showGiltModal, setShowGiltModal] = useState(false);
+      const [isEditingGilt, setIsEditingGilt] = useState(false);
+      const [selectedGiltId, setSelectedGiltId] = useState(null);
+      const [giltForm, setGiltForm] = useState({ date: '', count: '', matedCount: '' });
+
       const [showFormulaModal, setShowFormulaModal] = useState(false);
       const [showParityModal, setShowParityModal] = useState(false);
+      const [showMonthlyModal, setShowMonthlyModal] = useState(false);
 
       // 폼 상태
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
@@ -109,12 +121,10 @@
 
       // --- Auth & Data Fetching ---
       useEffect(() => {
-        // 1. 익명 로그인 시도
         auth.signInAnonymously().catch(err => {
           console.warn("익명 로그인 실패 (무시하고 데이터 호출 시도):", err);
         });
         
-        // 2. 인증 상태 변경 감지
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           setUser(currentUser);
           if (!currentUser) setLoading(false);
@@ -124,7 +134,6 @@
       }, []);
 
       useEffect(() => {
-        // 인증(로그인)이 완료되지 않으면 데이터베이스 접근 시도 금지
         if (!user) return;
 
         // 1. 모돈 정보 가져오기
@@ -143,7 +152,6 @@
           },
           (error) => {
             console.error("Error fetching sows:", error);
-            alert("모돈 데이터 가져오기 실패: " + error.message);
             setLoading(false);
           }
         );
@@ -170,10 +178,29 @@
           (error) => console.error("Error fetching settings:", error)
         );
 
-        return () => { unsubSows(); unsubWeaning(); unsubSettings(); };
+        // 4. 후보돈 입식 기록 가져오기
+        const unsubGilts = db.collection(GILTS_COLLECTION_PATH).onSnapshot(
+          (snapshot) => {
+            const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            records.sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); // 최신순 정렬
+            setGiltRecords(records);
+          },
+          (error) => console.error("Error fetching gilt records:", error)
+        );
+
+        // 5. 사육현황 출하 기록 가져오기 (자동 연동)
+        const unsubShipments = db.collection(SHIPMENTS_COLLECTION_PATH).onSnapshot(
+          (snapshot) => {
+            const records = snapshot.docs.map(doc => doc.data());
+            setShipments(records);
+          },
+          (error) => console.error("Error fetching shipments:", error)
+        );
+
+        return () => { unsubSows(); unsubWeaning(); unsubSettings(); unsubGilts(); unsubShipments(); };
       }, [user]);
 
-      // 헬퍼: 범용 날짜 파싱 (사용자가 "4/9" 처럼 쳐도 올해 날짜로 자동 인식하여 오류 방지)
+      // 헬퍼: 범용 날짜 파싱
       const parseValidDate = (dateStr) => {
         if (!dateStr) return null;
         const str = String(dateStr).trim();
@@ -186,7 +213,7 @@
           let d = parseInt(parts[2], 10);
           return new Date(y, m, d);
         } else if (parts.length === 2) {
-          let y = new Date().getFullYear(); // 연도 생략 시 올해 자동 추가
+          let y = new Date().getFullYear();
           let m = parseInt(parts[0], 10) - 1;
           let d = parseInt(parts[1], 10);
           return new Date(y, m, d);
@@ -223,7 +250,7 @@
         return formatDate(d);
       };
 
-      // 헬퍼: 날짜 덧셈 (일반적인 n일 이후 계산)
+      // 헬퍼: 날짜 덧셈
       const addDays = (dateStr, days) => {
         const d = parseValidDate(dateStr);
         if (!d) return '';
@@ -231,7 +258,7 @@
         return formatDate(d);
       };
 
-      // 헬퍼: 날짜 뺄셈 (일반적인 n일 이전 계산)
+      // 헬퍼: 날짜 뺄셈
       const subtractDays = (dateStr, days) => {
         const d = parseValidDate(dateStr);
         if (!d) return '';
@@ -239,7 +266,7 @@
         return formatDate(d);
       };
 
-      // 헬퍼: 해당 주차의 월요일 구하기 (분만 주차용)
+      // 헬퍼: 해당 주차의 월요일 구하기
       const getMonday = (dateStr) => {
         const d = parseValidDate(dateStr);
         if (!d) return null;
@@ -247,6 +274,16 @@
         const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay; 
         d.setDate(d.getDate() + diffToMonday);
         return formatDate(d);
+      };
+
+      // 헬퍼: 날짜 차이(일수) 계산 (입식 후 경과일 표시용)
+      const getDaysPassed = (dateStr) => {
+        const d = parseValidDate(dateStr);
+        if (!d) return 0;
+        const today = new Date();
+        const utc1 = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+        const utc2 = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+        return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
       };
 
       // --- Data Processing ---
@@ -262,7 +299,7 @@
           } else if (filterObj.type === 'expectedMonth') {
             result = result.filter(sow => {
               const s = sow || {};
-              if (!s.matingDate || s.currentStatus === '재발') return false;
+              if (!s.matingDate || s.currentStatus === '포유' || s.currentStatus === '재발') return false;
               const expDateStr = getExpectedFarrow(s.matingDate);
               return expDateStr && expDateStr.substring(0, 7) === filterObj.value;
             });
@@ -271,12 +308,12 @@
               const s = sow || {};
               const currentMonday = getMonday(new Date().toISOString().split('T')[0]);
 
-              // 1. 실제 분만 완료 매칭 (history 기록)
+              // 1. 실제 분만 완료 매칭
               const matchActual = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === filterObj.value);
-              // 2. 분만 예정 매칭 (교배일 기준) - 포유 상태인 경우도 일단 교배일이 있으면 예정주차로 매칭됨
+              // 2. 분만 예정 매칭
               const expDateStr = s.matingDate && s.currentStatus !== '재발' ? getExpectedFarrow(s.matingDate) : null;
               const matchExpected = expDateStr && getMonday(expDateStr) === filterObj.value;
-              // 3. 교배일조차 없고 상태만 '포유'인 경우 (이번 주차로 편입)
+              // 3. 교배일조차 없고 상태만 '포유'인 경우
               const matchFallback = !s.matingDate && s.currentStatus === '포유' && filterObj.value === currentMonday;
               
               return matchActual || matchExpected || matchFallback;
@@ -330,10 +367,7 @@
         
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-        const yy = oneYearAgo.getFullYear();
-        const mm = String(oneYearAgo.getMonth() + 1).padStart(2, '0');
-        const dd = String(oneYearAgo.getDate()).padStart(2, '0');
-        const oneYearAgoStr = `${yy}-${mm}-${dd}`;
+        const oneYearAgoStr = formatDate(oneYearAgo);
         
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
@@ -360,12 +394,20 @@
           }
         });
 
+        // 사육현황 DB에서 최근 1년 출하두수 합산
+        let dbYearlyShipped = 0;
+        shipments.forEach(record => {
+          if (record && record.date && record.date >= oneYearAgoStr) {
+            dbYearlyShipped += Number(record.count || 0);
+          }
+        });
+
         const fSettings = farmSettings || {};
         const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
         
-        // 파이어베이스 이유두수를 가져와 95% 육성률로 누적 출하두수 자동 계산
+        // 출하두수 결정 (1순위:수기입력, 2순위:사육현황 연동 DB, 3순위:이유두수*95%)
         const autoShipped = Math.floor(manualYearlyWeaned * 0.95);
-        const yearlyShipped = fSettings.yearlyShippedCount > 0 ? fSettings.yearlyShippedCount : autoShipped;
+        const yearlyShipped = fSettings.yearlyShippedCount > 0 ? fSettings.yearlyShippedCount : (dbYearlyShipped > 0 ? dbYearlyShipped : autoShipped);
 
         stats.psy = avgSows > 0 ? (manualYearlyWeaned / avgSows).toFixed(1) : "0.0";
         stats.msy = avgSows > 0 ? (yearlyShipped / avgSows).toFixed(1) : "0.0";
@@ -373,9 +415,10 @@
         stats.manualYearlyWeaned = manualYearlyWeaned;
         stats.yearlyShipped = yearlyShipped;
         stats.autoShipped = autoShipped;
+        stats.dbYearlyShipped = dbYearlyShipped; // UI 표시용
 
         return stats;
-      }, [sows, weaningRecords, farmSettings]);
+      }, [sows, weaningRecords, farmSettings, shipments]);
 
       // 모돈별 통계
       const sowStats = useMemo(() => {
@@ -396,17 +439,16 @@
         };
       }, [currentSow]);
 
-      // 주간별 분만 현황 산출 (실제 완료 + 상태가 포유인 경우 + 예정 포함)
+      // 주간별 분만 현황 산출 (실제 완료 + 예정 + 6산 + 포유두수)
       const weeklyFarrowingStats = useMemo(() => {
         const statsMap = {};
         
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = formatDate(new Date());
         const currentMonday = getMonday(todayStr);
 
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
           
-          // 1. 실제 분만 (history 기록이 있는 경우)
           if (s.history && Array.isArray(s.history)) {
             s.history.filter(Boolean).forEach(record => {
               const r = record || {};
@@ -420,12 +462,10 @@
               }
               statsMap[monday].actual += 1;
               
-              // 포유두수 계산: 산자수(born) - 이동/도태(move)
               const born = Number(r.born || 0);
               const move = Number(r.move || 0);
               statsMap[monday].nursingPiglets += (born >= move ? born - move : 0);
               
-              // 6산 도태는 이유를 완료한 시점(DB 상 산차가 6산 이상)으로 계산
               if (Number(s.parity || 0) >= 6) {
                 statsMap[monday].parity6Plus += 1;
               }
@@ -436,13 +476,11 @@
             });
           }
 
-          // 2. 예정 분만 (matingDate 기준) 및 상태만 '포유'로 변경된 모돈 처리
           if (s.matingDate && s.currentStatus !== '재발') {
             const expDateStr = getExpectedFarrow(s.matingDate);
             if (expDateStr) {
               const expMonday = getMonday(expDateStr);
               if (expMonday) {
-                // 이미 해당 주차에 분만 기록(history)이 있는지 확인
                 const hasActualThisWeek = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === expMonday);
                 
                 if (!hasActualThisWeek) {
@@ -451,13 +489,11 @@
                   }
                   
                   if (s.currentStatus === '포유') {
-                    // 상태가 '포유'로 되어있으면 분만 완료(포유)로 카운트 (기록이 없어 두수는 0)
                     statsMap[expMonday].actual += 1;
                     if (Number(s.parity || 0) >= 6) {
                       statsMap[expMonday].parity6Plus += 1;
                     }
                   } else {
-                    // 일반적인 분만 예정
                     statsMap[expMonday].expected += 1;
                     if ((Number(s.parity || 0) + 1) >= 6) {
                       statsMap[expMonday].parity6Plus += 1;
@@ -471,7 +507,6 @@
               }
             }
           } else if (!s.matingDate && s.currentStatus === '포유' && currentMonday) {
-             // 3. 교배일(matingDate)도 없는데 상태만 포유인 극단적인 경우 -> 이번 주차에 강제 편입
              const hasActualThisWeek = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === currentMonday);
              if (!hasActualThisWeek) {
                 if (!statsMap[currentMonday]) {
@@ -497,7 +532,6 @@
         const statsMap = {};
         
         weeklyFarrowingStats.forEach(stat => {
-          // 유효 모돈 수 = 전체(실제+예정) - 도태예정(6산 이상)
           const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
           const missingCount = 11 - validSowsCount;
 
@@ -516,8 +550,7 @@
           }
         });
 
-        const today = new Date();
-        const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const currentYM = formatDate(new Date()).substring(0, 7);
 
         // 빠른 연월(과거->미래) 순으로 정렬하되, 지난 달(과거) 데이터는 제외
         return Object.keys(statsMap)
@@ -531,11 +564,7 @@
 
       // 예정된 후보돈 약제 투여 알림 (최대 2주 분량 추출)
       const upcomingMedications = useMemo(() => {
-        const today = new Date();
-        const yy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${yy}-${mm}-${dd}`;
+        const todayStr = formatDate(new Date());
         
         const upcoming = [];
         
@@ -543,7 +572,6 @@
           const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
           const missingCount = 11 - validSowsCount;
 
-          // 부족분이 2 이상일 때만 보충을 고려
           if (missingCount >= 2) {
             const weaningThursday = getWeaningThursday(stat.date);
             if (weaningThursday) {
@@ -565,7 +593,6 @@
           }
         });
 
-        // 날짜순 정렬 후 가장 가까운 2개(다음 주, 다다음 주 개념)만 추출
         return upcoming.sort((a, b) => a.medWeekMonday.localeCompare(b.medWeekMonday)).slice(0, 2);
       }, [weeklyFarrowingStats]);
 
@@ -613,7 +640,7 @@
           .sort((a, b) => String((b || {}).date || '').localeCompare(String((a || {}).date || '')));
       }, [weaningRecords]);
 
-      // 월별 교배(임신) 및 분만(포유) 실적 통계 (강화된 날짜 파싱 적용)
+      // 월별 교배(임신) 및 분만(포유) 실적 통계
       const monthlyActivityStats = useMemo(() => {
         const statsMap = {};
         
@@ -646,57 +673,67 @@
         });
 
         // 최신 월이 먼저 오도록 내림차순 정렬
-        return Object.values(statsMap).sort((a, b) => b.month.localeCompare(a.month));
+        return Object.values(statsMap).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
       }, [sows]);
-
-      // 앱 실행 및 데이터 갱신 시 주간별 분만 복수 리스트를 '이번 주' 부근으로 자동 스크롤
-      useEffect(() => {
-        if (farrowingScrollRef.current && weeklyFarrowingStats.length > 0) {
-          const todayStr = new Date().toISOString().split('T')[0];
-          const currentMonday = getMonday(todayStr);
-          
-          // 이번 주와 일치하거나 미래인 첫 번째 주차 인덱스 찾기
-          let targetIndex = weeklyFarrowingStats.findIndex(stat => stat.date >= currentMonday);
-          
-          // 미래 일정이 전혀 없으면 리스트의 맨 끝(가장 최근 과거)으로 설정
-          if (targetIndex === -1) {
-            targetIndex = weeklyFarrowingStats.length - 1;
-          }
-
-          // 렌더링 완료 후 부드럽게 스크롤 되도록 지연 실행
-          setTimeout(() => {
-            const container = farrowingScrollRef.current;
-            if (container && container.children && container.children[targetIndex]) {
-              const card = container.children[targetIndex];
-              container.scrollTo({
-                left: card.offsetLeft - container.offsetLeft - 16, // 약간의 좌측 여백 포함
-                behavior: 'smooth'
-              });
-            }
-          }, 300);
-        }
-      }, [weeklyFarrowingStats]);
 
 
       // --- Handlers ---
       const handleSaveSetting = (field, val) => {
         const numberVal = Number(val);
-        db.collection(SETTINGS_PATH).doc('main').set({ [field]: numberVal }, { merge: true }).catch(err => {
-          alert("설정 저장 실패: " + err.message);
-        });
+        db.collection(SETTINGS_PATH).doc('main').set({ [field]: numberVal }, { merge: true });
       };
 
       const handleSaveMedicationOverride = (week, val) => {
         const field = `medOverride_${week}`;
-        // 수동 입력값이 비어있으면(지우면) null로 처리하여 자동 계산값이 보이도록 함
-        const updateData = val === '' 
-          ? { [field]: null }
-          : { [field]: Number(val) };
-          
-        db.collection(SETTINGS_PATH).doc('main').set(updateData, { merge: true }).catch(err => {
-          console.error("약제 투여 두수 저장 실패:", err);
-        });
+        const updateData = val === '' ? { [field]: null } : { [field]: Number(val) };
+        db.collection(SETTINGS_PATH).doc('main').set(updateData, { merge: true });
       };
+
+      // 후보돈 입식 기록 Handlers
+      const openGiltModal = (record = null) => {
+        if (record) {
+          setGiltForm({ date: record.date || '', count: record.count || '', matedCount: record.matedCount || 0 });
+          setSelectedGiltId(record.id);
+          setIsEditingGilt(true);
+        } else {
+          setGiltForm({ date: formatDate(new Date()), count: '', matedCount: 0 });
+          setSelectedGiltId(null);
+          setIsEditingGilt(false);
+        }
+        setShowGiltModal(true);
+      };
+
+      const handleSaveGilt = async (e) => {
+        e.preventDefault();
+        if (!user || !giltForm.date) return;
+        try {
+          const payload = {
+            date: giltForm.date,
+            count: Number(giltForm.count) || 0,
+            matedCount: Number(giltForm.matedCount) || 0,
+            updatedAt: new Date().toISOString()
+          };
+          if (isEditingGilt && selectedGiltId) {
+            await db.collection(GILTS_COLLECTION_PATH).doc(selectedGiltId).update(payload);
+          } else {
+            await db.collection(GILTS_COLLECTION_PATH).add(payload);
+          }
+          setShowGiltModal(false);
+        } catch (err) {
+          console.error("Error saving gilt record:", err);
+        }
+      };
+
+      const handleDeleteGilt = async () => {
+        if (!user || !selectedGiltId || !window.confirm("이 입식 기록을 삭제하시겠습니까?")) return;
+        try {
+          await db.collection(GILTS_COLLECTION_PATH).doc(selectedGiltId).delete();
+          setShowGiltModal(false);
+        } catch (err) {
+          console.error("Error deleting gilt record:", err);
+        }
+      };
+
 
       const handleAddSow = async (e) => {
         e.preventDefault();
@@ -714,7 +751,6 @@
           setShowAddSow(false);
         } catch (err) {
           console.error("Error adding sow:", err);
-          alert("추가 실패: " + err.message);
         }
       };
 
@@ -725,7 +761,6 @@
           if (selectedSowId === id) setSelectedSowId(null);
         } catch (err) {
           console.error("Error deleting sow:", err);
-          alert("삭제 실패: " + err.message);
         }
       };
 
@@ -768,7 +803,6 @@
           setShowAddRecord(false);
         } catch (err) {
           console.error("Error adding record:", err);
-          alert("기록 추가 실패: " + err.message);
         }
       };
 
@@ -792,11 +826,7 @@
           setWeaningForm({ date: r.date || '', sowCount: r.sowCount || '', totalWeaned: r.totalWeaned || '' });
           setIsEditingWeaning(true);
         } else {
-          const today = new Date();
-          const yy = today.getFullYear();
-          const mm = String(today.getMonth() + 1).padStart(2, '0');
-          const dd = String(today.getDate()).padStart(2, '0');
-          setWeaningForm({ date: `${yy}-${mm}-${dd}`, sowCount: '', totalWeaned: '' });
+          setWeaningForm({ date: formatDate(new Date()), sowCount: '', totalWeaned: '' });
           setIsEditingWeaning(false);
         }
         setShowWeaningModal(true);
@@ -816,7 +846,6 @@
           setWeaningForm({ date: '', sowCount: '', totalWeaned: '' });
         } catch (err) {
           console.error("Error saving weaning record:", err);
-          alert("이유 성적 저장 실패: " + err.message);
         }
       };
 
@@ -872,18 +901,36 @@
         });
 
         const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const wscols = [{wch:15}, {wch:15}, {wch:15}, {wch:20}];
-        worksheet['!cols'] = wscols;
+        worksheet['!cols'] = [{wch:15}, {wch:15}, {wch:15}, {wch:20}];
 
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "수동기록_이유성적");
-        
-        const today = new Date();
-        const yy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        XLSX.writeFile(workbook, `성암농장_이유성적_${yy}-${mm}-${dd}.xlsx`);
+        XLSX.writeFile(workbook, `성암농장_이유성적_${formatDate(new Date())}.xlsx`);
       };
+
+      // 앱 실행 및 데이터 갱신 시 주간별 분만 복수 리스트를 '이번 주' 부근으로 자동 스크롤
+      useEffect(() => {
+        if (farrowingScrollRef.current && weeklyFarrowingStats.length > 0) {
+          const todayStr = formatDate(new Date());
+          const currentMonday = getMonday(todayStr);
+          
+          let targetIndex = weeklyFarrowingStats.findIndex(stat => stat.date >= currentMonday);
+          if (targetIndex === -1) {
+            targetIndex = weeklyFarrowingStats.length - 1;
+          }
+
+          setTimeout(() => {
+            const container = farrowingScrollRef.current;
+            if (container && container.children && container.children[targetIndex]) {
+              const card = container.children[targetIndex];
+              container.scrollTo({
+                left: card.offsetLeft - container.offsetLeft - 16,
+                behavior: 'smooth'
+              });
+            }
+          }, 300);
+        }
+      }, [weeklyFarrowingStats]);
 
       // --- Renderers ---
       if (loading) {
@@ -1101,15 +1148,15 @@
 
                   <div className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md">
                     <div className="flex flex-col mb-2">
-                      <span className="text-[11px] font-bold text-slate-300">올해 누적 출하두수</span>
-                      <span className="text-[9px] text-slate-500">자동: {(dashboardStats || {}).autoShipped || 0}두 (이유×95%)</span>
+                      <span className="text-[11px] font-bold text-slate-300">최근 1년 출하두수</span>
+                      <span className="text-[9px] text-emerald-400">사육현황 연동: {(dashboardStats || {}).dbYearlyShipped || 0}두</span>
                     </div>
                     <div className="flex items-baseline">
                       <input
                          type="number"
-                         className="w-16 bg-slate-700 text-white text-xl font-black text-right border-b-2 border-slate-600 focus:border-blue-400 outline-none px-1"
+                         className="w-16 bg-slate-700 text-white text-xl font-black text-right border-b-2 border-slate-600 focus:border-emerald-400 outline-none px-1"
                          value={(farmSettings || {}).yearlyShippedCount || ''}
-                         placeholder={String((dashboardStats || {}).autoShipped || 0)}
+                         placeholder={String((dashboardStats || {}).dbYearlyShipped > 0 ? (dashboardStats || {}).dbYearlyShipped : (dashboardStats || {}).autoShipped || 0)}
                          onChange={(e) => handleSaveSetting('yearlyShippedCount', e.target.value)}
                       />
                       <span className="text-xs ml-1 font-bold text-slate-400">두</span>
@@ -1244,6 +1291,56 @@
                   </div>
                 </div>
 
+                {/* 실제 후보돈 입식 현황 */}
+                <div className="mt-4 bg-amber-50 border border-amber-100 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-black text-amber-800">
+                      실제 후보돈 입식 관리
+                    </h3>
+                    <button
+                      onClick={() => openGiltModal()}
+                      className="bg-amber-100 text-amber-700 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-amber-200"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> 추가
+                    </button>
+                  </div>
+
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                    {giltRecords.length === 0 ? (
+                      <div className="w-full text-center py-4 bg-white/50 border border-dashed border-amber-200 rounded-xl text-xs font-bold text-amber-500">
+                        기록된 입식 데이터가 없습니다.
+                      </div>
+                    ) : (
+                      giltRecords.map(record => {
+                        const remaining = (record.count || 0) - (record.matedCount || 0);
+                        const daysPassed = getDaysPassed(record.date);
+                        return (
+                          <div 
+                            key={record.id}
+                            onClick={() => openGiltModal(record)}
+                            className="min-w-[120px] bg-white border border-amber-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-amber-400 active:scale-95 transition-all"
+                          >
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-[11px] font-black text-slate-500">{record.date.substring(5).replace('-', '/')} 입식</span>
+                              <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-sm border border-amber-100">+{daysPassed}일</span>
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded">
+                                <span className="text-[10px] font-bold text-slate-500">입식</span>
+                                <span className="text-[13px] font-black text-slate-800">{record.count || 0}<span className="text-[9px] font-normal ml-0.5">두</span></span>
+                              </div>
+                              <div className="flex justify-between items-center bg-amber-100/50 px-1.5 py-1 rounded border border-amber-100">
+                                <span className="text-[10px] font-bold text-amber-600">잔여(대기)</span>
+                                <span className="text-[14px] font-black text-amber-700">{remaining}<span className="text-[9px] font-normal ml-0.5">두</span></span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
                 {/* 예정된 약제 투여 후보돈 알림 (최대 2건) */}
                 <div className="mt-4">
                   <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
@@ -1301,12 +1398,19 @@
                 </div>
 
                 {/* 목록 조회 버튼 그룹 */}
-                <div className="mt-2">
-                  <button onClick={() => setShowParityModal(true)} className="w-full bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-row items-center justify-center gap-2 font-black active:scale-95 transition-transform">
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <button onClick={() => setShowParityModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
                     <div className="bg-indigo-50 p-2 rounded-full">
                       <Activity className="w-5 h-5 text-indigo-500" />
                     </div>
-                    <span className="text-sm">산차별 현황 보기</span>
+                    <span className="text-xs">산차별 현황</span>
+                  </button>
+
+                  <button onClick={() => setShowMonthlyModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
+                    <div className="bg-rose-50 p-2 rounded-full">
+                      <Baby className="w-5 h-5 text-rose-500" />
+                    </div>
+                    <span className="text-xs">월별 분만 예정</span>
                   </button>
                 </div>
 
@@ -1617,6 +1721,74 @@
             </div>
           )}
 
+          {/* --- NEW: 후보돈 입식 기록 모달 팝업 --- */}
+          {showGiltModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col">
+                    <h3 className="text-lg font-black text-slate-800">후보돈 입식 기록</h3>
+                    <span className="text-xs font-bold text-amber-600">{isEditingGilt ? '기록 및 차감 수정' : '새 입식 기록'}</span>
+                  </div>
+                  <button onClick={() => setShowGiltModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+
+                <form onSubmit={handleSaveGilt} className="space-y-4 border-t border-slate-100 pt-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">입식일 (날짜)</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={(giltForm || {}).date || ''} 
+                      onChange={e => setGiltForm({...giltForm, date: e.target.value})} 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-amber-400" 
+                    />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[11px] font-bold text-amber-600 block mb-1">총 입식 두수</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          required
+                          value={(giltForm || {}).count || ''} 
+                          onChange={e => setGiltForm({...giltForm, count: e.target.value})} 
+                          className="flex-1 bg-amber-50 border border-amber-200 rounded-xl p-3 text-lg font-black text-amber-800 outline-none focus:border-amber-400" 
+                          placeholder="0" 
+                        />
+                        <span className="text-sm font-bold text-slate-500">두</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-[11px] font-bold text-indigo-600 block mb-1">교배 완료 (차감)</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          value={(giltForm || {}).matedCount || ''} 
+                          onChange={e => setGiltForm({...giltForm, matedCount: e.target.value})} 
+                          className="flex-1 bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-lg font-black text-indigo-800 outline-none focus:border-indigo-400" 
+                          placeholder="0" 
+                        />
+                        <span className="text-sm font-bold text-slate-500">두</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-tight">입식한 후보돈이 교배(종부)에 들어가면 우측 칸에 두수를 입력하여 대기 마리수에서 차감시킬 수 있습니다.</p>
+                  
+                  <button type="submit" className="w-full mt-4 py-4 bg-amber-500 text-white rounded-2xl font-black shadow-lg hover:bg-amber-600 active:scale-95 transition-all">저장하기</button>
+                  
+                  {isEditingGilt && (
+                    <button type="button" onClick={handleDeleteGilt} className="w-full py-4 mt-2 bg-rose-50 text-rose-600 rounded-2xl font-black shadow-sm hover:bg-rose-100 active:scale-95 transition-all">
+                      이 기록 삭제하기
+                    </button>
+                  )}
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* --- 주간 이유 직접 기록 관리 팝업 --- */}
           {showWeaningModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
@@ -1777,6 +1949,43 @@
             </div>
           )}
 
+          {/* --- 월별 분만 예정 현황 팝업 --- */}
+          {showMonthlyModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col">
+                    <h3 className="text-lg font-black text-slate-800">월별 분만 예정 현황</h3>
+                    <span className="text-xs font-bold text-rose-500">교배일 기준 (클릭하여 목록 확인)</span>
+                  </div>
+                  <button onClick={() => setShowMonthlyModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+                
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto no-scrollbar pb-4">
+                  {Object.keys((dashboardStats || {}).monthlyFarrowing || {}).length === 0 ? (
+                    <div className="col-span-full text-center py-5 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
+                      등록된 교배 일정(분만 예정)이 없습니다.
+                    </div>
+                  ) : (
+                    Object.keys((dashboardStats || {}).monthlyFarrowing || {}).sort().map(ym => {
+                      const [yyyy, mm] = ym.split('-');
+                      return (
+                        <div key={ym} onClick={() => { setShowMonthlyModal(false); openFilteredList('expectedMonth', ym); }} className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm cursor-pointer hover:border-rose-300 hover:bg-rose-100 active:scale-95 transition-all">
+                          <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div>
+                          <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">{yyyy}년 {parseInt(mm)}월</span>
+                          <div className="flex items-baseline pl-1">
+                            <span className="text-2xl font-black text-rose-600">{((dashboardStats || {}).monthlyFarrowing || {})[ym] || 0}</span>
+                            <span className="text-[10px] font-bold ml-0.5 text-rose-400">복</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* 새 모돈 등록 플로팅 버튼 */}
           <button 
             onClick={() => { setShowSowListModal(false); setShowAddSow(true); }}
@@ -1791,7 +2000,7 @@
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-black text-slate-800">새 모돈 등록</h3>
-                  <button onClick={() => setShowAddSow(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><Plus className="w-5 h-5 rotate-45" /></button>
+                  <button onClick={() => setShowAddSow(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
                 </div>
                 <form onSubmit={handleAddSow} className="space-y-4">
                   <div>

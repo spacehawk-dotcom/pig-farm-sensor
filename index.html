@@ -893,7 +893,12 @@
                 let count61To120 = 0;
                 let countOver120 = 0;
                 
-                [...state.wBatches, ...state.gBatches].forEach(b => {
+                const allBatches = [
+                    ...state.wBatches.map(b => ({...b, _stage: 'weaning'})),
+                    ...state.gBatches.map(b => ({...b, _stage: 'grower'}))
+                ];
+
+                allBatches.forEach(b => {
                     if (b.status === 'empty' || b.pens === 0) return;
                     for (let i = 0; i < b.penDetails.length; i++) {
                         const count = b.penDetails[i];
@@ -904,7 +909,7 @@
                                 if (!ageGroups[age]) ageGroups[age] = { count: 0, pens: [] };
                                 ageGroups[age].count += count;
                                 
-                                const isGrower = state.gBatches.some(x => x.id === b.id);
+                                const isGrower = b._stage === 'grower';
                                 const stageName = isGrower ? (b.id === 8 ? '후보사' : `육성${b.id}`) : `이유${b.id}`;
                                 ageGroups[age].pens.push(`${stageName} ${i+1}칸`);
                                 
@@ -1406,6 +1411,20 @@
                     <div class="bg-slate-50 p-4 rounded-xl mb-3">
                         <label class="text-[10px] font-black text-slate-500 block mb-2">메모 사항</label>
                         <textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none" placeholder="여기에 메모를 입력하세요...">${b.memo||''}</textarea>
+                    </div>
+                    <div class="pt-4 border-t border-slate-100 mt-4">
+                        <div id="batch-reset-btn-container" class="flex justify-center">
+                            <button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기
+                            </button>
+                        </div>
+                        <div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center">
+                            <p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화됩니다.</p>
+                            <div class="flex gap-2 w-full mt-1">
+                                <button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button>
+                                <button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button>
+                            </div>
+                        </div>
                     </div>` 
                 };
             },
@@ -1716,6 +1735,55 @@
                     btn.classList.remove('hidden');
                     confirmBtn.classList.add('hidden');
                 }
+            }
+        };
+
+        window.toggleBatchResetConfirm = () => {
+            const btn = document.getElementById('batch-reset-btn-container');
+            const confirmBtn = document.getElementById('batch-reset-confirm-container');
+            if (btn && confirmBtn) {
+                if (!btn.classList.contains('hidden')) {
+                    btn.classList.add('hidden');
+                    confirmBtn.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('hidden');
+                    confirmBtn.classList.add('hidden');
+                }
+            }
+        };
+
+        window.resetBatch = async (stg, bId) => {
+            try {
+                const isGrower = stg === 'grower';
+                const emptyBatch = getEmptyBatch(bId, isGrower);
+                const col = isGrower ? COLS.GROWER : COLS.WEANING;
+                
+                let updateData = {
+                    status: emptyBatch.status,
+                    date: emptyBatch.date,
+                    pens: emptyBatch.pens,
+                    pigs: emptyBatch.pigs,
+                    memo: emptyBatch.memo,
+                    penDetails: emptyBatch.penDetails,
+                    penDates: emptyBatch.penDates,
+                    penIsResidual: emptyBatch.penIsResidual,
+                    penIsSick: emptyBatch.penIsSick
+                };
+
+                if (isGrower) {
+                    updateData.sourceId = null;
+                    updateData.weaningDate = '';
+                    updateData.pendingShipments = [];
+                }
+
+                await db.doc(`${col}/batch_${bId}`).update(updateData);
+                
+                utils.showToast("배치 기록이 성공적으로 리셋되었습니다.");
+                window.closeModal();
+                if (isLocalEnv) renderAll();
+            } catch (e) {
+                console.error(e);
+                utils.showToast("리셋 실패: " + e.message);
             }
         };
 
