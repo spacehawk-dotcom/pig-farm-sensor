@@ -1312,7 +1312,9 @@
             },
             pen_detail: (t) => {
                 const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => x.id === t.batchId);
-                const count = b.penDetails[t.penIndex], pDate = (b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr(), isGrower = t.stage === 'grower';
+                const count = b.penDetails[t.penIndex];
+                const pDate = count > 0 ? ((b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr()) : utils.getTodayStr();
+                const isGrower = t.stage === 'grower';
                 const isResidual = b.penIsResidual ? b.penIsResidual[t.penIndex] : false;
                 const isSick = b.penIsSick ? b.penIsSick[t.penIndex] : false;
                 

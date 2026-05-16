@@ -1,10 +1,11 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
-const ACCESS_ID = 'vfdhuhsr8f4n53m7mcep';
-const ACCESS_SECRET = '32778d3a7e8841c9abe044bf0559d797';
-const BASE_URL = 'https://openapi.tuyaeu.com'; 
-const FIREBASE_API_KEY = "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0"; // 🌟 사장님의 앱 열쇠
+// 🌟 핵심 보안 패치: 실제 키값을 지우고, 네플리파이 금고에서 꺼내 쓰도록 지시!
+const ACCESS_ID = process.env.TUYA_ACCESS_ID;
+const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY; 
+const BASE_URL = 'https://openapi.tuyaeu.com';
 
 async function getTuyaToken() {
     const t = Date.now().toString();
@@ -98,8 +99,8 @@ exports.handler = async (event, context) => {
         { id: 'bfb02f9bdb0fbb1ba2vcev', name: '이유_5배치', fbCol: 'weaning', fbBatch: 5 },
         { id: 'bffc0e9933819a679cmvch', name: '육성_1배치', fbCol: 'grower',  fbBatch: 1 },
         { id: 'bfdcb1b4769d718606x5tl', name: '육성_2배치', fbCol: 'grower',  fbBatch: 2 },
-        { id: 'bf103f8ae9ca059462shtb', name: '육성_3배치', fbCol: 'grower',  fbBatch: 3 },
-        { id: 'bfc0b91fadf5497101bsgd', name: '육성_4배치', fbCol: 'grower',  fbBatch: 4 },
+        { id: 'bf14f794614a16cc024n1z', name: '육성_3배치', fbCol: 'grower',  fbBatch: 3 },
+        { id: 'bf1faaae7e5072f78fhyzr', name: '육성_4배치', fbCol: 'grower',  fbBatch: 4 },
         { id: 'bfe85a2050a78a35583hf4', name: '육성_5배치', fbCol: 'grower',  fbBatch: 5 },
         { id: 'bff5798c4d866a911090af', name: '육성_6배치', fbCol: 'grower',  fbBatch: 6 },
         { id: 'bf13f302e48b276482bzjb', name: '외부온도', fbCol: 'grower',  fbBatch: 7 }
