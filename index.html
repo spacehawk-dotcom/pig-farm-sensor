@@ -401,12 +401,13 @@
             try {
                 state.stocks.piglet = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
                 state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-                state.stocks.sow = state.sowList.filter(s => s.parity >= 1).length;
-                state.stocks.sow_pregnant = state.sowList.filter(s => s.parity >= 1 && s.currentStatus === '임신').length;
-                state.stocks.sow_nursing = state.sowList.filter(s => s.parity >= 1 && s.currentStatus === '포유').length;
-                state.stocks.sow_weaning = state.sowList.filter(s => s.parity >= 1 && (s.currentStatus === '이유' || !s.currentStatus)).length;
-                state.stocks.sow_return = state.sowList.filter(s => s.parity >= 1 && s.currentStatus === '재발').length;
-                state.stocks.replacement = state.sowList.filter(s => s.parity === 0).length;
+                const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
+                state.stocks.sow = state.sowList.filter(isSow).length;
+                state.stocks.sow_pregnant = state.sowList.filter(s => isSow(s) && s.currentStatus === '임신').length;
+                state.stocks.sow_nursing = state.sowList.filter(s => isSow(s) && s.currentStatus === '포유').length;
+                state.stocks.sow_weaning = state.sowList.filter(s => isSow(s) && (s.currentStatus === '이유' || !s.currentStatus)).length;
+                state.stocks.sow_return = state.sowList.filter(s => isSow(s) && s.currentStatus === '재발').length;
+                state.stocks.replacement = state.sowList.filter(s => s.parity === 0 && s.currentStatus !== '임신').length;
                 await db.doc(`${COLS.HISTORY}/${utils.getTodayStr()}`).set({ stocks: state.stocks, updatedAt: new Date().toISOString() });
                 await db.doc(`${COLS.STOCKS}/current`).update(state.stocks);
             } catch(e) { console.error("History Save Error:", e); }
@@ -417,8 +418,9 @@
         function renderStocks() {
             state.stocks.piglet = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
             state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-            state.stocks.sow = state.sowList.filter(s => s.parity >= 1).length;
-            state.stocks.replacement = state.sowList.filter(s => s.parity === 0).length;
+            const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
+            state.stocks.sow = state.sowList.filter(isSow).length;
+            state.stocks.replacement = state.sowList.filter(s => s.parity === 0 && s.currentStatus !== '임신').length;
             state.stocks.boar = Number(state.stocks.boar) || 0;
             document.getElementById('total-pigs-label').innerText = `총 재고: ${(state.stocks.sow + state.stocks.replacement + state.stocks.boar + state.stocks.piglet + state.stocks.grower).toLocaleString()}두`;
             const cards = [
@@ -970,7 +972,7 @@
             parity_distribution: () => {
                 const distribution = {};
                 state.sowList.forEach(s => {
-                    if (s.parity >= 1) { 
+                    if (s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신')) { 
                         if (!distribution[s.parity]) distribution[s.parity] = [];
                         distribution[s.parity].push(s);
                     }
@@ -1432,14 +1434,15 @@
             },
             sow_list: (f) => {
                 let list = state.sowList, title = '모돈 목록';
+                const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
                 if (f === '재발') { list = list.filter(s => s.currentStatus === '재발'); title = '재발 모돈 목록'; }
                 else if (f === '이유') { 
                     list = list.filter(s => (s.currentStatus === '이유' || !s.currentStatus) && !s.matingDate); 
                     title = '이유 모돈 목록'; 
                 }
                 else if (f === '포유') { list = list.filter(s => s.currentStatus === '포유'); title = '포유 모돈 목록'; }
-                else if (f === 'sow') { list = list.filter(s => s.parity >= 1); title = '모돈 목록 (1산↑)'; }
-                else if (f === 'rep') { list = list.filter(s => s.parity === 0); title = '후보돈 목록 (0산)'; }
+                else if (f === 'sow') { list = list.filter(isSow); title = '모돈 목록 (임신후보 포함)'; }
+                else if (f === 'rep') { list = list.filter(s => s.parity === 0 && s.currentStatus !== '임신'); title = '후보돈 목록 (대기)'; }
                 
                 const html = `
                 <div class="flex gap-2 mb-4">
