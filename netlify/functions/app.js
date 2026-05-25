@@ -98,10 +98,10 @@ exports.handler = async (event, context) => {
         { id: 'bfc20cd2af7ace2e1ashgo', name: '이유_4배치', fbCol: 'weaning', fbBatch: 4 },
         { id: 'bfb02f9bdb0fbb1ba2vcev', name: '이유_5배치', fbCol: 'weaning', fbBatch: 5 },
         { id: 'bffc0e9933819a679cmvch', name: '육성_1배치', fbCol: 'grower',  fbBatch: 1 },
-        { id: 'bfdcb1b4769d718606x5tl', name: '육성_2배치', fbCol: 'grower',  fbBatch: 2 },
+        { id: 'bf58ee06fc0c104896tv51', name: '육성_2배치', fbCol: 'grower',  fbBatch: 2 },
         { id: 'bf14f794614a16cc024n1z', name: '육성_3배치', fbCol: 'grower',  fbBatch: 3 },
         { id: 'bf1faaae7e5072f78fhyzr', name: '육성_4배치', fbCol: 'grower',  fbBatch: 4 },
-        { id: 'bfe85a2050a78a35583hf4', name: '육성_5배치', fbCol: 'grower',  fbBatch: 5 },
+        { id: 'bfb668aa0470a59280kzot', name: '육성_5배치', fbCol: 'grower',  fbBatch: 5 },
         { id: 'bff5798c4d866a911090af', name: '육성_6배치', fbCol: 'grower',  fbBatch: 6 },
         { id: 'bf13f302e48b276482bzjb', name: '외부온도', fbCol: 'grower',  fbBatch: 7 }
 
