@@ -93,7 +93,7 @@ async function getFarmData(collection, batchNumber) {
 exports.handler = async (event, context) => {
     const devices = [
         { id: 'bfe1709c2ca2d9e157eyuy', name: '이유_1배치', fbCol: 'weaning', fbBatch: 1 },
-        { id: 'bfd2815413e3900144gwjv', name: '이유_2배치', fbCol: 'weaning', fbBatch: 2 },
+        { id: 'bf074190b83540b4d2pazp', name: '이유_2배치', fbCol: 'weaning', fbBatch: 2 },
         { id: 'bf01ce94b23576b9696uld', name: '이유_3배치', fbCol: 'weaning', fbBatch: 3 },
         { id: 'bfc20cd2af7ace2e1ashgo', name: '이유_4배치', fbCol: 'weaning', fbBatch: 4 },
         { id: 'bfb02f9bdb0fbb1ba2vcev', name: '이유_5배치', fbCol: 'weaning', fbBatch: 5 },
