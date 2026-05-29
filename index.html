@@ -637,13 +637,13 @@
             const html = `
             <div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors">
                 <input type="number" class="h-parity w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${parity}" placeholder="산차">
-                <input type="text" class="h-mating w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${matingDate}" placeholder="MM/DD">
+                <input type="text" class="h-mating w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${matingDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+115);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
                 <input type="text" class="h-exp w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${expDate}" placeholder="MM/DD">
-                <input type="text" class="h-farrow w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${farrowDate}" placeholder="MM/DD">
+                <input type="text" class="h-farrow w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${farrowDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
                 <input type="text" class="h-weaning-date w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${weaningDate}" placeholder="MM/DD">
                 <input type="number" class="h-born w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${born}" placeholder="포유">
-                <input type="text" class="h-weaned w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${weaned}" placeholder="이유">
-                <input type="text" class="h-move w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${move}" placeholder="이동">
+                <input type="text" class="h-weaned w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${weaned}" placeholder="이동">
+                <input type="text" class="h-move w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${move}" placeholder="이유">
                 <div class="w-8 flex justify-center shrink-0">
                     <button onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500 transition-colors p-1">
                         <i data-lucide="x-circle" class="w-4 h-4"></i>
@@ -1514,7 +1514,7 @@
                     <div class="grid grid-cols-2 gap-2">
                         <div class="bg-rose-50 p-3 rounded-xl border border-rose-100">
                             <label class="text-[9px] font-bold text-rose-600 block mb-0.5">최근 종부일</label>
-                            <input type="date" id="s-mating" value="${s.matingDate||''}" onchange="document.getElementById('s-expected-val').innerText = utils.getExpectedFarrow(this.value) || '미입력'" class="w-full bg-transparent font-black text-rose-700 text-[11px]">
+                            <input type="date" id="s-mating" value="${s.matingDate||''}" onchange="const v=this.value; const e=v?utils.getExpectedFarrow(v):''; document.getElementById('s-expected-val').innerText=e||'미입력'; const rs=document.querySelectorAll('.history-row'); if(rs.length>0){ const lr=rs[rs.length-1]; lr.querySelector('.h-mating').value=v?v.substring(5).replace('-','/'):''; lr.querySelector('.h-exp').value=e?e.substring(5).replace('-','/'):''; }" class="w-full bg-transparent font-black text-rose-700 text-[11px]">
                         </div>
                         <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center">
                             <label class="text-[9px] font-bold text-rose-600 block mb-0.5">분만 예정일</label>
@@ -1528,9 +1528,6 @@
                                 <p class="text-[8px] font-bold text-slate-400 mt-1 uppercase">Production History</p>
                             </div>
                             <div class="flex gap-2">
-                                <button onclick="window.completeSowCycle()" class="bg-emerald-100 text-emerald-700 px-2 py-1.5 rounded-lg text-[10px] font-black flex items-center gap-1 active:scale-95 transition-all">
-                                    <i data-lucide="refresh-cw" class="w-3 h-3"></i> 분만/이유 완료
-                                </button>
                                 <button onclick="const mating = document.getElementById('s-mating').value; const mDateStr = mating ? mating.substring(5).replace('-', '/') : ''; const exp = mating ? utils.getExpectedFarrow(mating).substring(5).replace('-', '/') : ''; window.addSowHistoryRow(document.getElementById('s-parity').value, mDateStr, exp, '', '', '', '', '')" class="bg-slate-800 text-white p-1.5 rounded-lg hover:bg-slate-700 transition-colors active:scale-95">
                                     <i data-lucide="plus" class="w-4 h-4"></i>
                                 </button>
@@ -1545,8 +1542,8 @@
                                     <span class="w-16 shrink-0">분만일</span>
                                     <span class="w-16 shrink-0">이유일</span>
                                     <span class="w-12 shrink-0">포유</span>
-                                    <span class="w-12 shrink-0">이유</span>
                                     <span class="w-12 shrink-0">이동</span>
+                                    <span class="w-12 shrink-0">이유</span>
                                     <span class="w-8 shrink-0"></span>
                                 </div>
                                 <div id="sow-history-container" class="space-y-0 bg-slate-50"></div>
@@ -1572,7 +1569,7 @@
                 </div>`;
                 
                 setTimeout(() => lucide.createIcons(), 50);
-                return { title: '모돈 상세 정보', html };
+                return { title: `<div class="flex items-center gap-2">모돈 상세 정보 <button onclick="window.completeSowCycle()" class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 active:scale-95 transition-all border border-emerald-200 shadow-sm ml-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> 분만/이유 완료</button></div>`, html };
             },
             transfer_pen: (t) => {
                 const src = (t.src.stage==='weaning'?state.wBatches:state.gBatches).find(b=>b.id===t.src.batchId), sC = src.penDetails[t.src.penIndex];
