@@ -318,6 +318,18 @@
             showToast: (msg, dur=3000) => { const t=document.getElementById('toast'), tm=document.getElementById('toast-msg'); if(t&&tm){ tm.innerText=msg; t.classList.remove('opacity-0','pointer-events-none'); t.classList.add('opacity-100'); setTimeout(()=>{ t.classList.remove('opacity-100'); t.classList.add('opacity-0','pointer-events-none'); }, dur); } }
         };
 
+        window.updatePigletTotal = () => {
+            const nursingSows = parseInt(document.getElementById('m-nursing-sows').value) || 0;
+            const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0;
+            const nursingTotal = Math.floor(nursingSows * avgPiglets);
+            const weaningTotal = parseInt(document.getElementById('m-weaning-total').innerText) || 0;
+            
+            const nVal = document.getElementById('m-nursing-piglets-val');
+            const pTot = document.getElementById('m-piglet-total');
+            if(nVal) nVal.innerText = nursingTotal;
+            if(pTot) pTot.innerText = nursingTotal + weaningTotal;
+        };
+
         // 인증 및 초기화 로직
         async function init() {
             document.getElementById('current-date').innerText = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
@@ -399,7 +411,12 @@
         async function saveDailyHistory() {
             if (isLocalEnv) return;
             try {
-                state.stocks.piglet = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
+                const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
+                const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
+                const avgPiglets = state.stocks.avgPiglets || 10;
+                const nursingPiglets = Math.floor(nursingSows * avgPiglets);
+                
+                state.stocks.piglet = weaningTotal + nursingPiglets;
                 state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
                 const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
                 state.stocks.sow = state.sowList.filter(isSow).length;
@@ -416,7 +433,14 @@
         function renderAll() { renderStocks(); renderWeaning(); renderGrower(); renderExpectedFarrowing(); renderWeeklyNursing(); renderAlertSows(); renderRecentShipments(); }
 
         function renderStocks() {
-            state.stocks.piglet = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
+            const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
+            const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
+            const avgPiglets = state.stocks.avgPiglets || 10;
+            const nursingPiglets = Math.floor(nursingSows * avgPiglets);
+            
+            state.stocks.nursingPiglets = nursingPiglets;
+            state.stocks.piglet = weaningTotal + nursingPiglets;
+            
             state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
             const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
             state.stocks.sow = state.sowList.filter(isSow).length;
@@ -427,8 +451,8 @@
                 { id: 'sow', l: '모돈', v: state.stocks.sow, a: 'sow_list' },
                 { id: 'rep', l: '후보돈', v: state.stocks.replacement, a: 'sow_list' },
                 { id: 'boar', l: '웅돈', v: state.stocks.boar, a: 'manual_stock' },
-                { id: 'piglet', l: '자돈', v: state.stocks.piglet, a: 'manual' },
-                { id: 'grower', l: '육성돈', v: state.stocks.grower, a: 'manual' }
+                { id: 'piglet', l: '자돈', v: state.stocks.piglet, a: 'piglet_calc' },
+                { id: 'grower', l: '육성돈', v: state.stocks.grower, a: '' }
             ];
             document.getElementById('status-grid').innerHTML = cards.map(x => {
                 let extra = '';
@@ -687,7 +711,7 @@
                 const wb = XLSX.utils.book_new();
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredHistory), "사육현황(일자별)");
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredShipments), "출하기록");
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredAccidents), "폐사/환돈기록");
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredAccidents), "폐사_환돈기록");
                 XLSX.writeFile(wb, `성암농장_리포트_${start}_to_${end}.xlsx`);
                 utils.showToast("엑셀 파일이 생성되었습니다.");
             } catch (e) { console.error("Excel Export Error:", e); utils.showToast("엑셀 생성 중 오류가 발생했습니다."); } finally { btn.disabled = false; btn.innerText = "리포트 생성 및 다운로드"; }
@@ -889,6 +913,54 @@
         };
 
         const modalRenderers = {
+            piglet_calc: () => {
+                const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
+                const avgPiglets = state.stocks.avgPiglets || 10;
+                const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
+
+                return {
+                    title: `<div class="flex items-center gap-2"><i data-lucide="calculator" class="text-blue-500"></i> 자돈 수 관리</div>`,
+                    html: `
+                    <div class="bg-blue-50 p-5 rounded-2xl border border-blue-100 space-y-4">
+                        <h4 class="text-xs font-black text-blue-800 uppercase tracking-widest border-b border-blue-200 pb-2">포유자돈 자동 계산</h4>
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm font-black text-blue-700 flex flex-col">현재 포유모돈 <span class="text-[10px] mt-0.5 bg-white px-1.5 py-0.5 rounded text-blue-500 font-bold border border-blue-100 inline-block w-max">모돈 목록과 자동 동기화됨</span></label>
+                            <div class="flex items-center gap-2">
+                                <input id="m-nursing-sows" type="number" inputmode="numeric" value="${nursingSows}" readonly class="w-20 bg-blue-100/50 border border-blue-200/50 rounded-lg text-xl font-black text-center text-blue-500 py-1.5 outline-none cursor-not-allowed">
+                                <span class="text-sm font-bold text-blue-500">두</span>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <label class="text-sm font-black text-blue-700">평균 포유자돈 수</label>
+                            <div class="flex items-center gap-2">
+                                <input id="m-avg-piglets" type="number" inputmode="decimal" value="${avgPiglets}" class="w-20 bg-white border border-blue-400 shadow-sm rounded-lg text-xl font-black text-center text-blue-700 py-1.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors" oninput="window.updatePigletTotal()">
+                                <span class="text-sm font-bold text-blue-500">두</span>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-blue-200 flex justify-between items-center">
+                            <label class="text-sm font-black text-blue-800">계산된 포유자돈</label>
+                            <div class="text-2xl font-black text-blue-800">
+                                <span id="m-nursing-piglets-val">${Math.floor(nursingSows * avgPiglets)}</span><span class="text-sm ml-1 font-bold">두</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex justify-between items-center mt-3 shadow-sm">
+                        <label class="text-sm font-black text-emerald-800">이유사 재고 (자동합산)</label>
+                        <div class="text-2xl font-black text-emerald-800">
+                            <span id="m-weaning-total">${weaningTotal}</span><span class="text-sm ml-1 font-bold">두</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-800 p-5 rounded-2xl shadow-lg flex justify-between items-center text-white mt-4">
+                        <label class="text-base font-black">총 자돈 수</label>
+                        <div class="text-4xl font-black">
+                            <span id="m-piglet-total">${Math.floor(nursingSows * avgPiglets) + weaningTotal}</span><span class="text-lg ml-1 font-bold text-slate-300">두</span>
+                        </div>
+                    </div>
+                    `
+                };
+            },
             age_distribution: () => {
                 const todayStr = utils.getTodayStr();
                 const ageGroups = {};
@@ -1578,6 +1650,19 @@
         };
 
         const saveActions = {
+            piglet_calc: async () => {
+                const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0;
+                const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
+                const nursingPiglets = Math.floor(nursingSows * avgPiglets);
+                
+                state.stocks.nursingPiglets = nursingPiglets;
+                state.stocks.avgPiglets = avgPiglets; 
+                
+                await db.doc(`${COLS.STOCKS}/current`).update({
+                    nursingPiglets: nursingPiglets,
+                    avgPiglets: avgPiglets
+                });
+            },
             manual_stock: async () => { const id = document.getElementById('m-stock-id').value, val = parseInt(document.getElementById('m-stock-val').value) || 0; state.stocks[id] = val; await db.doc(`${COLS.STOCKS}/current`).update({ [id]: val }); },
             sow_detail: async () => {
                 const id = document.getElementById('s-dbid').value;

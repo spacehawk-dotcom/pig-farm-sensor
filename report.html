@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>성암농장 모돈 관리</title>
+  <title>성암농장 성적 분석</title>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -22,6 +22,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
@@ -55,6 +56,149 @@
     const Download = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
     const Bell = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
 
+    // --- 실시간 DB 연동 온도 표 컴포넌트 ---
+    const TempTable = ({ shipment, onAvgCalculated }) => {
+      const [tableData, setTableData] = useState([]);
+      const [loading, setLoading] = useState(true);
+
+      useEffect(() => {
+        let isMounted = true;
+        
+        const fetchTempData = async () => {
+          setLoading(true);
+          const { stockingDate, date: shipDate, batchIds } = shipment;
+          
+          if (!stockingDate || !shipDate || !batchIds || batchIds.length === 0) {
+             if (isMounted) { setTableData([]); setLoading(false); onAvgCalculated('-'); }
+             return;
+          }
+
+          try {
+            const startStr = new Date(stockingDate + 'T00:00:00').getTime().toString();
+            const endStr = new Date(shipDate + 'T23:59:59').getTime().toString();
+            
+            const snapshot = await firebase.database().ref('history_logs')
+              .orderByKey()
+              .startAt(startStr)
+              .endAt(endStr)
+              .once('value');
+              
+            const logs = snapshot.val();
+            if (!logs) {
+              if (isMounted) { setTableData([]); setLoading(false); onAvgCalculated('-'); }
+              return;
+            }
+
+            const dailyStats = {};
+            // 사육현황 앱 기준: 육성_1배치 등. 출하는 주로 육성사이므로 '육성' 위주로 필터링
+            const zones = batchIds.map(id => id === 8 ? '육성_후보사' : `육성_${id}배치`);
+
+            let totalSum = 0;
+            let totalCount = 0;
+
+            Object.keys(logs).forEach(key => {
+              const logEntry = logs[key];
+              let tempSum = 0;
+              let tempCount = 0;
+              
+              zones.forEach(z => {
+                if (logEntry[z] && logEntry[z].temp && logEntry[z].temp !== "--") {
+                  tempSum += Number(logEntry[z].temp);
+                  tempCount++;
+                }
+              });
+
+              if (tempCount > 0) {
+                const d = new Date(Number(key));
+                const dateKey = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                
+                if (!dailyStats[dateKey]) dailyStats[dateKey] = { sum: 0, count: 0 };
+                const avgTemp = tempSum / tempCount;
+                dailyStats[dateKey].sum += avgTemp;
+                dailyStats[dateKey].count++;
+                
+                totalSum += avgTemp;
+                totalCount++;
+              }
+            });
+
+            const sortedDates = Object.keys(dailyStats).sort();
+            
+            const getDiffDays = (d1, d2) => {
+              const t1 = new Date(d1).getTime();
+              const t2 = new Date(d2).getTime();
+              return Math.floor((t2 - t1) / (1000 * 60 * 60 * 24));
+            };
+
+            const tData = sortedDates.map(d => {
+              const age = getDiffDays(stockingDate, d) + 20;
+              return {
+                date: d,
+                age: age,
+                temp: (dailyStats[d].sum / dailyStats[d].count).toFixed(1)
+              };
+            });
+            
+            if (isMounted) {
+                setTableData(tData);
+                setLoading(false);
+                if (totalCount > 0) {
+                    onAvgCalculated((totalSum / totalCount).toFixed(1));
+                } else {
+                    onAvgCalculated('-');
+                }
+            }
+          } catch (e) {
+            console.error("RTDB fetch error", e);
+            if (isMounted) { setTableData([]); setLoading(false); onAvgCalculated('-'); }
+          }
+        };
+
+        fetchTempData();
+        return () => { isMounted = false; };
+      }, [shipment, onAvgCalculated]);
+
+      return (
+        <div className="w-full mt-2 relative min-h-[120px]">
+          {loading && (
+             <div className="absolute inset-0 bg-slate-50/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+                <span className="text-xs font-bold text-blue-600 animate-pulse">환경 데이터 동기화 중...</span>
+             </div>
+          )}
+          {!loading && tableData.length === 0 && (
+             <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-50/50 rounded-lg">
+                <span className="text-xs font-black text-slate-400 px-2 py-1">온도 기록 없음</span>
+             </div>
+          )}
+          
+          <div className="max-h-48 overflow-y-auto no-scrollbar border border-slate-200 rounded-lg bg-white">
+            <table className="w-full text-center text-xs">
+              <thead className="bg-slate-100 text-slate-500 sticky top-0 shadow-sm z-10">
+                <tr>
+                  <th className="py-2.5 font-bold">일령</th>
+                  <th className="py-2.5 font-bold border-l border-slate-200">측정 날짜</th>
+                  <th className="py-2.5 font-bold border-l border-slate-200">평균 온도</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {tableData.map((row, i) => (
+                  <tr key={i} className="hover:bg-blue-50/50 transition-colors">
+                    <td className="py-2.5 font-black text-slate-700">{row.age}일</td>
+                    <td className="py-2.5 font-bold text-slate-500 border-l border-slate-100">{row.date.substring(5).replace('-', '/')}</td>
+                    <td className="py-2.5 font-black text-rose-500 border-l border-slate-100">{row.temp}℃</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex justify-between items-start w-full text-[10px] font-bold text-slate-400 mt-3 px-1">
+            <span className="text-left leading-tight bg-slate-100 px-2 py-1 rounded">입식: {shipment.stockingDate ? shipment.stockingDate.substring(5).replace('-','/') : '-'}</span>
+            <span className="text-right leading-tight bg-slate-100 px-2 py-1 rounded">출하: {shipment.date ? shipment.date.substring(5).replace('-','/') : '-'}</span>
+          </div>
+        </div>
+      );
+    };
+
     // --- 성암농장 실제 Firebase Configuration ---
     const firebaseConfig = {
       apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
@@ -62,7 +206,8 @@
       projectId: "sungamfarm",
       storageBucket: "sungamfarm.firebasestorage.app",
       messagingSenderId: "811107235779",
-      appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
+      appId: "1:811107235779:web:ea65a74d09c37ba2136f76",
+      databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com"
     };
 
     // Firebase 초기화
@@ -71,10 +216,14 @@
     }
     const auth = firebase.auth();
     const db = firebase.firestore();
+    const rtdb = firebase.database();
     
     const SOWS_COLLECTION_PATH = 'farms/sungamfarm/sows';
+    const WEANING_RECORDS_PATH = 'farms/sungamfarm/weaning_records'; 
     const SETTINGS_PATH = 'farms/sungamfarm/settings'; 
-    const SHIPMENTS_COLLECTION_PATH = 'farms/sungamfarm/shipments'; // 사육현황 출하 기록 연동 경로 추가
+    const SHIPMENTS_COLLECTION_PATH = 'farms/sungamfarm/shipments';
+    const SHIPMENT_SUMMARIES_PATH = 'farms/sungamfarm/shipment_summaries';
+    const GROWER_PATH = 'farms/sungamfarm/grower';
 
     // 알림창 컴포넌트
     const CustomAlert = ({ message, onClose }) => (
@@ -123,8 +272,11 @@
     function App() {
       const [user, setUser] = useState(null);
       const [sows, setSows] = useState([]);
+      const [weaningRecords, setWeaningRecords] = useState({}); 
       const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0 }); 
-      const [shipments, setShipments] = useState([]); // 사육현황 출하 기록 상태 추가
+      const [shipments, setShipments] = useState([]); // 사육현황 출하 기록
+      const [shipmentSummaries, setShipmentSummaries] = useState({}); // 사육현황 체중정보
+      const [gBatches, setGBatches] = useState([]); // 사육현황 육성사 (일령 계산용)
       const [loading, setLoading] = useState(true);
       
       // 알림 상태 관리
@@ -148,11 +300,19 @@
       const [showSowListModal, setShowSowListModal] = useState(false);
       const [listFilter, setListFilter] = useState(null);
       
+      // 직접 기록용 주간 이유 팝업 상태
+      const [showWeaningModal, setShowWeaningModal] = useState(false);
+      const [isEditingWeaning, setIsEditingWeaning] = useState(false);
+      const [confirmWeaningDelete, setConfirmWeaningDelete] = useState(false); 
+      const [weaningForm, setWeaningForm] = useState({ date: '', sowCount: '', totalWeaned: '' });
+      
       // 팝업 상태
+      const [showFormulaModal, setShowFormulaModal] = useState(false);
       const [showParityModal, setShowParityModal] = useState(false);
-      const [showMonthlyModal, setShowMonthlyModal] = useState(false);
       const [showMonthlySowModal, setShowMonthlySowModal] = useState(false);
       const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+      const [selectedShipment, setSelectedShipment] = useState(null); // 출하 상세 팝업 상태 추가
+      const [modalAvgTemp, setModalAvgTemp] = useState('-'); // 모달에 표시될 동기화 평균 온도
 
       // 폼 상태
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
@@ -201,7 +361,19 @@
           }
         );
 
-        // 2. 농장 설정(평균 상시 모돈수 등) 가져오기
+        // 2. 직접 기록한 주간 이유 기록 정보 가져오기
+        const unsubWeaning = db.collection(WEANING_RECORDS_PATH).onSnapshot(
+          (snapshot) => {
+            const records = {};
+            snapshot.docs.forEach(doc => { 
+              if(doc.data()) records[doc.id] = doc.data(); 
+            });
+            setWeaningRecords(records);
+          },
+          (error) => console.error("Error fetching weaning records:", error)
+        );
+
+        // 3. 농장 설정(평균 상시 모돈수 등) 가져오기
         const unsubSettings = db.collection(SETTINGS_PATH).doc('main').onSnapshot(
           (doc) => {
             if (doc.exists && doc.data()) {
@@ -211,7 +383,7 @@
           (error) => console.error("Error fetching settings:", error)
         );
 
-        // 4. 사육현황 출하 기록 가져오기 (자동 연동)
+        // 4. 사육현황 출하 기록, 체중정보, 육성사 데이터 가져오기 (자동 연동)
         const unsubShipments = db.collection(SHIPMENTS_COLLECTION_PATH).onSnapshot(
           (snapshot) => {
             const records = snapshot.docs.map(doc => doc.data());
@@ -220,8 +392,37 @@
           (error) => console.error("Error fetching shipments:", error)
         );
 
-        return () => { unsubSows(); unsubSettings(); unsubShipments(); };
+        const unsubShipmentSummaries = db.collection(SHIPMENT_SUMMARIES_PATH).onSnapshot(
+          (snapshot) => {
+            const summaries = {};
+            snapshot.docs.forEach(doc => summaries[doc.id] = doc.data());
+            setShipmentSummaries(summaries);
+          },
+          (error) => console.error("Error fetching shipment summaries:", error)
+        );
+
+        const unsubGrower = db.collection(GROWER_PATH).onSnapshot(
+          (snapshot) => {
+            const batches = snapshot.docs.map(doc => {
+              const data = doc.data();
+              const id = data.id || parseInt(doc.id.replace('batch_', ''), 10);
+              return { id, ...data };
+            });
+            setGBatches(batches);
+          },
+          (error) => console.error("Error fetching grower batches:", error)
+        );
+
+        return () => { unsubSows(); unsubWeaning(); unsubSettings(); unsubShipments(); unsubShipmentSummaries(); unsubGrower(); };
       }, [user]);
+
+      // 헬퍼: 두 날짜 간 일수 차이 계산
+      const getDiffDays = (d1, d2) => { 
+        if(!d1||!d2) return 0; 
+        const t1=new Date(d1).getTime(), t2=new Date(d2).getTime(); 
+        if(isNaN(t1)||isNaN(t2)) return 0; 
+        return Math.floor((t2-t1)/(1000*60*60*24)); 
+      };
 
       // 헬퍼: 범용 날짜 파싱 (사용자가 "4/9" 처럼 쳐도 올해 날짜로 자동 인식하여 오류 방지)
       const parseValidDate = (dateStr) => {
@@ -400,6 +601,14 @@
           }
         });
 
+        // 분자 계산: [직접 기록]된 이유 성적 중 최근 1년 치 합산
+        let manualYearlyWeaned = 0;
+        Object.entries(weaningRecords).forEach(([date, data]) => {
+          if (date >= oneYearAgoStr && data) {
+            manualYearlyWeaned += Number((data || {}).totalWeaned || 0);
+          }
+        });
+
         // 사육현황 DB에서 최근 1년 출하두수 합산
         let dbYearlyShipped = 0;
         shipments.forEach(record => {
@@ -412,11 +621,20 @@
         const fSettings = farmSettings || {};
         const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
         
+        // 출하두수 결정 (사육현황 연동 DB 우선 적용, 없으면 이유두수*95% 가계산)
+        const autoShipped = Math.floor(manualYearlyWeaned * 0.95);
+        const yearlyShipped = dbYearlyShipped > 0 ? dbYearlyShipped : autoShipped;
+
+        stats.psy = avgSows > 0 ? (manualYearlyWeaned / avgSows).toFixed(1) : "0.0";
+        stats.msy = avgSows > 0 ? (yearlyShipped / avgSows).toFixed(1) : "0.0";
         stats.avgSows = avgSows;
+        stats.manualYearlyWeaned = manualYearlyWeaned;
+        stats.yearlyShipped = yearlyShipped;
+        stats.autoShipped = autoShipped;
         stats.dbYearlyShipped = dbYearlyShipped; // UI 표시용
 
         return stats;
-      }, [sows, farmSettings, shipments]);
+      }, [sows, weaningRecords, farmSettings, shipments]);
 
       // 모돈별 통계
       const sowStats = useMemo(() => {
@@ -614,6 +832,140 @@
         // 날짜순 정렬 후 가장 가까운 2개(다음 주, 다다음 주 개념)만 추출
         return upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 2);
       }, [weeklyFarrowingStats]);
+
+      // 매주 목요일 기준 주간 이유 자동 계산
+      const weaningStats = useMemo(() => {
+        const statsMap = {};
+        
+        sows.filter(Boolean).forEach(sow => {
+          const s = sow || {};
+          if (!s.history || !Array.isArray(s.history)) return;
+          
+          s.history.filter(Boolean).forEach(record => {
+            const r = record || {};
+            if (!r.date) return; 
+            
+            const wCount = Number(r.weaned) || 0;
+            const mCount = Number(r.move) || 0;
+            const totalWeaned = wCount + mCount;
+
+            const weaningThursday = getWeaningThursday(r.date);
+            if (!weaningThursday) return;
+
+            if (!statsMap[weaningThursday]) {
+              statsMap[weaningThursday] = { date: weaningThursday, sows: [], totalWeanedAuto: 0 };
+            }
+            if (!statsMap[weaningThursday].sows.find(item => item && (item || {}).id === s.id)) {
+               statsMap[weaningThursday].sows.push(s);
+            }
+            statsMap[weaningThursday].totalWeanedAuto += totalWeaned;
+          });
+        });
+
+        return Object.values(statsMap).sort((a, b) => String((b || {}).date || '').localeCompare(String((a || {}).date || '')));
+      }, [sows]);
+
+      const currentWeaningStat = useMemo(() => {
+        return weaningStats.find(s => s && (s || {}).date === (weaningForm || {}).date) || null;
+      }, [weaningStats, weaningForm]);
+
+      // 수동으로 입력한 주간 이유 성적 배열
+      const sortedWeaningRecords = useMemo(() => {
+        return Object.entries(weaningRecords)
+          .filter(([date, data]) => Boolean(data))
+          .map(([date, data]) => ({ date, ...data }))
+          .sort((a, b) => String((b || {}).date || '').localeCompare(String((a || {}).date || '')));
+      }, [weaningRecords]);
+
+      // 출하 기록 날짜별 그룹화 (사육현황 앱 로직 완벽 연동)
+      const groupedShipments = useMemo(() => {
+        const groups = {};
+
+        // 1. 완료된 출하 기록 (shipments)
+        shipments.forEach(s => {
+          if (!s || !s.date) return;
+          const date = s.date;
+          if (!groups[date]) {
+            groups[date] = { date: date, totalCount: 0, sumAgeWeight: 0, validAgeCount: 0, isExpected: false, stockingDate: '9999-99-99', batchIds: new Set() };
+          }
+          
+          const count = Number(s.count) || 0;
+          groups[date].totalCount += count;
+
+          let rDate = s.stockingDate || '';
+          if(!rDate && s.batchId) {
+            const b = gBatches.find(x => x.id === s.batchId);
+            if(b) rDate = (b.penDates && b.penDates[s.penIndex]) || b.weaningDate || b.date;
+          }
+          
+          if (rDate && rDate < groups[date].stockingDate) groups[date].stockingDate = rDate;
+          if (s.batchId) groups[date].batchIds.add(s.batchId);
+          
+          if (rDate) {
+            const age = getDiffDays(rDate, date) + 20;
+            if (age > 0) {
+              groups[date].sumAgeWeight += age * count;
+              groups[date].validAgeCount += count;
+            }
+          }
+        });
+
+        // 2. 출하 예정 기록 (gBatches의 pendingShipments)
+        gBatches.forEach(b => {
+          if (b.pendingShipments && Array.isArray(b.pendingShipments)) {
+            b.pendingShipments.forEach(ps => {
+              if (!ps.date) return;
+              const date = ps.date;
+              if (!groups[date]) {
+                groups[date] = { date: date, totalCount: 0, sumAgeWeight: 0, validAgeCount: 0, isExpected: true, stockingDate: '9999-99-99', batchIds: new Set() };
+              } else {
+                groups[date].isExpected = true; 
+              }
+              
+              if (ps.items && Array.isArray(ps.items)) {
+                ps.items.forEach(item => {
+                  const count = Number(item.count) || 0;
+                  const pIdx = (item.pIdx !== undefined) ? item.pIdx : 0;
+                  const penDate = (b.penDates && b.penDates[pIdx]) || b.weaningDate || b.date;
+                  
+                  groups[date].totalCount += count;
+                  
+                  if (penDate && penDate < groups[date].stockingDate) groups[date].stockingDate = penDate;
+                  groups[date].batchIds.add(b.id);
+                  
+                  if (penDate) {
+                    const age = getDiffDays(penDate, date) + 20;
+                    if (age > 0) {
+                      groups[date].sumAgeWeight += age * count;
+                      groups[date].validAgeCount += count;
+                    }
+                  }
+                });
+              }
+            });
+          }
+        });
+
+        const todayStr = formatDate(new Date());
+
+        return Object.values(groups).map(group => {
+          const count = group.totalCount;
+          const avgAge = group.validAgeCount > 0 ? Math.round(group.sumAgeWeight / group.validAgeCount) : '-';
+          const avgWeight = shipmentSummaries[group.date]?.avgWeight || '-';
+          
+          const isExpected = group.date > todayStr || group.isExpected;
+
+          return {
+            date: group.date,
+            count: count,
+            age: avgAge,
+            weight: avgWeight,
+            isExpected: isExpected,
+            stockingDate: group.stockingDate !== '9999-99-99' ? group.stockingDate : null,
+            batchIds: Array.from(group.batchIds)
+          };
+        }).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      }, [shipments, gBatches, shipmentSummaries]);
 
       // 월별 교배(임신) 및 분만(포유) 실적 통계 (강화된 날짜 파싱 적용)
       const monthlyActivityStats = useMemo(() => {
@@ -825,6 +1177,50 @@
         });
       };
 
+      const openWeaningModal = (record = null) => {
+        setConfirmWeaningDelete(false); 
+        if (record) {
+          const r = record || {};
+          setWeaningForm({ date: r.date || '', sowCount: r.sowCount || '', totalWeaned: r.totalWeaned || '' });
+          setIsEditingWeaning(true);
+        } else {
+          setWeaningForm({ date: formatDate(new Date()), sowCount: '', totalWeaned: '' });
+          setIsEditingWeaning(false);
+        }
+        setShowWeaningModal(true);
+      };
+
+      const handleSaveWeaning = async (e) => {
+        e.preventDefault();
+        const wf = weaningForm || {};
+        if (!user || !wf.date) return;
+        try {
+          await db.collection(WEANING_RECORDS_PATH).doc(wf.date).set({
+            sowCount: Number(wf.sowCount) || 0,
+            totalWeaned: Number(wf.totalWeaned) || 0,
+            updatedAt: new Date().toISOString()
+          });
+          setShowWeaningModal(false);
+          setWeaningForm({ date: '', sowCount: '', totalWeaned: '' });
+        } catch (err) {
+          console.error("Error saving weaning record:", err);
+          showAlert("이유 성적 저장 실패: " + err.message);
+        }
+      };
+
+      const handleDeleteWeaning = async (e) => {
+        if (e) e.preventDefault();
+        const wf = weaningForm || {};
+        if (!user || !wf.date) return;
+        try {
+          await db.collection(WEANING_RECORDS_PATH).doc(wf.date).delete();
+          setShowWeaningModal(false);
+          setConfirmWeaningDelete(false);
+        } catch (err) {
+          console.error("Error deleting weaning record:", err);
+        }
+      };
+
       const openFilteredList = (type, value) => {
         setListFilter({ type, value });
         setSearchQuery('');
@@ -844,6 +1240,32 @@
           case '재발': return 'text-rose-600 bg-rose-50 border-rose-200';
           default: return 'text-slate-600 bg-slate-100 border-slate-200';
         }
+      };
+
+      // 엑셀 다운로드
+      const downloadWeaningExcel = () => {
+        if (sortedWeaningRecords.length === 0) {
+          showAlert("다운로드할 주간 이유 성적 데이터가 없습니다.");
+          return;
+        }
+        
+        const excelData = sortedWeaningRecords.map(stat => {
+          const st = stat || {};
+          return {
+            '이유일': st.date || '-',
+            '이유 모돈수 (복)': st.sowCount || 0,
+            '총 이유두수 (두)': st.totalWeaned || 0,
+            '복당 평균 이유두수': st.sowCount > 0 ? (Number(st.totalWeaned) / Number(st.sowCount)).toFixed(1) : 0
+          };
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const wscols = [{wch:15}, {wch:15}, {wch:15}, {wch:20}];
+        worksheet['!cols'] = wscols;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "수동기록_이유성적");
+        XLSX.writeFile(workbook, `성암농장_이유성적_${formatDate(new Date())}.xlsx`);
       };
 
       // --- Renderers ---
@@ -1030,7 +1452,7 @@
           <header className="bg-white border-b border-slate-200 sticky top-0 z-10 p-4 shadow-sm">
             <div className="max-w-3xl mx-auto flex justify-between items-center">
               <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center">
-                <Baby className="w-6 h-6 mr-2 text-rose-500" /> 모돈 관리 <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold">LIVE</span>
+                <Baby className="w-6 h-6 mr-2 text-rose-500" /> 성적 분석 <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold">LIVE</span>
               </h1>
               <div className="flex items-center gap-2">
                 <a href="index.html" className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-lg shadow-sm text-[11px] font-bold flex items-center gap-1 active:scale-95 transition hover:bg-indigo-100">
@@ -1075,180 +1497,109 @@
                     </div>
                     <div className="flex items-baseline">
                       <span className="text-3xl font-black text-white px-1">
-                        {((dashboardStats || {}).dbYearlyShipped || 0).toLocaleString()}
+                        {((dashboardStats || {}).dbYearlyShipped || 0) > 0 ? ((dashboardStats || {}).dbYearlyShipped || 0).toLocaleString() : ((dashboardStats || {}).autoShipped || 0).toLocaleString()}
                       </span>
                       <span className="text-xs ml-1 font-bold text-slate-400">두</span>
                     </div>
                   </div>
-                </div>
 
-                {/* 상태별 현황 (클릭 시 필터) */}
-                <div className="grid grid-cols-4 gap-2">
-                  <div onClick={() => openFilteredList('status', '이유')} className="bg-slate-200/60 p-3 rounded-2xl border border-slate-200 text-center flex flex-col justify-center cursor-pointer hover:border-slate-400 active:scale-95 transition-all">
-                    <span className="text-[11px] font-bold text-slate-500 mb-1">이유/대기</span>
-                    <span className="text-xl font-black text-slate-700">{((dashboardStats || {}).status || {})['이유'] || 0}</span>
-                  </div>
-                  <div onClick={() => openFilteredList('status', '임신')} className="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex flex-col justify-center cursor-pointer hover:border-blue-300 active:scale-95 transition-all">
-                    <span className="text-[11px] font-bold text-blue-600 mb-1">임신</span>
-                    <span className="text-xl font-black text-blue-700">{((dashboardStats || {}).status || {})['임신'] || 0}</span>
-                  </div>
-                  <div onClick={() => openFilteredList('status', '포유')} className="bg-emerald-50 p-3 rounded-2xl border border-emerald-100 text-center flex flex-col justify-center cursor-pointer hover:border-emerald-300 active:scale-95 transition-all">
-                    <span className="text-[11px] font-bold text-emerald-600 mb-1">포유</span>
-                    <span className="text-xl font-black text-emerald-700">{((dashboardStats || {}).status || {})['포유'] || 0}</span>
-                  </div>
-                  <div onClick={() => openFilteredList('status', '재발')} className="bg-rose-50 p-3 rounded-2xl border border-rose-100 text-center flex flex-col justify-center cursor-pointer hover:border-rose-300 active:scale-95 transition-all">
-                    <span className="text-[11px] font-bold text-rose-600 mb-1">재발</span>
-                    <span className="text-xl font-black text-rose-700">{((dashboardStats || {}).status || {})['재발'] || 0}</span>
-                  </div>
-                </div>
-
-                {/* 주간별 분만 현황 (메인 유지) */}
-                <div>
-                  <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
-                    주간별 분만 복수 <span className="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded ml-1 font-bold">포유 및 분만예정 포함</span>
-                  </h3>
                   <div 
-                    ref={farrowingScrollRef}
-                    className="flex overflow-x-auto gap-2 pb-2 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
+                    onClick={() => setShowFormulaModal(true)} 
+                    className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md cursor-pointer hover:shadow-lg active:scale-95 transition-all"
                   >
-                    {weeklyFarrowingStats.length === 0 ? (
-                      <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
-                        등록된 분만 기록이나 예정 내역이 없습니다.
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-indigo-200">현재 PSY</span>
+                        <span className="text-[9px] text-indigo-300 mt-0.5">수기 이유두수 기준</span>
                       </div>
-                    ) : (
-                      weeklyFarrowingStats.map(stat => (
-                        <div 
-                          key={stat.date} 
-                          onClick={() => openFilteredList('farrowingWeek', stat.date)} 
-                          className="min-w-[135px] bg-white border border-emerald-100 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm snap-start shrink-0 cursor-pointer hover:border-emerald-300 active:scale-95 transition-all"
-                        >
-                          <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>
-                          <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">
-                            {String(stat.date || '').substring(5).replace('-', '/')} (월) 주간
-                          </span>
-                          <div className="flex flex-col pl-1">
-                            <div className="flex items-baseline">
-                              <span className="text-2xl font-black text-emerald-600">{(stat.actual || 0) + (stat.expected || 0)}</span>
-                              <span className="text-[10px] font-bold ml-0.5 text-emerald-400">복</span>
-                            </div>
-                            <div className="flex text-[9px] font-bold text-slate-400 mt-0.5 gap-1.5 whitespace-nowrap">
-                              <span>포유 <span className="text-slate-600">{stat.actual || 0}</span>복(<span className="text-slate-500">{stat.nursingPiglets || 0}</span>두)</span>
-                              <span>예정 <span className="text-slate-600">{stat.expected || 0}</span>복</span>
-                              {stat.parity6Plus > 0 ? (
-                                <span className="text-rose-400">6산↑ <span className="text-rose-600 font-black">{stat.parity6Plus}</span></span>
-                              ) : (
-                                <span className="text-slate-300">6산↑ 0</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
+                      <Activity className="w-4 h-4 text-indigo-300 opacity-50" />
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).psy || '0.0'}</span>
+                      <span className="text-sm font-bold ml-1 text-indigo-100">두</span>
+                    </div>
                   </div>
-                </div>
 
-                {/* 월별 후보돈 예상 입수 두수 */}
-                <div className="mt-4">
-                  <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
-                    월별 후보돈 입수 예상 두수 <span className="text-[9px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded ml-1 font-bold">분만 목표 미달분 누적</span>
-                  </h3>
-                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-                    {monthlyGiltIntroStats.length === 0 ? (
-                      <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
-                        예상되는 후보돈 도입 일정이 없습니다.
+                  <div 
+                    onClick={() => setShowFormulaModal(true)} 
+                    className="bg-gradient-to-br from-violet-500 to-violet-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-violet-200">현재 MSY</span>
+                        <span className="text-[9px] text-violet-300 mt-0.5">최근 출하량 기준</span>
                       </div>
-                    ) : (
-                      monthlyGiltIntroStats.map(stat => {
-                        const [yyyy, mm] = stat.month.split('-');
-                        return (
-                          <div key={stat.month} className="min-w-[90px] bg-white border border-amber-200 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm snap-start shrink-0">
-                            <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400"></div>
-                            <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">{yyyy}년 {parseInt(mm)}월</span>
-                            <div className="flex items-baseline pl-1">
-                              <span className="text-2xl font-black text-amber-600">{stat.count}</span>
-                              <span className="text-[10px] font-bold ml-0.5 text-amber-500">두</span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                      <Activity className="w-4 h-4 text-violet-300 opacity-50" />
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).msy || '0.0'}</span>
+                      <span className="text-sm font-bold ml-1 text-violet-100">두</span>
+                    </div>
                   </div>
-                </div>
-
-                {/* 예정된 약제 투여 후보돈 알림 (최대 2건) */}
-                <div className="mt-4">
-                  <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
-                    예정된 후보돈 약제 투여 일정 <span className="text-[9px] bg-indigo-50 text-indigo-600 border border-indigo-200 px-1.5 py-0.5 rounded ml-1 font-bold">투약 17일 진행</span>
-                  </h3>
-                  {upcomingMedications.length === 0 ? (
-                    <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
-                      예정된 약제 투여 일정이 없습니다.
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2">
-                      {upcomingMedications.map((medInfo, idx) => {
-                        const overrideKey = `medOverride_${medInfo.medWeekMonday}`;
-                        const hasOverride = farmSettings && farmSettings[overrideKey] != null;
-                        const displayValue = hasOverride ? farmSettings[overrideKey] : '';
-
-                        return (
-                          <div key={medInfo.medWeekMonday} className="bg-indigo-50 border border-indigo-200 p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
-                            <div className="flex items-start gap-3">
-                              <div className="bg-indigo-100 p-2 rounded-full mt-0.5">
-                                <Bell className="w-5 h-5 text-indigo-600" />
-                              </div>
-                              <div className="flex flex-col">
-                                <span className="text-[12px] font-black text-indigo-800">
-                                  {idx === 0 ? '[1순위] 약제 투여 일정' : '[2순위] 약제 투여 일정'}
-                                </span>
-                                <div className="flex flex-col gap-0.5 mt-1 border-t border-indigo-200 pt-1">
-                                  <span className="text-[10px] font-bold text-indigo-600">
-                                    ▶ 시작: {medInfo.medStartDate.substring(5).replace('-', '/')}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-amber-600">
-                                    ▶ 종료: {medInfo.medEndDate.substring(5).replace('-', '/')}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-rose-500">
-                                    ▶ 종부: {medInfo.estMatingDate.substring(5).replace('-', '/')} 예정
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex flex-col items-end">
-                              <span className="text-[9px] text-indigo-400 mb-0.5 font-bold">자동 산출: {medInfo.autoCount}두</span>
-                              <div className="flex items-baseline bg-white px-2 py-1.5 rounded-xl border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors">
-                                <input
-                                   type="number"
-                                   className="w-10 text-right text-xl font-black text-indigo-600 outline-none bg-transparent placeholder-indigo-300"
-                                   value={displayValue}
-                                   placeholder={String(medInfo.autoCount)}
-                                   onChange={(e) => handleSaveMedicationOverride(medInfo.medWeekMonday, e.target.value)}
-                                />
-                                <span className="text-[11px] font-bold text-indigo-400 ml-1">두</span>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
                 </div>
 
                 {/* 목록 조회 버튼 그룹 */}
-                <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="grid grid-cols-1 gap-2 mt-2">
                   <button onClick={() => setShowParityModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
                     <div className="bg-indigo-50 p-2 rounded-full">
                       <Activity className="w-5 h-5 text-indigo-500" />
                     </div>
                     <span className="text-xs">산차별 현황</span>
                   </button>
+                </div>
 
-                  <button onClick={() => setShowMonthlyModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
-                    <div className="bg-rose-50 p-2 rounded-full">
-                      <Baby className="w-5 h-5 text-rose-500" />
+                {/* --- 주간 이유 성적 (직접 기록 방식) --- */}
+                <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-black text-blue-800">
+                      주간 이유 성적 <span className="text-[10px] bg-white text-blue-500 px-1.5 py-0.5 rounded font-bold ml-1">직접 기록</span>
+                    </h3>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => openWeaningModal()} 
+                        className="bg-blue-100 text-blue-700 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-blue-200"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> 추가
+                      </button>
+                      <button 
+                        onClick={downloadWeaningExcel} 
+                        className="bg-blue-600 text-white px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-blue-700"
+                      >
+                        <Download className="w-3.5 h-3.5" /> 엑셀
+                      </button>
                     </div>
-                    <span className="text-xs">월별 분만 예정</span>
-                  </button>
+                  </div>
+
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                    {sortedWeaningRecords.length === 0 ? (
+                      <div className="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">
+                        직접 기록된 이유 성적이 없습니다.
+                      </div>
+                    ) : (
+                      sortedWeaningRecords.map(stat => {
+                        const st = stat || {};
+                        return (
+                          <div 
+                            key={st.date} 
+                            onClick={() => openWeaningModal(st)}
+                            className="min-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all"
+                          >
+                            <span className="text-[11px] font-black text-slate-500 mb-2">{(st.date || '').substring(5).replace('-', '/')} 이유</span>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded">
+                                <span className="text-[10px] font-bold text-slate-500">모돈</span>
+                                <span className="text-[13px] font-black text-slate-800">{st.sowCount || 0}<span className="text-[9px] font-normal ml-0.5">복</span></span>
+                              </div>
+                              <div className="flex justify-between items-center bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100">
+                                <span className="text-[10px] font-bold text-blue-600">이유</span>
+                                <span className="text-[14px] font-black text-blue-700">{st.totalWeaned || 0}<span className="text-[9px] font-normal ml-0.5">두</span></span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
 
                 {/* --- 월별 교배 및 분만 실적 --- */}
@@ -1286,6 +1637,43 @@
                           </div>
                         );
                       })
+                    )}
+                  </div>
+                </div>
+
+                {/* --- 출하 기록 및 예정 (사육현황 연동) --- */}
+                <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-black text-slate-800">
+                      출하 기록 및 예정 <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold ml-1">사육현황 연동</span>
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-60 overflow-y-auto no-scrollbar pb-2">
+                    {groupedShipments.length === 0 ? (
+                      <div className="col-span-full text-center py-6 bg-slate-50 rounded-xl text-xs font-bold text-slate-400">
+                        등록된 출하 기록이 없습니다.
+                      </div>
+                    ) : (
+                      groupedShipments.map((record, idx) => {
+                          const isExpected = record.isExpected;
+                          
+                          return (
+                            <div 
+                              key={idx} 
+                              onClick={() => { setSelectedShipment(record); setModalAvgTemp('-'); }}
+                              className={`bg-white p-1 rounded-xl border ${isExpected ? 'border-rose-100 hover:border-rose-300' : 'border-emerald-100 hover:border-emerald-300'} shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden`}
+                            >
+                              <div className={`w-full flex flex-col items-center py-2 rounded-lg border ${isExpected ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                                <span className={`text-[10px] font-black leading-none mb-1.5 ${isExpected ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  {isExpected ? '예정' : '완료'}
+                                </span>
+                                <span className="text-[11px] font-black text-slate-800 leading-none tracking-tighter">
+                                  {record.date ? record.date.substring(5).replace('-', '/') : '-'}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })
                     )}
                   </div>
                 </div>
@@ -1514,6 +1902,142 @@
             </div>
           )}
 
+          {/* --- 주간 이유 직접 기록 관리 팝업 --- */}
+          {showWeaningModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col">
+                    <h3 className="text-lg font-black text-slate-800">이유 성적 기록</h3>
+                    <span className="text-xs font-bold text-blue-600">{isEditingWeaning ? '기록 수정' : '새 기록 추가'}</span>
+                  </div>
+                  <button onClick={() => setShowWeaningModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800"><X className="w-5 h-5" /></button>
+                </div>
+
+                <div className="mb-4">
+                  <h4 className="text-[11px] font-bold text-slate-500 mb-2">해당 주차 이유 예정 모돈 ({(currentWeaningStat || {}).sows?.length || 0}두) <span className="font-normal text-blue-500">터치 시 이동</span></h4>
+                  <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto no-scrollbar pb-2">
+                    {((currentWeaningStat || {}).sows || []).map(sow => {
+                      const s = sow || {}; 
+                      return (
+                        <span 
+                          key={s.id} 
+                          onClick={() => {
+                            setSelectedSowId(s.id);
+                            setShowWeaningModal(false);
+                          }}
+                          className="bg-slate-100 text-slate-700 font-bold px-2.5 py-1.5 rounded-lg text-[13px] border border-slate-200 cursor-pointer hover:bg-blue-100 hover:text-blue-700 hover:border-blue-300 transition-all active:scale-95 shadow-sm"
+                        >
+                          {s.sowNo || '-'}
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveWeaning} className="space-y-4 border-t border-slate-100 pt-4">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-500 block mb-1">이유일 (날짜)</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={(weaningForm || {}).date || ''} 
+                      onChange={e => setWeaningForm({...weaningForm, date: e.target.value})} 
+                      disabled={isEditingWeaning}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed" 
+                    />
+                    {isEditingWeaning && <p className="text-[9px] text-slate-400 mt-1">수정 시 날짜는 변경할 수 없습니다. 삭제 후 다시 등록해주세요.</p>}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-600 block mb-1">이유 모돈수 (복)</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          required
+                          value={(weaningForm || {}).sowCount || ''} 
+                          onChange={e => setWeaningForm({...weaningForm, sowCount: e.target.value})} 
+                          className="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-3 text-lg font-black text-blue-800 outline-none focus:border-blue-400" 
+                          placeholder="0" 
+                        />
+                        <span className="text-sm font-bold text-slate-500">복</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="text-[11px] font-bold text-blue-600 block mb-1">이유두수 (두)</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="number" 
+                          required
+                          value={(weaningForm || {}).totalWeaned || ''} 
+                          onChange={e => setWeaningForm({...weaningForm, totalWeaned: e.target.value})} 
+                          className="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-3 text-lg font-black text-blue-800 outline-none focus:border-blue-400" 
+                          placeholder="0" 
+                        />
+                        <span className="text-sm font-bold text-slate-500">두</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <button type="submit" className="w-full mt-4 py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg">저장하기</button>
+                  
+                  {isEditingWeaning && (
+                    !confirmWeaningDelete ? (
+                      <button type="button" onClick={() => setConfirmWeaningDelete(true)} className="w-full py-4 mt-2 bg-rose-50 text-rose-600 rounded-2xl font-black shadow-sm">
+                        이 기록 삭제하기
+                      </button>
+                    ) : (
+                      <div className="flex gap-2 mt-2">
+                        <button type="button" onClick={() => setConfirmWeaningDelete(false)} className="flex-1 py-4 bg-slate-100 text-slate-500 rounded-2xl font-black shadow-sm">
+                          삭제 취소
+                        </button>
+                        <button type="button" onClick={handleDeleteWeaning} className="flex-1 py-4 bg-rose-500 text-white rounded-2xl font-black shadow-sm">
+                          확인 (영구삭제)
+                        </button>
+                      </div>
+                    )
+                  )}
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* --- PSY / MSY 계산식 팝업 --- */}
+          {showFormulaModal && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-black text-slate-800">PSY / MSY 계산식</h3>
+                  <button onClick={() => setShowFormulaModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+                
+                <div className="space-y-4">
+                  <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                    <h4 className="text-xs font-black text-indigo-600 mb-2">현재 PSY (모돈당 연간 이유두수)</h4>
+                    <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 총 이유두수 ÷ 연평균 상시 모돈수</p>
+                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
+                      {(dashboardStats || {}).manualYearlyWeaned || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-indigo-600">{(dashboardStats || {}).psy || '0.0'}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-500 mt-2">* 수기 기록된 최근 365일간의 이유 성적 합산 기준</p>
+                  </div>
+
+                  <div className="bg-violet-50 p-4 rounded-xl border border-violet-100">
+                    <h4 className="text-xs font-black text-violet-600 mb-2">현재 MSY (모돈당 연간 출하두수)</h4>
+                    <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 총 출하두수 ÷ 연평균 상시 모돈수</p>
+                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
+                      {(dashboardStats || {}).yearlyShipped || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-violet-600">{(dashboardStats || {}).msy || '0.0'}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-500 mt-2">* 수기 입력이 없으면 파이어베이스 이유 기록(이유두수×95%)으로 자동 계산됩니다.</p>
+                  </div>
+                </div>
+                
+                <button onClick={() => setShowFormulaModal(false)} className="w-full mt-6 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
+              </div>
+            </div>
+          )}
+
           {/* --- 산차별 현황 팝업 --- */}
           {showParityModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
@@ -1533,43 +2057,6 @@
                       <span className="text-lg font-black text-slate-800">{((dashboardStats || {}).parity || {})[p] || 0}<span className="text-[10px] font-bold ml-0.5">두</span></span>
                     </div>
                   ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* --- 월별 분만 예정 현황 팝업 --- */}
-          {showMonthlyModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
-                <div className="flex justify-between items-center mb-6">
-                  <div className="flex flex-col">
-                    <h3 className="text-lg font-black text-slate-800">월별 분만 예정 현황</h3>
-                    <span className="text-xs font-bold text-rose-500">교배일 기준 (클릭하여 목록 확인)</span>
-                  </div>
-                  <button onClick={() => setShowMonthlyModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
-                </div>
-                
-                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto no-scrollbar pb-4">
-                  {Object.keys((dashboardStats || {}).monthlyFarrowing || {}).length === 0 ? (
-                    <div className="col-span-full text-center py-5 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
-                      등록된 교배 일정(분만 예정)이 없습니다.
-                    </div>
-                  ) : (
-                    Object.keys((dashboardStats || {}).monthlyFarrowing || {}).sort().map(ym => {
-                      const [yyyy, mm] = ym.split('-');
-                      return (
-                        <div key={ym} onClick={() => { setShowMonthlyModal(false); openFilteredList('expectedMonth', ym); }} className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm cursor-pointer hover:border-rose-300 hover:bg-rose-100 active:scale-95 transition-all">
-                          <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div>
-                          <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">{yyyy}년 {parseInt(mm)}월</span>
-                          <div className="flex items-baseline pl-1">
-                            <span className="text-2xl font-black text-rose-600">{((dashboardStats || {}).monthlyFarrowing || {})[ym] || 0}</span>
-                            <span className="text-[10px] font-bold ml-0.5 text-rose-400">복</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
                 </div>
               </div>
             </div>
@@ -1716,6 +2203,52 @@
                   </div>
                   <button type="submit" className="w-full mt-4 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg">등록하기</button>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* --- 출하 상세 팝업 --- */}
+          {selectedShipment && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
+              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-col">
+                    <h3 className="text-lg font-black text-slate-800">출하 상세 정보</h3>
+                    <span className="text-xs font-bold text-indigo-500">
+                      {selectedShipment.date ? selectedShipment.date.replace(/-/g, '/') : '-'} 기준
+                    </span>
+                  </div>
+                  <button onClick={() => setSelectedShipment(null)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
+                    <span className="text-[10px] font-bold text-slate-500 mb-1">총두수</span>
+                    <p className="text-lg font-black text-violet-600">{selectedShipment.count || 0}<span className="text-[10px] font-bold ml-0.5 text-violet-400">두</span></p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
+                    <span className="text-[10px] font-bold text-slate-500 mb-1">출하일령</span>
+                    <p className="text-lg font-black text-indigo-600">{selectedShipment.age}<span className="text-[10px] font-bold ml-0.5 text-indigo-400">일</span></p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
+                    <span className="text-[10px] font-bold text-slate-500 mb-1">평균체중</span>
+                    <p className="text-lg font-black text-emerald-600">{selectedShipment.weight}<span className="text-[10px] font-bold ml-0.5 text-emerald-400">kg</span></p>
+                  </div>
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
+                    <span className="text-[10px] font-bold text-slate-500 mb-1">평균 사육온도</span>
+                    <p className="text-lg font-black text-rose-500">{modalAvgTemp}<span className="text-[10px] font-bold ml-0.5 text-rose-400">℃</span></p>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm mb-4">
+                  <div className="flex items-center gap-1.5 mb-2">
+                    <Activity className="w-4 h-4 text-blue-500" />
+                    <span className="text-xs font-black text-slate-700">일령별 평균 사육온도 <span className="text-[9px] font-normal text-slate-400 ml-0.5">(환경 모니터링 연동)</span></span>
+                  </div>
+                  <TempTable shipment={selectedShipment} onAvgCalculated={setModalAvgTemp} />
+                </div>
+                
+                <button onClick={() => setSelectedShipment(null)} className="w-full mt-2 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
               </div>
             </div>
           )}
