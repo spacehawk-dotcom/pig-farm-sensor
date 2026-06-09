@@ -66,10 +66,10 @@
         
         <!-- 외부 링크 네비게이션 버튼 -->
         <section class="flex gap-2">
-            <a href="env.html" class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm">
+            <a class='flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm' href='/env'>
                 <i data-lucide="thermometer" class="w-5 h-5 text-rose-500"></i> 환경모니터링
             </a>
-            <a href="pigmom.html" class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm">
+            <a class='flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm' href='/pigmom'>
                 <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-500"></i> 모돈관리
             </a>
         </section>
@@ -692,6 +692,107 @@
             utils.showToast("산차 +1, 상태 '이유'로 자동 전환되었습니다. [저장] 시 반영됩니다.");
         };
 
+        window.toggleSelectAllNursing = (checked) => {
+            const checkboxes = document.querySelectorAll('.n-select-sow');
+            checkboxes.forEach(cb => {
+                cb.checked = checked;
+            });
+        };
+
+        window.completeSelectedSowsCycle = async () => {
+            const checkedCheckboxes = document.querySelectorAll('.n-select-sow:checked');
+            if (checkedCheckboxes.length === 0) {
+                utils.showToast("선택된 모돈이 없습니다.");
+                return;
+            }
+
+            if (isLocalEnv) {
+                utils.showToast("로컬 환경에서는 데모만 가능합니다.");
+                return;
+            }
+
+            const btn = document.querySelector('[onclick="window.completeSelectedSowsCycle()"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="w-4 h-4 animate-spin mr-1" data-lucide="loader-2"></i> 처리 중...';
+            lucide.createIcons();
+
+            try {
+                const promises = [];
+                // 오늘 날짜 MM/DD 형식 구하기
+                const todayMMDD = new Date().toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' }).replace('. ', '/').replace('.', '').trim();
+                
+                checkedCheckboxes.forEach(cb => {
+                    const dbId = cb.dataset.dbid;
+                    const row = document.querySelector(`.nursing-row[data-dbid="${dbId}"]`);
+                    if (!row) return;
+
+                    const sow = state.sowList.find(x => x.dbId === dbId);
+                    if (!sow) return;
+
+                    const currentParity = parseInt(row.querySelector('.n-parity').value) || sow.parity;
+                    const mRaw = row.querySelector('.n-mating').value;
+                    const eRaw = row.querySelector('.n-exp').value;
+                    const fRaw = row.querySelector('.n-farrow').value;
+                    const bornInput = row.querySelector('.n-born').value;
+                    const born = bornInput === '' ? '' : parseInt(bornInput) || 0;
+                    const weaned = row.querySelector('.n-weaned').value;
+                    const move = row.querySelector('.n-move').value;
+
+                    let history = [...(sow.history || [])];
+                    history.sort((a, b) => b.parity - a.parity);
+
+                    if (history.length === 0) {
+                        history.push({
+                            parity: currentParity,
+                            matingDate: mRaw,
+                            expDate: eRaw,
+                            date: fRaw,
+                            weaningDate: todayMMDD, // 완료 처리 시 오늘 이유일 기록
+                            born: born,
+                            weaned: weaned,
+                            move: move
+                        });
+                    } else {
+                        history[0].parity = currentParity;
+                        history[0].matingDate = mRaw;
+                        history[0].expDate = eRaw;
+                        history[0].date = fRaw;
+                        history[0].weaningDate = todayMMDD; // 완료 처리 시 오늘 이유일 기록
+                        history[0].born = born;
+                        history[0].weaned = weaned;
+                        history[0].move = move;
+                    }
+
+                    // 분만/이유 완료 시 모돈의 상태 업데이트 정의
+                    const nextParity = currentParity + 1; // 산차 1 증가
+                    const nextMatingDate = ''; // 종부일 초기화
+                    const nextStatus = '이유'; // 상태 '이유'로 변경
+
+                    const dataToUpdate = {
+                        parity: nextParity,
+                        matingDate: nextMatingDate,
+                        currentStatus: nextStatus,
+                        history: history
+                    };
+
+                    promises.push(db.collection(COLS.SOWS).doc(dbId).update(dataToUpdate));
+                });
+
+                await Promise.all(promises);
+                utils.showToast(`${checkedCheckboxes.length}두의 분만/이유 완료 처리가 성공적으로 저장되었습니다!`);
+                window.closeModal();
+                await saveDailyHistory();
+            } catch (e) {
+                console.error("Complete cycle error:", e);
+                utils.showToast("처리에 실패했습니다: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                lucide.createIcons();
+            }
+        };
+
         window.exportToExcel = async () => {
             const btn = document.querySelector('[onclick="window.exportToExcel()"]');
             btn.disabled = true; btn.innerText = "데이터 수집 중...";
@@ -703,7 +804,7 @@
                     '날짜': h.date, '모돈(1산↑)': h.stocks?.sow || 0, '후보돈(0산)': h.stocks?.replacement || 0, '웅돈': h.stocks?.boar || 0, '자돈(이유)': h.stocks?.piglet || 0, '육성돈': h.stocks?.grower || 0, '합계': (h.stocks?.sow||0) + (h.stocks?.replacement||0) + (h.stocks?.boar||0) + (h.stocks?.piglet||0) + (h.stocks?.grower||0)
                 }));
                 const filteredShipments = state.shipments.filter(s => s.date >= start && s.date <= end).map(s => ({
-                    '날짜': s.date, '입식일': s.stockingDate || '-', '구분': s.batchId === 8 ? '후보사' : s.batchId + '배치', '칸': (s.penIndex !== undefined ? s.penIndex + 1 : '-') + '번', '두수': s.count
+                    '날짜': s.date, '이유일': s.stockingDate || '-', '구분': s.batchId === 8 ? '후보사' : s.batchId + '배치', '칸': (s.penIndex !== undefined ? s.penIndex + 1 : '-') + '번', '두수': s.count
                 }));
                 const filteredAccidents = state.accidents.filter(a => a.date >= start && a.date <= end).map(a => ({
                     '날짜': a.date, '구분': a.type === 'sick' ? '환돈' : '폐사/도태', '단계': a.stage === 'weaning' ? '이유사' : '육성사', '배치': a.batchId === 8 ? '후보사' : a.batchId + '배치', '칸': (a.penIndex + 1) + '번', '두수': a.count
@@ -850,7 +951,7 @@
             const targetAge = parseInt(inputEl.value) || 170;
             const daysToAdd = targetAge - 20;
 
-            if (descEl) descEl.innerText = `* 각 칸의 기준일(입식일)로부터 ${targetAge}일령이 되는 달을 기준으로 합산합니다.`;
+            if (descEl) descEl.innerText = `* 각 칸의 이유일로부터 ${targetAge}일령이 되는 달을 기준으로 합산합니다.`;
 
             const monthlyCounts = {};
             const yearlyCounts = {};
@@ -1137,7 +1238,7 @@
                         </div>
                     </div>
                     <div id="expected-shipment-annual-summary" class="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
-                    <p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 기준일(입식일)로부터 170일령이 되는 달을 기준으로 합산합니다.</p>
+                    <p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 이유일로부터 170일령이 되는 달을 기준으로 합산합니다.</p>
                     <div id="expected-shipment-results" class="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto no-scrollbar pb-2 px-1">
                     </div>
                 `;
@@ -1231,8 +1332,46 @@
                     return utils.getWeekKey(expectedFarrowingDate) === weekKey;
                 });
                 sows.sort((a,b) => String(a.matingDate||'').localeCompare(String(b.matingDate||'')));
-                const listHtml = sows.map(s => `<div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white p-2.5 rounded-2xl border border-rose-50 flex flex-col justify-center h-24 shadow-sm active:scale-95 transition-all cursor-pointer overflow-hidden"><div class="flex items-center justify-between mb-1.5 w-full"><span class="text-[14px] font-black text-slate-800 leading-none">No.${s.sowNo}</span><span class="text-[11px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md">${s.parity}산</span></div><div class="border-t border-slate-50 pt-1.5 w-full"><p class="text-[11px] font-bold text-slate-400">예정 <span class="text-rose-500 ml-0.5">${utils.getExpectedFarrow(s.matingDate).substring(5) || '미상'}</span></p></div></div>`).join('');
-                return { title: `<div class="flex items-center gap-2"><i data-lucide="calendar-heart" class="text-rose-500"></i> <span class="text-lg font-black leading-tight">${utils.getWeekOfMonth(weekKey)} 예정 <span class="text-rose-600 ml-1 inline-block">${sows.length}복</span></span></div>`, html: `<div class="grid grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto no-scrollbar pb-2 pt-2">${listHtml || '<div class="col-span-3 text-center py-10 text-slate-400 font-bold text-xs">예정된 개체가 없습니다.</div>'}</div>`, hideSave: true };
+                const listHtml = sows.map(s => {
+                    const expDate = utils.getExpectedFarrow(s.matingDate) || '';
+                    const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '-';
+                    const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '-';
+                    
+                    return `
+                    <div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white px-2 py-2.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-rose-50 transition-colors cursor-pointer text-center text-[12px] font-bold text-slate-600">
+                        <span class="w-14 shrink-0 text-slate-800 font-black">${s.sowNo}</span>
+                        <span class="w-10 shrink-0 text-rose-600">${s.parity}</span>
+                        <span class="w-14 shrink-0">${matingFormatted}</span>
+                        <span class="w-14 shrink-0 text-rose-500">${expFormatted}</span>
+                        <span class="w-14 shrink-0 text-slate-300">-</span>
+                        <span class="w-10 shrink-0 text-slate-300">-</span>
+                        <span class="w-10 shrink-0 text-slate-300">-</span>
+                        <span class="w-10 shrink-0 text-slate-300">-</span>
+                    </div>`;
+                }).join('');
+
+                return { 
+                    title: `<div class="flex items-center gap-2"><i data-lucide="calendar-heart" class="text-rose-500"></i> <span class="text-lg font-black leading-tight">${utils.getWeekOfMonth(weekKey)} 예정 <span class="text-rose-600 ml-1 inline-block">${sows.length}복</span></span></div>`, 
+                    html: `
+                    <div class="mt-2 overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[60vh] relative">
+                        <div class="min-w-max">
+                            <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
+                                <span class="w-14 shrink-0">번호</span>
+                                <span class="w-10 shrink-0">산차</span>
+                                <span class="w-14 shrink-0">종부일</span>
+                                <span class="w-14 shrink-0">예상일</span>
+                                <span class="w-14 shrink-0">분만일</span>
+                                <span class="w-10 shrink-0">포유</span>
+                                <span class="w-10 shrink-0">이동</span>
+                                <span class="w-10 shrink-0">이유</span>
+                            </div>
+                            <div class="bg-slate-50 flex flex-col">
+                                ${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full">예정된 개체가 없습니다.</div>'}
+                            </div>
+                        </div>
+                    </div>`, 
+                    hideSave: true 
+                };
             },
             nursing_week: (weekKey) => {
                 const sows = state.sowList.filter(s => {
@@ -1260,20 +1399,71 @@
                     const getD = (x) => x.history && x.history.length > 0 ? [...x.history].sort((m,n)=>n.parity-m.parity)[0].date : '';
                     return String(getD(a)).localeCompare(String(getD(b)));
                 });
+                
                 const listHtml = sows.map(s => {
-                    const lastH = [...s.history].sort((a,b)=>b.parity-a.parity)[0];
-                    let expectedDateStr = '기록없음';
+                    const lastH = (s.history && s.history.length > 0) ? [...s.history].sort((a,b)=>b.parity-a.parity)[0] : null;
+                    
+                    const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '';
+                    const expDate = s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '';
+                    const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '';
+                    
+                    let farrowFormatted = '';
                     if (lastH && lastH.date) {
-                        const parsedDate = utils.parseDate(lastH.date);
-                        if (parsedDate) {
-                            parsedDate.setDate(parsedDate.getDate() + 20);
-                            expectedDateStr = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
+                        if (lastH.date.includes('-') && lastH.date.length === 10) {
+                            farrowFormatted = lastH.date.substring(5).replace('-', '/');
+                        } else {
+                            farrowFormatted = lastH.date;
                         }
                     }
-                    return `<div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white p-2.5 rounded-2xl border border-emerald-50 flex flex-col justify-center h-24 shadow-sm active:scale-95 transition-all cursor-pointer overflow-hidden"><div class="flex items-center justify-between mb-1.5 w-full"><span class="text-[14px] font-black text-slate-800 leading-none">No.${s.sowNo}</span><span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-md">${s.parity}산</span></div><div class="border-t border-slate-50 pt-1.5 w-full"><p class="text-[11px] font-bold text-slate-400">20일령 <span class="text-emerald-500 ml-0.5">${expectedDateStr}</span></p></div></div>`;
-                });
+                    
+                    const bornCount = (lastH && lastH.born !== undefined) ? lastH.born : '';
+                    const moveCount = (lastH && lastH.weaned !== undefined) ? lastH.weaned : '';
+                    const weanCount = (lastH && lastH.move !== undefined) ? lastH.move : '';
+                    
+                    return `
+                    <div class="bg-white px-2 py-2 border-b border-slate-100 flex items-center gap-1.5 hover:bg-emerald-50 transition-colors nursing-row" data-dbid="${s.dbId}">
+                        <span class="w-6 shrink-0 flex justify-center"><input type="checkbox" class="n-select-sow w-3.5 h-3.5 accent-emerald-600 cursor-pointer" data-dbid="${s.dbId}"></span>
+                        <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform">${s.sowNo}</span>
+                        <input type="number" class="n-parity w-10 bg-white border border-slate-200 shadow-sm rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${s.parity}">
+                        <input type="text" class="n-mating w-14 bg-white border border-slate-200 shadow-sm rounded py-1.5 px-1 text-[11px] font-bold text-center shrink-0 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${matingFormatted}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+115);this.parentElement.querySelector('.n-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
+                        <input type="text" class="n-exp w-14 bg-white border border-slate-200 shadow-sm rounded py-1.5 px-1 text-[11px] font-bold text-center shrink-0 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${expFormatted}" placeholder="MM/DD">
+                        <input type="text" class="n-farrow w-14 bg-white border border-slate-200 shadow-sm rounded py-1.5 px-1 text-[11px] font-bold text-center shrink-0 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${farrowFormatted}" placeholder="MM/DD">
+                        <input type="number" class="n-born w-10 bg-white border border-slate-200 shadow-sm rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${bornCount}" placeholder="포유">
+                        <input type="text" class="n-weaned w-10 bg-white border border-slate-200 shadow-sm rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${moveCount}" placeholder="이동">
+                        <input type="text" class="n-move w-10 bg-white border border-slate-200 shadow-sm rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${weanCount}" placeholder="이유">
+                    </div>`;
+                }).join('');
+
                 const titleStr = weekKey === 'Unknown' ? '날짜 미상' : utils.getWeekOfMonth(weekKey);
-                return { title: `<div class="flex items-center gap-2"><i data-lucide="baby" class="text-emerald-500"></i> <span class="text-lg font-black">${titleStr} 도래 <span class="text-emerald-600 ml-1">${sows.length}복</span></span></div>`, html: `<div class="grid grid-cols-3 gap-2 max-h-[60vh] overflow-y-auto no-scrollbar pb-2 pt-2">${listHtml.join('') || '<div class="col-span-3 text-center py-10 text-slate-400 font-bold text-xs">해당 주차 20일령 도래 개체 없음</div>'}</div>`, hideSave: true };
+                
+                return { 
+                    title: `<div class="flex items-center gap-2"><i data-lucide="baby" class="text-emerald-500"></i> <span class="text-lg font-black leading-tight">${titleStr} 도래 <span class="text-emerald-600 ml-1 inline-block">${sows.length}복</span></span></div>`, 
+                    html: `
+                    <p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 바로 입력하고 아래 확인 버튼을 눌러 일괄 저장할 수 있습니다.</p>
+                    <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[60vh] relative">
+                        <div class="min-w-max">
+                            <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
+                                <span class="w-6 shrink-0 flex justify-center"><input type="checkbox" id="n-select-all" onclick="window.toggleSelectAllNursing(this.checked)" class="w-3.5 h-3.5 accent-emerald-600 cursor-pointer"></span>
+                                <span class="w-14 shrink-0">번호</span>
+                                <span class="w-10 shrink-0">산차</span>
+                                <span class="w-14 shrink-0">종부일</span>
+                                <span class="w-14 shrink-0">예상일</span>
+                                <span class="w-14 shrink-0">분만일</span>
+                                <span class="w-10 shrink-0">포유</span>
+                                <span class="w-10 shrink-0">이동</span>
+                                <span class="w-10 shrink-0">이유</span>
+                            </div>
+                            <div class="bg-slate-50 flex flex-col">
+                                ${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full">해당 주차 20일령 도래 개체 없음</div>'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all text-sm">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i> 선택한 모돈 분만/이유 완료
+                        </button>
+                    </div>`
+                };
             },
             shipment_detail_confirmed: (date) => {
                 const records = state.shipments.filter(s => s.date === date), summary = state.shipmentSummaries[date] || { avgWeight: '', memo: '' }, totalCount = records.reduce((a,c)=>a+(c.count||0), 0);
@@ -1294,6 +1484,26 @@
                 });
                 const avgAge = validRecordsCount > 0 ? Math.round(totalAgeSum / validRecordsCount) : 0;
                 const avgAgeDisplay = avgAge > 0 ? avgAge : '-';
+
+                // 이유일 오름차순으로 출하 상세 기록 정리 및 정렬 수행
+                const recordsWithDates = records.map(r => {
+                    let rDate = r.stockingDate || '';
+                    if(!rDate && r.batchId) {
+                        const b = state.gBatches.find(x => x.id === r.batchId);
+                        if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date;
+                    }
+                    return {
+                        ...r,
+                        calculatedWeaningDate: rDate
+                    };
+                });
+
+                // 이유일 기준 오름차순 정렬 (날짜 미입력건은 뒤로 보냄)
+                recordsWithDates.sort((a, b) => {
+                    if (!a.calculatedWeaningDate) return 1;
+                    if (!b.calculatedWeaningDate) return -1;
+                    return a.calculatedWeaningDate.localeCompare(b.calculatedWeaningDate);
+                });
 
                 const html = `
                 <input type="hidden" id="m-ship-date" value="${date}">
@@ -1318,41 +1528,39 @@
                     </div>
                 </div>
                 <div class="space-y-2">
-                    <p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 내역 상세 (입식일 및 일령 확인)</p>
-                    <div class="grid grid-cols-3 gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar pb-2">
-                        ${records.map(r => { 
-                            let rDate = r.stockingDate || '';
-                            if(!rDate && r.batchId) {
-                                const b = state.gBatches.find(x => x.id === r.batchId);
-                                if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date;
-                            }
-                            const d_obj = utils.parseDate(rDate);
-                            const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (rDate || '기록없음'); 
-                            const age = rDate ? utils.getDiffDays(rDate, date) + 20 : '??'; 
-                            return `
-                            <div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
-                                <div class="flex items-start justify-between mb-1.5">
-                                    <div class="flex flex-col">
-                                        <span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">입식일</span>
-                                        <span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span>
-                                    </div>
-                                    <div class="bg-indigo-50 px-1 py-0.5 rounded text-right">
-                                        <span class="text-[8px] font-black text-indigo-400 block leading-none mb-0.5">일령</span>
-                                        <span class="text-[10px] font-black text-indigo-600 leading-none">${age}일</span>
-                                    </div>
-                                </div>
-                                <div class="flex justify-between items-end border-t border-slate-50 pt-1.5">
-                                    <div class="flex gap-0.5 items-baseline">
-                                        <span class="text-[8px] font-bold text-slate-400">수량</span>
-                                        <span class="font-black text-blue-600 text-base leading-none">${r.count}두</span>
-                                    </div>
-                                    <button id="del-btn-${r.dbId}" onclick="window.toggleDeleteConfirm('${r.dbId}')" class="text-slate-200 hover:text-rose-500 transition-colors">
-                                        <i data-lucide="trash-2" class="w-3 h-3"></i>
-                                    </button>
-                                </div>
-                                <button id="confirm-btn-${r.dbId}" onclick="window.deleteShipment('${r.dbId}', '${date}')" class="hidden absolute inset-0 bg-rose-500 text-white text-[10px] font-black flex items-center justify-center">삭제확인</button>
-                            </div>`; 
-                        }).join('')}
+                    <p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 내역 상세 (이유일 및 일령 확인)</p>
+                    <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[40vh] relative shadow-sm">
+                        <table class="w-full text-center text-sm border-collapse bg-white">
+                            <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 text-center sticky top-0 z-10 uppercase tracking-wider">
+                                <tr>
+                                    <th class="py-2.5 px-3">이유일</th>
+                                    <th class="py-2.5 px-3">일령</th>
+                                    <th class="py-2.5 px-3">두수</th>
+                                    <th class="py-2.5 px-3 w-16"></th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-50">
+                                ${recordsWithDates.map(r => { 
+                                    const d_obj = utils.parseDate(r.calculatedWeaningDate);
+                                    const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (r.calculatedWeaningDate || '기록없음'); 
+                                    const age = r.calculatedWeaningDate ? utils.getDiffDays(r.calculatedWeaningDate, date) + 20 : '??'; 
+                                    return `
+                                    <tr class="hover:bg-slate-50/50 transition-colors">
+                                        <td class="py-3 px-3 font-bold text-slate-700">${mmdd}</td>
+                                        <td class="py-3 px-3 font-semibold text-slate-600">${age}일</td>
+                                        <td class="py-3 px-3 font-black text-blue-600">${r.count}두</td>
+                                        <td class="py-3 px-3 relative min-w-[70px]">
+                                            <div class="flex justify-center items-center">
+                                                <button id="del-btn-${r.dbId}" onclick="window.toggleDeleteConfirm('${r.dbId}')" class="text-slate-300 hover:text-rose-500 transition-colors p-1">
+                                                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                                </button>
+                                                <button id="confirm-btn-${r.dbId}" onclick="window.deleteShipment('${r.dbId}', '${date}')" class="hidden absolute inset-0 bg-rose-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button>
+                                            </div>
+                                        </td>
+                                    </tr>`; 
+                                }).join('')}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
                 <div class="mt-4 pt-4 border-t border-slate-100">
@@ -1382,7 +1590,7 @@
                 const html = `<input type="hidden" id="m-ship-date" value="${date}"><div class="flex flex-col gap-3 mb-5"><div class="flex justify-between items-center px-1"><p class="text-lg font-black text-amber-800">${new Date(date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</p><span class="text-[10px] font-black text-amber-500 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 uppercase tracking-tighter">Scheduled</span></div><div class="grid grid-cols-2 gap-3"><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">총 예정 두수</p><p class="text-3xl font-black text-amber-700">${totalCount}<span class="text-sm ml-1 font-bold">두</span></p></div><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">평균 일령</p><p class="text-3xl font-black text-amber-700">${avgAge}<span class="text-sm ml-1 font-bold">일</span></p></div></div></div><div class="space-y-2"><p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 예정 상세</p><div class="grid grid-cols-3 gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar pb-2">${flatPendings.map(p => {
                     const d_obj = utils.parseDate(p.penDate);
                     const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (p.penDate || '-'); 
-                    return `<div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden"><div class="flex items-start justify-between mb-1.5"><div class="flex flex-col"><span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">입식일</span><span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span></div><div class="flex flex-col items-end gap-1"><button onclick="window.cancelPendingShipment(${p.batchId}, '${encodeURIComponent(JSON.stringify(p.originalObj))}')" class="text-slate-300 hover:text-rose-500 transition-colors"><i data-lucide="x-circle" class="w-3 h-3"></i></button><div class="bg-slate-50 px-1 rounded leading-none py-0.5 text-right"><span class="text-[8px] font-black text-slate-400 block mb-0.5">일령</span><span class="text-[10px] font-black text-slate-600">${p.age}일</span></div></div></div><div class="flex justify-between items-end border-t border-slate-50 pt-1.5"><span class="text-[8px] font-bold text-slate-400">예정량</span><div class="flex items-baseline gap-0.5"><span class="font-black text-amber-600 text-base leading-none">${p.count}</span><span class="text-[8px] font-bold text-amber-400 leading-none">두</span></div></div></div>`;
+                    return `<div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden"><div class="flex items-start justify-between mb-1.5"><div class="flex flex-col"><span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">이유일</span><span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span></div><div class="flex flex-col items-end gap-1"><button onclick="window.cancelPendingShipment(${p.batchId}, '${encodeURIComponent(JSON.stringify(p.originalObj))}')" class="text-slate-300 hover:text-rose-500 transition-colors"><i data-lucide="x-circle" class="w-3 h-3"></i></button><div class="bg-slate-50 px-1 rounded leading-none py-0.5 text-right"><span class="text-[8px] font-black text-slate-400 block mb-0.5">일령</span><span class="text-[10px] font-black text-slate-600">${p.age}일</span></div></div></div><div class="flex justify-between items-end border-t border-slate-50 pt-1.5"><span class="text-[8px] font-bold text-slate-400">예정량</span><div class="flex items-baseline gap-0.5"><span class="font-black text-amber-600 text-base leading-none">${p.count}</span><span class="text-[8px] font-bold text-amber-400 leading-none">두</span></div></div></div>`;
                 }).join('')}</div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">예정 메모</label><textarea id="m-ship-memo" placeholder="메모 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
                 setTimeout(() => lucide.createIcons(), 50); return { title: '출하 예정 상세', html };
             },
@@ -1418,7 +1626,7 @@
                             <input id="m-count" type="number" inputmode="numeric" value="${count||''}" placeholder="0" class="w-full bg-transparent text-7xl font-black text-center text-emerald-600 outline-none focus:ring-0 p-0 m-0">
                         </div>
                         <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center">
-                            <label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">기준 날짜 (입식일)</label>
+                            <label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">이유일</label>
                             <input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center">
                         </div>
                     </div>
@@ -1678,6 +1886,59 @@
                 })).sort((a, b) => a.parity - b.parity);
                 const data = { sowNo: document.getElementById('s-no').value, parity: parseInt(document.getElementById('s-parity').value)||0, currentStatus: document.getElementById('s-status').value, matingDate: document.getElementById('s-mating').value, history };
                 if (id === 'new') await db.collection(COLS.SOWS).add(data); else await db.doc(`${COLS.SOWS}/${id}`).update(data);
+            },
+            nursing_week: async () => {
+                const rows = document.querySelectorAll('.nursing-row');
+                if (rows.length === 0) return;
+                const updatePromises = [];
+                
+                rows.forEach(row => {
+                    const dbId = row.dataset.dbid;
+                    const sow = state.sowList.find(x => x.dbId === dbId);
+                    if (!sow) return;
+
+                    const parity = parseInt(row.querySelector('.n-parity').value) || 0;
+                    const mRaw = row.querySelector('.n-mating').value;
+                    const eRaw = row.querySelector('.n-exp').value;
+                    const fRaw = row.querySelector('.n-farrow').value;
+                    const bornInput = row.querySelector('.n-born').value;
+                    const born = bornInput === '' ? '' : parseInt(bornInput) || 0;
+                    const weaned = row.querySelector('.n-weaned').value; // 이동
+                    const move = row.querySelector('.n-move').value; // 이유
+
+                    let history = [...(sow.history || [])];
+                    history.sort((a,b) => b.parity - a.parity);
+                    
+                    if (history.length === 0) {
+                        history.push({ parity: parity, matingDate: mRaw, expDate: eRaw, date: fRaw, weaningDate: '', born: born, weaned: weaned, move: move });
+                    } else {
+                        history[0].parity = parity;
+                        history[0].matingDate = mRaw;
+                        history[0].expDate = eRaw;
+                        history[0].date = fRaw;
+                        history[0].born = born;
+                        history[0].weaned = weaned;
+                        history[0].move = move;
+                    }
+
+                    let newMatingRoot = sow.matingDate;
+                    if (mRaw) {
+                        const d = utils.parseDate(mRaw);
+                        if (d) newMatingRoot = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                    } else {
+                        newMatingRoot = '';
+                    }
+
+                    const dataToUpdate = { parity: parity, history: history };
+                    if (newMatingRoot !== sow.matingDate) {
+                        dataToUpdate.matingDate = newMatingRoot;
+                    }
+
+                    updatePromises.push(db.collection(COLS.SOWS).doc(dbId).update(dataToUpdate));
+                });
+
+                await Promise.all(updatePromises);
+                utils.showToast("이유 도래 개체 정보가 일괄 저장되었습니다.");
             },
             pen_detail: async () => {
                 const stg = document.getElementById('m-stage').value, bId = parseInt(document.getElementById('m-batch').value), pIdx = parseInt(document.getElementById('m-pen').value);
