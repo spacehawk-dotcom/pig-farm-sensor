@@ -598,14 +598,17 @@
               
               // 종부 예정일이 오늘 이후인 경우만 포함 (종부일이 지나면 사라짐)
               if (estMatingDate >= todayStr) {
-                upcoming.push({
-                  medWeekMonday,
-                  medStartDate,
-                  medEndDate,
-                  matingWeekMonday,
-                  estMatingDate,
-                  autoCount: missingCount
-                });
+                const deleteKey = `medDeleted_${medWeekMonday}`;
+                if (!(farmSettings && farmSettings[deleteKey])) {
+                  upcoming.push({
+                    medWeekMonday,
+                    medStartDate,
+                    medEndDate,
+                    matingWeekMonday,
+                    estMatingDate,
+                    autoCount: missingCount
+                  });
+                }
               }
             }
           }
@@ -613,7 +616,7 @@
 
         // 날짜순 정렬 후 가장 가까운 2개(다음 주, 다다음 주 개념)만 추출
         return upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 2);
-      }, [weeklyFarrowingStats]);
+      }, [weeklyFarrowingStats, farmSettings]);
 
       // 월별 교배(임신) 및 분만(포유) 실적 통계 (강화된 날짜 파싱 적용)
       const monthlyActivityStats = useMemo(() => {
@@ -731,6 +734,16 @@
           
         db.collection(SETTINGS_PATH).doc('main').set(updateData, { merge: true }).catch(err => {
           console.error("약제 투여 두수 저장 실패:", err);
+        });
+      };
+
+      const handleDeleteMedicationSchedule = (week) => {
+        showConfirm("이 약제 투여 일정을 삭제(숨김)하시겠습니까?", () => {
+          const field = `medDeleted_${week}`;
+          db.collection(SETTINGS_PATH).doc('main').set({ [field]: true }, { merge: true }).catch(err => {
+            console.error("약제 투여 일정 삭제 실패:", err);
+            showAlert("삭제 실패: " + err.message);
+          });
         });
       };
 
@@ -1215,7 +1228,16 @@
                               </div>
                             </div>
                             <div className="flex flex-col items-end">
-                              <span className="text-[9px] text-indigo-400 mb-0.5 font-bold">자동 산출: {medInfo.autoCount}두</span>
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <span className="text-[9px] text-indigo-400 font-bold">자동 산출: {medInfo.autoCount}두</span>
+                                <button 
+                                  onClick={() => handleDeleteMedicationSchedule(medInfo.medWeekMonday)}
+                                  className="text-indigo-300 hover:text-rose-500 transition-colors"
+                                  title="이 일정 삭제"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                               <div className="flex items-baseline bg-white px-2 py-1.5 rounded-xl border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors">
                                 <input
                                    type="number"
