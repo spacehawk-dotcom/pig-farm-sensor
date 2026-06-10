@@ -214,6 +214,21 @@
             app = firebase.initializeApp(firebaseConfig);
             auth = firebase.auth();
             db = firebase.firestore();
+            
+            // Firestore 오프라인 지속성(enablePersistence) 활성화 설정 추가
+            db.enablePersistence({ synchronizeTabs: true })
+                .then(() => {
+                    console.log("Firestore 오프라인 지속성 활성화 성공");
+                })
+                .catch((err) => {
+                    if (err.code == 'failed-precondition') {
+                        console.warn("오프라인 지속성 활성화 실패: 여러 브라우저 탭이 이미 열려 있습니다.");
+                    } else if (err.code == 'unimplemented') {
+                        console.warn("오프라인 지속성 활성화 실패: 현재 브라우저 환경에서 오프라인 스토리지를 지원하지 않습니다.");
+                    } else {
+                        console.error("오프라인 지속성 에러:", err);
+                    }
+                });
         } catch(e) { console.error("Firebase Error:", e); isLocalEnv = true; }
 
         let state = {
@@ -221,7 +236,20 @@
             wBatches: Array.from({length: 5}, (_, i) => getEmptyBatch(i+1)),
             gBatches: Array.from({length: 8}, (_, i) => getEmptyBatch(i+1, true)),
             sowList: [], shipments: [], shipmentSummaries: {}, accidents: [], historyList: [],
-            transfer: { active: false, src: null }
+            transfer: { active: false, src: null },
+            // 일괄 캐싱 데이터 객체 초기화
+            sowCache: {
+                returnCount: 0,
+                awaitingCount: 0,
+                nursingCount: 0,
+                nursingSows: 0,
+                sowCount: 0,
+                sowPregnantCount: 0,
+                sowWeaningCount: 0,
+                replacementCount: 0,
+                expectedFarrowingMap: {},
+                weeklyNursingMap: {}
+            }
         };
 
         function getEmptyBatch(id, isGrower = false) {
@@ -318,8 +346,102 @@
             showToast: (msg, dur=3000) => { const t=document.getElementById('toast'), tm=document.getElementById('toast-msg'); if(t&&tm){ tm.innerText=msg; t.classList.remove('opacity-0','pointer-events-none'); t.classList.add('opacity-100'); setTimeout(()=>{ t.classList.remove('opacity-100'); t.classList.add('opacity-0','pointer-events-none'); }, dur); } }
         };
 
+        // 데이터 캐시 처리 단일화 메인 엔진 구현 (시간복잡도 O(N) 보장)
+        window.updateSowCache = () => {
+            const cache = {
+                returnCount: 0,
+                awaitingCount: 0,
+                nursingCount: 0,
+                nursingSows: 0,
+                sowCount: 0,
+                sowPregnantCount: 0,
+                sowWeaningCount: 0,
+                replacementCount: 0,
+                expectedFarrowingMap: {},
+                weeklyNursingMap: {}
+            };
+
+            const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
+
+            state.sowList.forEach(s => {
+                const status = s.currentStatus || '이유';
+                const matingDate = s.matingDate;
+                const parity = Number(s.parity) || 0;
+
+                // 1. 상태별 단순 수량 집계 (상단 통계 & 관리 대시보드 연계용)
+                if (status === '재발') {
+                    cache.returnCount++;
+                }
+                if ((status === '이유' || !s.currentStatus) && !matingDate) {
+                    cache.awaitingCount++;
+                }
+                if (status === '포유') {
+                    cache.nursingCount++;
+                    cache.nursingSows++;
+                }
+
+                // 2. 모돈/후보돈 수량 집계
+                const sowCheck = isSow(s);
+                if (sowCheck) {
+                    cache.sowCount++;
+                    if (status === '임신') {
+                        cache.sowPregnantCount++;
+                    }
+                    if (status === '이유' || !s.currentStatus) {
+                        cache.sowWeaningCount++;
+                    }
+                } else if (parity === 0 && status !== '임신') {
+                    cache.replacementCount++;
+                }
+
+                // 3. 분만 예정 복수 집계 처리
+                if (matingDate && !s.farrowingDate && status !== '재발' && status !== '포유') {
+                    const expectedFarrowingDate = utils.getExpectedFarrow(matingDate);
+                    if (expectedFarrowingDate) {
+                        const wk = utils.getWeekKey(expectedFarrowingDate);
+                        if (wk) {
+                            if (!cache.expectedFarrowingMap[wk]) cache.expectedFarrowingMap[wk] = [];
+                            cache.expectedFarrowingMap[wk].push(s);
+                        }
+                    }
+                }
+
+                // 4. 주간 포유(20일령 도래 복수) 집계 처리
+                if (status === '포유') {
+                    let farrowDate = '';
+                    if (s.history && s.history.length > 0) {
+                        const sortedHistory = [...s.history].sort((a,b) => b.parity - a.parity);
+                        farrowDate = sortedHistory[0].date;
+                    }
+                    if (farrowDate) {
+                        const parsedDate = utils.parseDate(farrowDate);
+                        if (parsedDate) {
+                            parsedDate.setDate(parsedDate.getDate() + 20); 
+                            const dateStr = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
+                            const wk = utils.getWeekKey(dateStr);
+                            if (wk) {
+                                if (!cache.weeklyNursingMap[wk]) cache.weeklyNursingMap[wk] = [];
+                                cache.weeklyNursingMap[wk].push(s);
+                            } else {
+                                if (!cache.weeklyNursingMap['Unknown']) cache.weeklyNursingMap['Unknown'] = [];
+                                cache.weeklyNursingMap['Unknown'].push(s);
+                            }
+                        } else {
+                            if (!cache.weeklyNursingMap['Unknown']) cache.weeklyNursingMap['Unknown'] = [];
+                            cache.weeklyNursingMap['Unknown'].push(s);
+                        }
+                    } else {
+                        if (!cache.weeklyNursingMap['Unknown']) cache.weeklyNursingMap['Unknown'] = [];
+                        cache.weeklyNursingMap['Unknown'].push(s);
+                    }
+                }
+            });
+
+            state.sowCache = cache;
+        };
+
         window.updatePigletTotal = () => {
-            const nursingSows = parseInt(document.getElementById('m-nursing-sows').value) || 0;
+            const nursingSows = state.sowCache.nursingSows; // 중앙 캐싱 값 적용
             const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0;
             const nursingTotal = Math.floor(nursingSows * avgPiglets);
             const weaningTotal = parseInt(document.getElementById('m-weaning-total').innerText) || 0;
@@ -396,7 +518,14 @@
                     data.parity = Number(data.parity) || 0;
                     return { dbId: d.id, ...data };
                 }).sort((a,b) => String(a.sowNo||'').localeCompare(String(b.sowNo||''))); 
-                renderExpectedFarrowing(); renderWeeklyNursing(); renderAlertSows(); renderStocks(); 
+                
+                // 단일 루프 기반 고속 가공 캐시 업데이트 호출
+                window.updateSowCache();
+                
+                renderExpectedFarrowing(); 
+                renderWeeklyNursing(); 
+                renderAlertSows(); 
+                renderStocks(); 
             }, errLog);
             db.collection(COLS.SHIPMENTS).onSnapshot(s => { state.shipments = s.docs.map(d => ({ dbId: d.id, ...d.data() })).sort((a,b) => String(b.date||'').localeCompare(String(a.date||''))); renderRecentShipments(); }, errLog);
             db.collection(COLS.SHIPMENT_SUMMARIES).onSnapshot(s => { 
@@ -408,33 +537,77 @@
             db.collection(COLS.HISTORY).onSnapshot(s => { state.historyList = s.docs.map(d => ({ date: d.id, ...d.data() })).sort((a,b) => String(b.date||'').localeCompare(String(a.date||''))); }, errLog);
         }
 
-        async function saveDailyHistory() {
+        // 디바운스 기술 적용 - 실시간 자동 자가 교정 및 데이터베이스 정합성 동기화 엔진
+        let syncHistoryTimeout = null;
+        function saveDailyHistory() {
             if (isLocalEnv) return;
-            try {
-                const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-                const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
-                const avgPiglets = state.stocks.avgPiglets || 10;
-                const nursingPiglets = Math.floor(nursingSows * avgPiglets);
-                
-                state.stocks.piglet = weaningTotal + nursingPiglets;
-                state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-                const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
-                state.stocks.sow = state.sowList.filter(isSow).length;
-                state.stocks.sow_pregnant = state.sowList.filter(s => isSow(s) && s.currentStatus === '임신').length;
-                state.stocks.sow_nursing = state.sowList.filter(s => isSow(s) && s.currentStatus === '포유').length;
-                state.stocks.sow_weaning = state.sowList.filter(s => isSow(s) && (s.currentStatus === '이유' || !s.currentStatus)).length;
-                state.stocks.sow_return = state.sowList.filter(s => isSow(s) && s.currentStatus === '재발').length;
-                state.stocks.replacement = state.sowList.filter(s => s.parity === 0 && s.currentStatus !== '임신').length;
-                await db.doc(`${COLS.HISTORY}/${utils.getTodayStr()}`).set({ stocks: state.stocks, updatedAt: new Date().toISOString() });
-                await db.doc(`${COLS.STOCKS}/current`).update(state.stocks);
-            } catch(e) { console.error("History Save Error:", e); }
+            if (syncHistoryTimeout) clearTimeout(syncHistoryTimeout);
+            
+            syncHistoryTimeout = setTimeout(async () => {
+                try {
+                    const todayStr = utils.getTodayStr();
+                    const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
+                    const nursingSows = state.sowCache.nursingSows;
+                    const avgPiglets = state.stocks.avgPiglets || 10;
+                    const nursingPiglets = Math.floor(nursingSows * avgPiglets);
+                    
+                    const piglet = weaningTotal + nursingPiglets;
+                    const grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
+                    const sow = state.sowCache.sowCount;
+                    const replacement = state.sowCache.replacementCount;
+                    const boar = Number(state.stocks.boar) || 0;
+
+                    const docSnap = await db.doc(`${COLS.STOCKS}/current`).get();
+                    const saved = docSnap.exists ? docSnap.data() : {};
+
+                    // 실질적인 수량 변경이 감지될 때만 Firestore를 자동 업데이트하여 요금 폭탄 및 연속 호출 차단
+                    if (
+                        saved.piglet !== piglet ||
+                        saved.grower !== grower ||
+                        saved.sow !== sow ||
+                        saved.replacement !== replacement ||
+                        saved.boar !== boar ||
+                        saved.nursingPiglets !== nursingPiglets ||
+                        saved.sow_pregnant !== state.sowCache.sowPregnantCount ||
+                        saved.sow_nursing !== state.sowCache.nursingSows ||
+                        saved.sow_weaning !== state.sowCache.sowWeaningCount ||
+                        saved.sow_return !== state.sowCache.returnCount
+                    ) {
+                        state.stocks.piglet = piglet;
+                        state.stocks.grower = grower;
+                        state.stocks.sow = sow;
+                        state.stocks.replacement = replacement;
+                        state.stocks.boar = boar;
+                        state.stocks.nursingPiglets = nursingPiglets;
+                        state.stocks.sow_pregnant = state.sowCache.sowPregnantCount;
+                        state.stocks.sow_nursing = state.sowCache.nursingSows;
+                        state.stocks.sow_weaning = state.sowCache.sowWeaningCount;
+                        state.stocks.sow_return = state.sowCache.returnCount;
+
+                        await db.doc(`${COLS.STOCKS}/current`).set(state.stocks, { merge: true });
+                        await db.doc(`${COLS.HISTORY}/${todayStr}`).set({ stocks: state.stocks, updatedAt: new Date().toISOString() }, { merge: true });
+                        console.log("자동 동기화: 오늘 사육 현황 및 일일 재고 변경 내역 정합성 맞춤 완료");
+                    }
+                } catch(e) { 
+                    console.error("History Auto Save Error:", e); 
+                }
+            }, 1500); // 1.5초 디바운스로 축사 탭 연속 액션 부하 제어
         }
 
-        function renderAll() { renderStocks(); renderWeaning(); renderGrower(); renderExpectedFarrowing(); renderWeeklyNursing(); renderAlertSows(); renderRecentShipments(); }
+        function renderAll() { 
+            window.updateSowCache(); // 캐시 데이터 생성 및 동기화
+            renderStocks(); 
+            renderWeaning(); 
+            renderGrower(); 
+            renderExpectedFarrowing(); 
+            renderWeeklyNursing(); 
+            renderAlertSows(); 
+            renderRecentShipments(); 
+        }
 
         function renderStocks() {
             const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-            const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
+            const nursingSows = state.sowCache.nursingSows; // 읽기 성능 최적화 완료
             const avgPiglets = state.stocks.avgPiglets || 10;
             const nursingPiglets = Math.floor(nursingSows * avgPiglets);
             
@@ -442,10 +615,10 @@
             state.stocks.piglet = weaningTotal + nursingPiglets;
             
             state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-            const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
-            state.stocks.sow = state.sowList.filter(isSow).length;
-            state.stocks.replacement = state.sowList.filter(s => s.parity === 0 && s.currentStatus !== '임신').length;
+            state.stocks.sow = state.sowCache.sowCount; // 캐시 활용
+            state.stocks.replacement = state.sowCache.replacementCount; // 캐시 활용
             state.stocks.boar = Number(state.stocks.boar) || 0;
+            
             document.getElementById('total-pigs-label').innerText = `총 재고: ${(state.stocks.sow + state.stocks.replacement + state.stocks.boar + state.stocks.piglet + state.stocks.grower).toLocaleString()}두`;
             const cards = [
                 { id: 'sow', l: '모돈', v: state.stocks.sow, a: 'sow_list' },
@@ -467,68 +640,27 @@
                 </div>`;
             }).join('');
             lucide.createIcons();
+
+            // 실시간 재고 현황 정보가 수동/자동으로 바뀔 때마다 백그라운드 스냅샷 정합성 일치 루틴 실행
+            saveDailyHistory();
         }
 
         function renderAlertSows() {
-            const returnCount = state.sowList.filter(s => s.currentStatus === '재발').length;
-            const awaitingCount = state.sowList.filter(s => (s.currentStatus === '이유' || !s.currentStatus) && !s.matingDate);
-            const nursingCount = state.sowList.filter(s => s.currentStatus === '포유').length;
-            
-            document.getElementById('return-sow-count').innerText = returnCount;
-            document.getElementById('awaiting-sow-count').innerText = awaitingCount.length;
-            document.getElementById('nursing-sow-count').innerText = nursingCount;
+            // 사육 목록 쿼리 루프를 돌지 않고, 메모리 캐시에서 직접 꺼내어 출력 (O(1) 속도 매핑)
+            document.getElementById('return-sow-count').innerText = state.sowCache.returnCount;
+            document.getElementById('awaiting-sow-count').innerText = state.sowCache.awaitingCount;
+            document.getElementById('nursing-sow-count').innerText = state.sowCache.nursingCount;
         }
 
         function renderExpectedFarrowing() {
-            const map = {};
-            state.sowList.forEach(s => {
-                if (s.matingDate && !s.farrowingDate && s.currentStatus !== '재발' && s.currentStatus !== '포유') {
-                    const expectedFarrowingDate = utils.getExpectedFarrow(s.matingDate);
-                    if (expectedFarrowingDate) {
-                        const wk = utils.getWeekKey(expectedFarrowingDate);
-                        if (wk) {
-                            if (!map[wk]) map[wk] = []; map[wk].push(s);
-                        }
-                    }
-                }
-            });
+            const map = state.sowCache.expectedFarrowingMap; // 전역 분만 캐시 맵 직접 로드
             const html = Object.keys(map).sort().map(w => `<div onclick="window.openModal('expected_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-rose-600">${map[w].length}<span class="text-sm font-bold text-rose-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-rose-200 mb-1"></i></div></div>`).join('');
             document.getElementById('expected-farrowing-list').innerHTML = html || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">예정된 분만 없음</div>`;
             lucide.createIcons();
         }
 
         function renderWeeklyNursing() {
-            const map = {};
-            state.sowList.forEach(s => {
-                if (s.currentStatus === '포유') {
-                    let farrowDate = '';
-                    if (s.history && s.history.length > 0) {
-                        const sortedHistory = [...s.history].sort((a,b) => b.parity - a.parity);
-                        farrowDate = sortedHistory[0].date;
-                    }
-                    if (farrowDate) {
-                        const parsedDate = utils.parseDate(farrowDate);
-                        if (parsedDate) {
-                            parsedDate.setDate(parsedDate.getDate() + 20); 
-                            const dateStr = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
-                            const wk = utils.getWeekKey(dateStr);
-                            if (wk) {
-                                if (!map[wk]) map[wk] = [];
-                                map[wk].push(s);
-                            } else {
-                                if (!map['Unknown']) map['Unknown'] = [];
-                                map['Unknown'].push(s);
-                            }
-                        } else {
-                            if (!map['Unknown']) map['Unknown'] = [];
-                            map['Unknown'].push(s);
-                        }
-                    } else {
-                        if (!map['Unknown']) map['Unknown'] = [];
-                        map['Unknown'].push(s);
-                    }
-                }
-            });
+            const map = state.sowCache.weeklyNursingMap; // 전역 이유 캐시 맵 직접 로드
             const html = Object.keys(map).sort().map(w => {
                 if (w === 'Unknown') {
                     return `<div onclick="window.openModal('nursing_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-slate-200 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-slate-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">날짜 미상</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-slate-600">${map[w].length}<span class="text-sm font-bold text-slate-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-slate-200 mb-1"></i></div></div>`;
@@ -1015,7 +1147,7 @@
 
         const modalRenderers = {
             piglet_calc: () => {
-                const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
+                const nursingSows = state.sowCache.nursingSows; // 중앙 캐싱 값 적용
                 const avgPiglets = state.stocks.avgPiglets || 10;
                 const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
 
@@ -1193,7 +1325,7 @@
                         ? `<div class="grid grid-cols-4 gap-1 text-center mb-2">
                             <div class="flex flex-col items-center justify-center p-1 bg-blue-50 rounded-lg"><p class="text-[10px] text-blue-600 font-bold mb-0.5">임신</p><p class="text-[14px] font-black text-blue-700">${s.sow_pregnant||0}</p></div>
                             <div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg"><p class="text-[10px] text-emerald-600 font-bold mb-0.5">포유</p><p class="text-[14px] font-black text-emerald-700">${s.sow_nursing||0}</p></div>
-                            <div class="flex flex-col items-center justify-center p-1 bg-amber-50 rounded-lg"><p class="text-[10px] text-amber-600 font-bold mb-0.5">이유</p><p class="text-[14px] font-black text-amber-700">${s.sow_weaning||0}</p></div>
+                            <div class="flex flex-col items-center justify-center p-1 bg-amber-50 rounded-lg"><p class="text-[10px] text-amber-600 font-bold mb-0.5">이유</p><p class="text-[14px] font-black text-slate-800">${s.sow_weaning||0}</p></div>
                             <div class="flex flex-col items-center justify-center p-1 bg-rose-50 rounded-lg"><p class="text-[10px] text-rose-600 font-bold mb-0.5">재발</p><p class="text-[14px] font-black text-rose-700">${s.sow_return||0}</p></div>
                            </div>`
                         : `<div class="grid grid-cols-1 mb-2"><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg"><p class="text-[10px] text-slate-500 font-bold mb-0.5">모돈(세부미상)</p><p class="text-[14px] font-black text-slate-800">${s.sow||0}</p></div></div>`;
@@ -1323,7 +1455,7 @@
             },
             shipment_history: () => {
                 const today = utils.getTodayStr(), oneMonthAgo = new Date(); oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-                return { title: '농장 기록 관리 (기간별 엑셀)', html: `<div class="space-y-5"><div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-3"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">출력 기간 설정</p><div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">시작일</label><input type="date" id="excel-start" value="${oneMonthAgo.toISOString().split('T')[0]}" class="bg-white"></div><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">종료일</label><input type="date" id="excel-end" value="${today}" class="bg-white"></div></div></div><button onclick="window.exportToExcel()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all"><i data-lucide="download" class="w-6 h-6"></i> 리포트 생성 및 다운로드</button></div>`, hideSave: true };
+                return { title: '농장 기록 관리 (기간별 엑셀)', html: `<div class="space-y-5"><div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">출력 기간 설정</p><div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">시작일</label><input type="date" id="excel-start" value="${oneMonthAgo.toISOString().split('T')[0]}" class="bg-white"></div><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">종료일</label><input type="date" id="excel-end" value="${today}" class="bg-white"></div></div></div><button onclick="window.exportToExcel()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all"><i data-lucide="download" class="w-6 h-6"></i> 리포트 생성 및 다운로드</button></div>`, hideSave: true };
             },
             expected_week: (weekKey) => {
                 const sows = state.sowList.filter(s => {
@@ -1338,63 +1470,35 @@
                     const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '-';
                     
                     return `
-                    <div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white px-2 py-2.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-rose-50 transition-colors cursor-pointer text-center text-[12px] font-bold text-slate-600">
-                        <span class="w-14 shrink-0 text-slate-800 font-black">${s.sowNo}</span>
-                        <span class="w-10 shrink-0 text-rose-600">${s.parity}</span>
-                        <span class="w-14 shrink-0">${matingFormatted}</span>
-                        <span class="w-14 shrink-0 text-rose-500">${expFormatted}</span>
-                        <span class="w-14 shrink-0 text-slate-300">-</span>
-                        <span class="w-10 shrink-0 text-slate-300">-</span>
-                        <span class="w-10 shrink-0 text-slate-300">-</span>
-                        <span class="w-10 shrink-0 text-slate-300">-</span>
+                    <div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white px-4 py-3 border-b border-slate-100 flex items-center justify-between hover:bg-rose-50 transition-colors cursor-pointer text-center text-[13px] font-bold text-slate-600">
+                        <span class="w-1/4 shrink-0 text-slate-800 font-black">${s.sowNo}</span>
+                        <span class="w-1/4 shrink-0 text-rose-600">${s.parity}산</span>
+                        <span class="w-1/4 shrink-0">${matingFormatted}</span>
+                        <span class="w-1/4 shrink-0 text-rose-500">${expFormatted}</span>
                     </div>`;
                 }).join('');
 
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="calendar-heart" class="text-rose-500"></i> <span class="text-lg font-black leading-tight">${utils.getWeekOfMonth(weekKey)} 예정 <span class="text-rose-600 ml-1 inline-block">${sows.length}복</span></span></div>`, 
                     html: `
-                    <div class="mt-2 overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[60vh] relative">
-                        <div class="min-w-max">
-                            <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
-                                <span class="w-14 shrink-0">번호</span>
-                                <span class="w-10 shrink-0">산차</span>
-                                <span class="w-14 shrink-0">종부일</span>
-                                <span class="w-14 shrink-0">예상일</span>
-                                <span class="w-14 shrink-0">분만일</span>
-                                <span class="w-10 shrink-0">포유</span>
-                                <span class="w-10 shrink-0">이동</span>
-                                <span class="w-10 shrink-0">이유</span>
-                            </div>
-                            <div class="bg-slate-50 flex flex-col">
-                                ${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full">예정된 개체가 없습니다.</div>'}
-                            </div>
+                    <div class="mt-2 border border-slate-200 rounded-2xl overflow-hidden max-h-[60vh] relative shadow-sm">
+                        <div class="bg-slate-100 border-b border-slate-200 flex items-center justify-between px-4 py-2.5 text-[11px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider">
+                            <span class="w-1/4 shrink-0">번호</span>
+                            <span class="w-1/4 shrink-0">산차</span>
+                            <span class="w-1/4 shrink-0">종부일</span>
+                            <span class="w-1/4 shrink-0">예상일</span>
+                        </div>
+                        <div class="bg-slate-50 flex flex-col max-h-[45vh] overflow-y-auto no-scrollbar">
+                            ${listHtml || '<div class="text-center py-12 text-slate-400 font-bold text-xs bg-white w-full">예정된 개체가 없습니다.</div>'}
                         </div>
                     </div>`, 
-                    hideSave: true 
+                    hideSave: true
                 };
             },
             nursing_week: (weekKey) => {
-                const sows = state.sowList.filter(s => {
-                    if (s.currentStatus !== '포유') return false;
-                    let fDate = '';
-                    if (s.history && s.history.length > 0) {
-                        const sorted = [...s.history].sort((a,b) => b.parity - a.parity);
-                        fDate = sorted[0].date;
-                    }
-                    
-                    if (weekKey === 'Unknown') {
-                        if (!fDate) return true;
-                        const parsedDate = utils.parseDate(fDate);
-                        return !parsedDate;
-                    }
-                    
-                    if (!fDate) return false;
-                    const parsedDate = utils.parseDate(fDate);
-                    if (!parsedDate) return false;
-                    parsedDate.setDate(parsedDate.getDate() + 20); // 20일령 도래일
-                    const dateStr = `${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`;
-                    return utils.getWeekKey(dateStr) === weekKey;
-                });
+                const map = state.sowCache.weeklyNursingMap;
+                const sows = map[weekKey] || [];
+                
                 sows.sort((a,b) => {
                     const getD = (x) => x.history && x.history.length > 0 ? [...x.history].sort((m,n)=>n.parity-m.parity)[0].date : '';
                     return String(getD(a)).localeCompare(String(getD(b)));
@@ -1860,7 +1964,7 @@
         const saveActions = {
             piglet_calc: async () => {
                 const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0;
-                const nursingSows = state.sowList.filter(s => s.currentStatus === '포유').length;
+                const nursingSows = state.sowCache.nursingSows; // 중앙 캐싱 값 적용
                 const nursingPiglets = Math.floor(nursingSows * avgPiglets);
                 
                 state.stocks.nursingPiglets = nursingPiglets;
@@ -1897,7 +2001,7 @@
                     const sow = state.sowList.find(x => x.dbId === dbId);
                     if (!sow) return;
 
-                    const parity = parseInt(row.querySelector('.n-parity').value) || 0;
+                    const parity = parseInt(row.querySelector('.n-parity').value) || sow.parity;
                     const mRaw = row.querySelector('.n-mating').value;
                     const eRaw = row.querySelector('.n-exp').value;
                     const fRaw = row.querySelector('.n-farrow').value;
