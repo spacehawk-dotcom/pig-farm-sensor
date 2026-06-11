@@ -44,7 +44,6 @@
 </head>
 <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
 
-    <!-- Header -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-30 px-5 py-4 shadow-sm">
         <div class="max-w-2xl mx-auto flex justify-between items-center">
             <div>
@@ -215,7 +214,6 @@
             auth = firebase.auth();
             db = firebase.firestore();
             
-            // Firestore 오프라인 지속성(enablePersistence) 활성화 설정 추가
             db.enablePersistence({ synchronizeTabs: true })
                 .then(() => {
                     console.log("Firestore 오프라인 지속성 활성화 성공");
@@ -237,7 +235,6 @@
             gBatches: Array.from({length: 8}, (_, i) => getEmptyBatch(i+1, true)),
             sowList: [], shipments: [], shipmentSummaries: {}, accidents: [], historyList: [],
             transfer: { active: false, src: null },
-            // 일괄 캐싱 데이터 객체 초기화
             sowCache: {
                 returnCount: 0,
                 awaitingCount: 0,
@@ -296,7 +293,7 @@
             getExpectedFarrow: (m) => { 
                 const d = utils.parseDate(m);
                 if (!d) return null;
-                d.setDate(d.getDate()+115); 
+                d.setDate(d.getDate()+114); // 한돈 표준 임신기간 114일 적용 (종부일 + 114일)
                 const yy = d.getFullYear();
                 const mm = String(d.getMonth() + 1).padStart(2, '0');
                 const dd = String(d.getDate()).padStart(2, '0');
@@ -367,7 +364,6 @@
                 const matingDate = s.matingDate;
                 const parity = Number(s.parity) || 0;
 
-                // 1. 상태별 단순 수량 집계
                 if (status === '재발') {
                     cache.returnCount++;
                 }
@@ -379,7 +375,6 @@
                     cache.nursingSows++;
                 }
 
-                // 2. 모돈/후보돈 수량 집계
                 const sowCheck = isSow(s);
                 if (sowCheck) {
                     cache.sowCount++;
@@ -393,7 +388,6 @@
                     cache.replacementCount++;
                 }
 
-                // 3. 분만 예정 복수 집계 처리
                 if (matingDate && !s.farrowingDate && status !== '재발' && status !== '포유') {
                     const expectedFarrowingDate = utils.getExpectedFarrow(matingDate);
                     if (expectedFarrowingDate) {
@@ -405,7 +399,6 @@
                     }
                 }
 
-                // 4. 주간 포유(20일령 도래 복수) 집계 처리
                 if (status === '포유') {
                     let farrowDate = '';
                     if (s.history && s.history.length > 0) {
@@ -440,7 +433,7 @@
         };
 
         window.updatePigletTotal = () => {
-            const nursingSows = state.sowCache.nursingSows;
+            const nursingSows = state.sowCache.nursingSows; 
             const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0;
             const nursingTotal = Math.floor(nursingSows * avgPiglets);
             const weaningTotal = parseInt(document.getElementById('m-weaning-total').innerText) || 0;
@@ -456,6 +449,18 @@
             lucide.createIcons();
             
             if (isLocalEnv) { 
+                state.sowList = [
+                    { dbId: 'sow_122', sowNo: '122', parity: 1, currentStatus: '포유', matingDate: '2026-02-08', history: [{ parity: 1, date: '2026-06-03', born: 0, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_11', sowNo: '11', parity: 3, currentStatus: '포유', matingDate: '2026-02-10', history: [{ parity: 3, date: '2026-06-04', born: 0, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_38', sowNo: '38', parity: 1, currentStatus: '포유', matingDate: '2026-02-07', history: [{ parity: 1, date: '2026-06-04', born: 0, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_63', sowNo: '63', parity: 3, currentStatus: '포유', matingDate: '2026-02-10', history: [{ parity: 3, date: '2026-06-04', born: 0, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_70', sowNo: '70', parity: 6, currentStatus: '포유', matingDate: '2026-02-11', history: [{ parity: 6, date: '2026-06-04', born: 17, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_14', sowNo: '14', parity: 1, currentStatus: '포유', matingDate: '2026-02-13', history: [{ parity: 1, date: '2026-06-06', born: 4, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_98', sowNo: '98', parity: 3, currentStatus: '포유', matingDate: '2026-02-10', history: [{ parity: 3, date: '2026-06-06', born: 17, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_186', sowNo: '186', parity: 1, currentStatus: '포유', matingDate: '2026-02-15', history: [{ parity: 1, date: '2026-06-07', born: 12, weaned: '이동', move: '이유' }] },
+                    { dbId: 'sow_dummy_wean1', sowNo: '90', parity: 2, currentStatus: '이유', matingDate: '', history: [{ parity: 1, weaningDate: '05/20' }] },
+                    { dbId: 'sow_dummy_wean2', sowNo: '115', parity: 4, currentStatus: '이유', matingDate: '', history: [{ parity: 3, weaningDate: '06/01' }] }
+                ];
                 renderAll(); 
                 return; 
             }
@@ -470,7 +475,7 @@
                             console.error("Firestore init error:", e);
                             isLocalEnv = true;
                             renderAll();
-                            utils.showToast("DB 접근 권한이 거부되었습니다.", 5000);
+                            utils.showToast("DB 접근 권한이 거부되었습니다. Firebase 보안 규칙을 확인하세요.", 5000);
                         }
                     } else {
                         try {
@@ -479,7 +484,7 @@
                             console.error("Auth error:", e);
                             isLocalEnv = true;
                             renderAll();
-                            utils.showToast("인증이 실패했습니다.", 5000);
+                            utils.showToast("인증이 실패했습니다. Firebase 콘솔에서 익명 로그인을 활성화해주세요.", 5000);
                         }
                     }
                 });
@@ -501,7 +506,7 @@
             const errLog = e => {
                 console.error("Sync Error:", e);
                 if (e.code === 'permission-denied') {
-                    if (!isLocalEnv) utils.showToast("동기화가 중단되었습니다.");
+                    if (!isLocalEnv) utils.showToast("Firebase 보안 규칙(Rules) 때문에 동기화가 중단되었습니다.");
                     isLocalEnv = true;
                 }
             };
@@ -590,7 +595,7 @@
         }
 
         function renderAll() { 
-            window.updateSowCache();
+            window.updateSowCache(); 
             renderStocks(); 
             renderWeaning(); 
             renderGrower(); 
@@ -602,7 +607,7 @@
 
         function renderStocks() {
             const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-            const nursingSows = state.sowCache.nursingSows;
+            const nursingSows = state.sowCache.nursingSows; 
             const avgPiglets = state.stocks.avgPiglets || 10;
             const nursingPiglets = Math.floor(nursingSows * avgPiglets);
             
@@ -610,8 +615,8 @@
             state.stocks.piglet = weaningTotal + nursingPiglets;
             
             state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-            state.stocks.sow = state.sowCache.sowCount;
-            state.stocks.replacement = state.sowCache.replacementCount;
+            state.stocks.sow = state.sowCache.sowCount; 
+            state.stocks.replacement = state.sowCache.replacementCount; 
             state.stocks.boar = Number(state.stocks.boar) || 0;
             
             document.getElementById('total-pigs-label').innerText = `총 재고: ${(state.stocks.sow + state.stocks.replacement + state.stocks.boar + state.stocks.piglet + state.stocks.grower).toLocaleString()}두`;
@@ -646,14 +651,14 @@
         }
 
         function renderExpectedFarrowing() {
-            const map = state.sowCache.expectedFarrowingMap;
+            const map = state.sowCache.expectedFarrowingMap; 
             const html = Object.keys(map).sort().map(w => `<div onclick="window.openModal('expected_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-rose-600">${map[w].length}<span class="text-sm font-bold text-rose-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-rose-200 mb-1"></i></div></div>`).join('');
             document.getElementById('expected-farrowing-list').innerHTML = html || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">예정된 분만 없음</div>`;
             lucide.createIcons();
         }
 
         function renderWeeklyNursing() {
-            const map = state.sowCache.weeklyNursingMap;
+            const map = state.sowCache.weeklyNursingMap; 
             const html = Object.keys(map).sort().map(w => {
                 if (w === 'Unknown') {
                     return `<div onclick="window.openModal('nursing_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-slate-200 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-slate-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">날짜 미상</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-slate-600">${map[w].length}<span class="text-sm font-bold text-slate-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-slate-200 mb-1"></i></div></div>`;
@@ -717,7 +722,7 @@
 
         function renderBatchList(targetId, batches, type, stage, typeCls, bgCls, txtCls) {
             document.getElementById(targetId).innerHTML = batches.map(b => {
-                const isEmpty = b.status === 'empty' || b.pens === 0, isRes = stage === 'grower' && b.id === 8;
+                const isEmpty = b.status === 'empty' || b.pigs === 0, isRes = stage === 'grower' && b.id === 8;
                 const title = isRes ? '후보사' : `${type} ${b.id}배치`, actualCls = isRes ? 'pen-residual' : typeCls;
                 const gateCls = isEmpty ? 'gate-empty' : (isRes ? 'gate-residual' : (stage === 'weaning' ? 'gate-wean' : 'gate-grow'));
                 
@@ -766,6 +771,24 @@
         function renderWeaning() { renderBatchList('weaning-list', state.wBatches, '이유', 'weaning', 'pen-wean', 'border-emerald-100', 'text-emerald-600'); }
         function renderGrower() { renderBatchList('grower-list', state.gBatches, '육성', 'grower', 'pen-grow', 'border-indigo-100', 'text-indigo-600'); }
 
+        window.calculateExpectedFarrowInline = (dbId, val) => {
+            const farrowInput = document.getElementById(`row-farrow-${dbId}`);
+            if (!farrowInput) return;
+            if (!val || val.trim().length < 3) {
+                farrowInput.value = '';
+                return;
+            }
+            const d = utils.parseDate(val);
+            if (d) {
+                d.setDate(d.getDate() + 114); // 종부일 + 114일 자동 계산 (수정 수동기능 삭제 보장)
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                farrowInput.value = `${mm}/${dd}`;
+            } else {
+                farrowInput.value = '';
+            }
+        };
+
         window.handlePenClick = (e, stg, bId, pIdx) => {
             e.stopPropagation();
             if (state.transfer.active) {
@@ -780,8 +803,32 @@
         window.handleBatchClick = (stg, bId) => { if (!state.transfer.active) window.openModal('batch_settings', { stage: stg, batchId: bId }); };
         function renderAllHeaders() { document.getElementById('weaning-header').innerHTML = WEANING_HEADER_DEFAULT; document.getElementById('grower-header').innerHTML = GROWER_HEADER_DEFAULT; renderGrower(); renderWeaning(); }
 
+        window.addSowHistoryRow = (parity = '', matingDate = '', expDate = '', farrowDate = '', weaningDate = '', born = '', weaned = '', move = '') => {
+            const container = document.getElementById('sow-history-container');
+            if (!container) return;
+            const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
+            const html = `
+            <div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors">
+                <input type="number" class="h-parity w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${parity}" placeholder="산차">
+                <input type="text" class="h-mating w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${matingDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
+                <input type="text" class="h-exp w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${expDate}" placeholder="MM/DD">
+                <input type="text" class="h-farrow w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${farrowDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
+                <input type="text" class="h-weaning-date w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${weaningDate}" placeholder="MM/DD">
+                <input type="number" class="h-born w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${born}" placeholder="포유">
+                <input type="text" class="h-weaned w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${weaned}" placeholder="이동">
+                <input type="text" class="h-move w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${move}" placeholder="이유">
+                <div class="w-8 flex justify-center shrink-0">
+                    <button onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500 transition-colors p-1">
+                        <i data-lucide="x-circle" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>`;
+            container.insertAdjacentHTML('beforeend', html);
+            lucide.createIcons();
+        };
+
         window.renderSowNursingRowHTML = (s) => {
-            const lastH = (s.history && s.history.length > 0) ? [...s.history].sort((a,b)=>b.parity-a.parity)[0] : null;
+            const lastH = (s.history && s.history.length > 0) ? [...s.history].sort((a,b) => b.parity - a.parity)[0] : null;
             
             const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '';
             const expDate = s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '';
@@ -808,7 +855,7 @@
                     <input type="number" class="n-parity w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${s.parity}">
                 </div>
                 <div class="w-20 shrink-0 px-0.5">
-                    <input type="text" class="n-mating w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${matingFormatted}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+115);this.parentElement.parentElement.querySelector('.n-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
+                    <input type="text" class="n-mating w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${matingFormatted}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.parentElement.querySelector('.n-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
                 </div>
                 <div class="w-20 shrink-0 px-0.5">
                     <input type="text" class="n-exp w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${expFormatted}" placeholder="MM/DD">
@@ -835,28 +882,177 @@
             });
         };
 
-        window.addSowHistoryRow = (parity = '', matingDate = '', expDate = '', farrowDate = '', weaningDate = '', born = '', weaned = '', move = '') => {
-            const container = document.getElementById('sow-history-container');
-            if (!container) return;
-            const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
-            const html = `
-            <div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors">
-                <input type="number" class="h-parity w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${parity}" placeholder="산차">
-                <input type="text" class="h-mating w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${matingDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+115);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
-                <input type="text" class="h-exp w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${expDate}" placeholder="MM/DD">
-                <input type="text" class="h-farrow w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${farrowDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
-                <input type="text" class="h-weaning-date w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${weaningDate}" placeholder="MM/DD">
-                <input type="number" class="h-born w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${born}" placeholder="포유">
-                <input type="text" class="h-weaned w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${weaned}" placeholder="이동">
-                <input type="text" class="h-move w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${move}" placeholder="이유">
-                <div class="w-8 flex justify-center shrink-0">
-                    <button onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500 transition-colors p-1">
-                        <i data-lucide="x-circle" class="w-4 h-4"></i>
-                    </button>
-                </div>
-            </div>`;
-            container.insertAdjacentHTML('beforeend', html);
+        window.toggleSelectAllNursing = (checked) => {
+            const checkboxes = document.querySelectorAll('.n-select-sow');
+            checkboxes.forEach(cb => {
+                cb.checked = checked;
+            });
+        };
+
+        window.completeSelectedSowsCycle = async () => {
+            const checkedCheckboxes = document.querySelectorAll('.n-select-sow:checked');
+            if (checkedCheckboxes.length === 0) {
+                utils.showToast("선택된 모돈이 없습니다.");
+                return;
+            }
+
+            const btn = document.querySelector('[onclick="window.completeSelectedSowsCycle()"]');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="w-4 h-4 animate-spin mr-1" data-lucide="loader-2"></i> 처리 중...';
             lucide.createIcons();
+
+            try {
+                const promises = [];
+                const today = new Date();
+                const todayMMDD = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+                
+                checkedCheckboxes.forEach(cb => {
+                    const dbId = cb.dataset.dbid;
+                    const row = document.querySelector(`.nursing-row[data-dbid="${dbId}"]`);
+                    if (!row) return;
+
+                    const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
+                    if (sowIdx === -1) return;
+                    const sow = state.sowList[sowIdx];
+
+                    const currentParity = parseInt(row.querySelector('.n-parity').value) || sow.parity;
+                    const mRaw = row.querySelector('.n-mating').value;
+                    const eRaw = row.querySelector('.n-exp').value;
+                    const fRaw = row.querySelector('.n-farrow').value;
+                    const bornInput = row.querySelector('.n-born').value;
+                    const born = bornInput === '' ? '' : parseInt(bornInput) || 0;
+                    const weaned = row.querySelector('.n-weaned').value;
+                    const move = row.querySelector('.n-move').value;
+
+                    let history = [...(sow.history || [])];
+                    history.sort((a, b) => b.parity - a.parity);
+
+                    if (history.length === 0) {
+                        history.push({
+                            parity: currentParity,
+                            matingDate: mRaw,
+                            expDate: eRaw,
+                            date: fRaw,
+                            weaningDate: todayMMDD, 
+                            born: born,
+                            weaned: weaned,
+                            move: move
+                        });
+                    } else {
+                        history[0].parity = currentParity;
+                        history[0].matingDate = mRaw;
+                        history[0].expDate = eRaw;
+                        history[0].date = fRaw;
+                        history[0].weaningDate = todayMMDD; 
+                        history[0].born = born;
+                        history[0].weaned = weaned;
+                        history[0].move = move;
+                    }
+
+                    const nextParity = currentParity + 1; 
+                    const nextMatingDate = ''; 
+                    const nextStatus = '이유'; 
+
+                    const dataToUpdate = {
+                        parity: nextParity,
+                        matingDate: nextMatingDate,
+                        currentStatus: nextStatus,
+                        history: history
+                    };
+
+                    if (isLocalEnv) {
+                        state.sowList[sowIdx] = {
+                            ...sow,
+                            ...dataToUpdate
+                        };
+                    } else {
+                        promises.push(db.collection(COLS.SOWS).doc(dbId).update(dataToUpdate));
+                    }
+                });
+
+                if (!isLocalEnv) {
+                    await Promise.all(promises);
+                }
+                
+                utils.showToast(`${checkedCheckboxes.length}두의 분만/이유 완료 처리가 성공적으로 완료되었습니다! 산차가 1씩 증가하고 이유 목록으로 이동했습니다.`);
+                window.closeModal();
+                
+                if (isLocalEnv) {
+                    renderAll();
+                } else {
+                    await saveDailyHistory();
+                }
+            } catch (e) {
+                console.error("Complete cycle error:", e);
+                utils.showToast("처리에 실패했습니다: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+                lucide.createIcons();
+            }
+        };
+
+        window.saveWeanedSowRow = async (dbId) => {
+            const rowMating = document.getElementById(`row-mating-${dbId}`).value.trim();
+            const rowFarrow = document.getElementById(`row-farrow-${dbId}`).value.trim();
+            
+            const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
+            if (sowIdx === -1) return;
+            const sow = state.sowList[sowIdx];
+            
+            if (!rowMating) {
+                utils.showToast("종부일을 입력해주세요.");
+                return;
+            }
+            
+            let parsedMatingDate = '';
+            const parsed = utils.parseDate(rowMating);
+            if (parsed) {
+                parsedMatingDate = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+            } else {
+                utils.showToast("올바른 종부일 형식을 입력하세요 (예: 06/11).");
+                return;
+            }
+            
+            const updatePayload = {};
+            updatePayload.currentStatus = '임신';
+            updatePayload.matingDate = parsedMatingDate;
+            
+            let history = [...(sow.history || [])];
+            const mmddMating = `${String(new Date(parsedMatingDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(parsedMatingDate).getDate()).padStart(2, '0')}`;
+            const expDate = utils.getExpectedFarrow(parsedMatingDate);
+            const mmddExp = expDate ? `${String(new Date(expDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(expDate).getDate()).padStart(2, '0')}` : '';
+            
+            history.push({
+                parity: sow.parity,
+                matingDate: mmddMating,
+                expDate: mmddExp,
+                date: '',
+                weaningDate: '',
+                born: '',
+                weaned: '',
+                move: ''
+            });
+            updatePayload.history = history;
+            const statusMsg = `${sow.sowNo}번 모돈 종부 등록 완료! '임신' 상태로 전환되었습니다.`;
+            
+            try {
+                if (isLocalEnv) {
+                    state.sowList[sowIdx] = {
+                        ...sow,
+                        ...updatePayload
+                    };
+                    renderAll();
+                } else {
+                    await db.collection(COLS.SOWS).doc(dbId).update(updatePayload);
+                }
+                utils.showToast(statusMsg);
+                window.openModal('sow_list', '이유');
+            } catch(e) {
+                console.error("Save row error:", e);
+                utils.showToast("저장 실패: " + e.message);
+            }
         };
 
         window.exportToExcel = async () => {
@@ -1024,7 +1220,7 @@
             const batches = [...state.wBatches, ...state.gBatches];
             
             batches.forEach(b => {
-                if (b.status === 'empty' || b.pens === 0) return;
+                if (b.status === 'empty' || b.pigs === 0) return;
                 for (let i = 0; i < b.penDetails.length; i++) {
                     const count = b.penDetails[i];
                     if (count > 0) {
@@ -1142,7 +1338,7 @@
                 ];
 
                 allBatches.forEach(b => {
-                    if (b.status === 'empty' || b.pens === 0) return;
+                    if (b.status === 'empty' || b.pigs === 0) return;
                     for (let i = 0; i < b.penDetails.length; i++) {
                         const count = b.penDetails[i];
                         if (count > 0) {
@@ -1182,7 +1378,7 @@
                     </div>`;
                 }).join('');
 
-                setTimeout(() => lucide.createIcons(), 50);
+                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
                 return {
                     title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 일령별 두수 분포</div>`,
                     html: `
@@ -1236,7 +1432,7 @@
                     </div>`;
                 }).join('');
 
-                setTimeout(() => lucide.createIcons(), 50);
+                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
                 return {
                     title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 산차별 모돈 현황</div>`,
                     html: `<div class="flex flex-col gap-2.5 max-h-[65vh] overflow-y-auto no-scrollbar pb-2 px-1">
@@ -1280,7 +1476,7 @@
                     </div>`;
                 }).join('');
 
-                setTimeout(() => lucide.createIcons(), 50);
+                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
                 return {
                     title: `<div class="flex items-center gap-2"><i data-lucide="history" class="text-slate-500"></i> 날짜별 재고 변경사항</div>`,
                     html: `<div class="flex flex-col gap-2.5 max-h-[65vh] overflow-y-auto no-scrollbar pb-2 px-1">
@@ -1292,7 +1488,7 @@
             expected_shipment_monthly: () => {
                 setTimeout(() => {
                     window.updateExpectedShipment();
-                    lucide.createIcons();
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
                 }, 50);
 
                 const html = `
@@ -1304,7 +1500,7 @@
                         </div>
                     </div>
                     <div id="expected-shipment-annual-summary" class="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
-                    <p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 이유일로부터 170일령이 되는 달을 기준으로 합산합니다.</p>
+                    <p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 이유일로부터 ${document.getElementById('target-age-input')?.value || 170}일령이 되는 달을 기준으로 합산합니다.</p>
                     <div id="expected-shipment-results" class="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto no-scrollbar pb-2 px-1">
                     </div>
                 `;
@@ -1462,11 +1658,6 @@
                                 ${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full">해당 주차 20일령 도래 개체 없음</div>'}
                             </div>
                         </div>
-                    </div>
-                    <div class="mt-4">
-                        <button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all text-sm">
-                            <i data-lucide="refresh-cw" class="w-4 h-4"></i> 선택한 모돈 분만/이유 완료
-                        </button>
                     </div>`
                 };
             },
@@ -1570,7 +1761,7 @@
                     <label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">출하 비고 및 메모</label>
                     <textarea id="m-ship-memo" placeholder="비고 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea>
                 </div>`;
-                setTimeout(() => lucide.createIcons(), 50); 
+                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50); 
                 return { title: '출하 기록 상세 (완료)', html };
             },
             shipment_detail_pending: (date) => {
@@ -1595,7 +1786,7 @@
                     const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (p.penDate || '-'); 
                     return `<div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden"><div class="flex items-start justify-between mb-1.5"><div class="flex flex-col"><span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">이유일</span><span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span></div><div class="flex flex-col items-end gap-1"><button onclick="window.cancelPendingShipment(${p.batchId}, '${encodeURIComponent(JSON.stringify(p.originalObj))}')" class="text-slate-300 hover:text-rose-500 transition-colors"><i data-lucide="x-circle" class="w-3 h-3"></i></button><div class="bg-slate-50 px-1 rounded leading-none py-0.5 text-right"><span class="text-[8px] font-black text-slate-400 block mb-0.5">일령</span><span class="text-[10px] font-black text-slate-600">${p.age}일</span></div></div></div><div class="flex justify-between items-end border-t border-slate-50 pt-1.5"><span class="text-[8px] font-bold text-slate-400">예정량</span><div class="flex items-baseline gap-0.5"><span class="font-black text-amber-600 text-base leading-none">${p.count}</span><span class="text-[8px] font-bold text-amber-400 leading-none">두</span></div></div></div>`;
                 }).join('')}</div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">예정 메모</label><textarea id="m-ship-memo" placeholder="메모 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
-                setTimeout(() => lucide.createIcons(), 50); return { title: '출하 예정 상세', html };
+                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50); return { title: '출하 예정 상세', html };
             },
             pen_detail: (t) => {
                 const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => x.id === t.batchId);
@@ -1687,7 +1878,7 @@
 
                 ${count > 0 ? `<button onclick="window.startTransfer('${t.stage}', ${t.batchId}, ${t.penIndex})" class="w-full mt-4 py-3 bg-indigo-50 text-indigo-600 font-bold rounded-xl border border-indigo-100">이 칸의 돼지 이동하기</button>` : ''}
                 `;
-                setTimeout(() => lucide.createIcons(), 50);
+                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
                 return { title: `${t.stage==='weaning'?'이유사':'육성사'} ${b.id===8?'후보사':b.id+'배치'} - ${t.penIndex+1}번`, html };
             },
             batch_settings: (t) => {
@@ -1729,7 +1920,6 @@
                 else if (f === 'sow') { list = list.filter(isSow); title = '모돈 목록 (임신후보 포함)'; }
                 else if (f === 'rep') { list = list.filter(s => s.parity === 0 && s.currentStatus !== '임신'); title = '후보돈 목록 (대기)'; }
                 
-                // 이미지 20260610_164233.png 완벽 이식 및 주간 도래 연동형 포유목록 구현
                 if (f === '포유') {
                     const groups = {};
                     list.forEach(s => {
@@ -1769,10 +1959,6 @@
                                     <i data-lucide="baby" class="w-4.5 h-4.5 text-emerald-500"></i>
                                     ${weekTitle} <span class="text-emerald-600 ml-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-black text-xs">${sList.length}복</span>
                                 </h4>
-                                <div class="flex items-center gap-1.5">
-                                    <span class="text-[10px] font-black text-slate-400">전체 선택</span>
-                                    <input type="checkbox" class="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer" onclick="window.toggleSelectGroup(this, '${groupClass}')">
-                                </div>
                             </div>
                             <div class="overflow-x-auto w-full no-scrollbar border border-slate-150 rounded-xl relative">
                                 <div class="min-w-max">
@@ -1805,22 +1991,97 @@
                         </div>
                         <button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-400 px-1 mb-4 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 체크박스를 누르고 일괄 이유 처리가 가능합니다.</p>
+                    <p class="text-[10px] font-bold text-slate-400 px-1 mb-4 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 각 모돈 번호를 선택해 상세 생산 기록을 수정하거나 메인화면의 "도래 복수" 영역에서 일괄 완료 처리를 하세요.</p>
                     <div class="space-y-4 max-h-[55vh] overflow-y-auto no-scrollbar pb-4 px-1" id="sow-list-container">
                         ${tablesHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">포유 중인 모돈이 없습니다.</div>'}
-                    </div>
-                    <div class="mt-4 pt-3 border-t border-slate-100 shrink-0">
-                        <button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all text-sm">
-                            <i data-lucide="refresh-cw" class="w-4 h-4 animate-spin-hover"></i> 선택한 모돈 분만/이유 완료
-                        </button>
                     </div>`;
 
                     setTimeout(() => {
-                        lucide.createIcons();
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
                         const searchInput = document.getElementById('sow-search-input');
                         if (searchInput) searchInput.focus();
                     }, 50); 
-                    return { title, html };
+                    return { title, html, hideSave: true };
+                }
+
+                if (f === '이유') {
+                    const getSortableWeaningDate = (s) => {
+                        if (!s.history || s.history.length === 0) return '9999-12-31';
+                        const sortedHistory = [...s.history].sort((a,b) => b.parity - a.parity);
+                        const wDate = sortedHistory[0].weaningDate || '';
+                        if (!wDate) return '9999-12-31';
+                        if (wDate.match(/^\d{4}-\d{2}-\d{2}$/)) return wDate;
+                        const match = wDate.match(/^(\d{1,2})\/(\d{1,2})$/);
+                        if (match) {
+                            const year = new Date().getFullYear();
+                            const mm = String(match[1]).padStart(2, '0');
+                            const dd = String(match[2]).padStart(2, '0');
+                            return `${year}-${mm}-${dd}`;
+                        }
+                        const parsed = utils.parseDate(wDate);
+                        if (parsed) {
+                            return parsed.toISOString().split('T')[0];
+                        }
+                        return wDate;
+                    };
+
+                    list.sort((a, b) => {
+                        const dateA = getSortableWeaningDate(a);
+                        const dateB = getSortableWeaningDate(b);
+                        return dateA.localeCompare(dateB);
+                    });
+
+                    const html = `
+                    <div class="flex gap-2 mb-4 shrink-0">
+                        <div class="relative flex-1">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i data-lucide="search" class="w-4 h-4 text-slate-400"></i>
+                            </div>
+                            <input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all">
+                        </div>
+                        <button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button>
+                    </div>
+                    
+                    <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[60vh] relative shadow-sm" id="sow-list-container">
+                        <div class="min-w-max">
+                            <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider">
+                                <span class="w-14 shrink-0">번호</span>
+                                <span class="w-12 shrink-0">산차</span>
+                                <span class="w-20 shrink-0">이전 이유일</span>
+                                <span class="w-24 shrink-0">종부일 입력</span>
+                                <span class="w-24 shrink-0">분만일 (자동)</span>
+                                <span class="w-16 shrink-0">저장</span>
+                            </div>
+                            <div class="bg-slate-50 flex flex-col divide-y divide-slate-100">
+                                ${list.map(s => {
+                                    const sortedHistory = s.history && s.history.length > 0 ? [...s.history].sort((a,b) => b.parity - a.parity) : [];
+                                    const prevWeaningDate = sortedHistory.length > 0 ? (sortedHistory[0].weaningDate || sortedHistory[0].date || '-') : '-';
+                                    return `
+                                    <div class="bg-white px-3 py-2 flex items-center gap-1.5 hover:bg-slate-50 transition-colors sow-list-item" data-sow-no="${s.sowNo}">
+                                        <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span>
+                                        <span class="w-12 shrink-0 text-center font-black text-slate-700 text-[13px]">${s.parity}산</span>
+                                        <span class="w-20 shrink-0 text-center font-bold text-slate-500 text-[12px]">${prevWeaningDate}</span>
+                                        <div class="w-24 shrink-0 px-1">
+                                            <input type="text" id="row-mating-${s.dbId}" placeholder="MM/DD" class="w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all" oninput="window.calculateExpectedFarrowInline('${s.dbId}', this.value)">
+                                        </div>
+                                        <div class="w-24 shrink-0 px-1">
+                                            <input type="text" id="row-farrow-${s.dbId}" placeholder="자동 계산" readonly class="w-full bg-slate-100/80 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none text-slate-500 cursor-not-allowed">
+                                        </div>
+                                        <div class="w-16 shrink-0 text-center">
+                                            <button onclick="window.saveWeanedSowRow('${s.dbId}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-[11px] px-2.5 py-1.5 rounded-lg border border-blue-100 active:scale-95 transition-all">저장</button>
+                                        </div>
+                                    </div>`;
+                                }).join('') || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl">이유 중인 모돈이 없습니다.</div>'}
+                            </div>
+                        </div>
+                    </div>`;
+
+                    setTimeout(() => {
+                        if (typeof lucide !== 'undefined') lucide.createIcons();
+                        const searchInput = document.getElementById('sow-search-input');
+                        if (searchInput) searchInput.focus();
+                    }, 50); 
+                    return { title, html, hideSave: true };
                 }
 
                 const html = `
@@ -1855,7 +2116,7 @@
                     }).join('')}
                 </div>`;
                 setTimeout(() => {
-                    lucide.createIcons();
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
                     const searchInput = document.getElementById('sow-search-input');
                     if (searchInput) searchInput.focus();
                 }, 50); 
@@ -1911,44 +2172,44 @@
                             </div>
                         </div>
                         <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg">
-                            <div class="min-w-max">
-                                <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center">
-                                    <span class="w-12 shrink-0">산차</span>
-                                    <span class="w-16 shrink-0">종부일</span>
-                                    <span class="w-16 shrink-0">예상일</span>
-                                    <span class="w-16 shrink-0">분만일</span>
-                                    <span class="w-16 shrink-0">이유일</span>
-                                    <span class="w-12 shrink-0">포유</span>
-                                    <span class="w-12 shrink-0">이동</span>
-                                    <span class="w-12 shrink-0">이유</span>
-                                    <span class="w-8 shrink-0"></span>
-                                </div>
-                                <div id="sow-history-container" class="space-y-0 bg-slate-50"></div>
+                        <div class="min-w-max">
+                            <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center">
+                                <span class="w-12 shrink-0">산차</span>
+                                <span class="w-16 shrink-0">종부일</span>
+                                <span class="w-16 shrink-0">예상일</span>
+                                <span class="w-16 shrink-0">분만일</span>
+                                <span class="w-16 shrink-0">이유일</span>
+                                <span class="w-12 shrink-0">포유</span>
+                                <span class="w-12 shrink-0">이동</span>
+                                <span class="w-12 shrink-0">이유</span>
+                                <span class="w-8 shrink-0"></span>
                             </div>
+                            <div id="sow-history-container" class="space-y-0 bg-slate-50"></div>
                         </div>
                     </div>
+                </div>
 
-                    ${t !== 'new' ? `
-                    <div class="mt-6 pt-4 border-t border-slate-100">
-                        <div id="sow-del-btn-detail" class="flex justify-center">
-                            <button onclick="window.toggleSowDetailDeleteConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors">
-                                <i data-lucide="trash-2" class="w-4 h-4"></i> 이 모돈 정보 삭제하기
-                            </button>
+                ${t !== 'new' ? `
+                <div class="mt-6 pt-4 border-t border-slate-100">
+                    <div id="sow-del-btn-detail" class="flex justify-center">
+                        <button onclick="window.toggleSowDetailDeleteConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i> 이 모돈 정보 삭제하기
+                        </button>
+                    </div>
+                    <div id="sow-confirm-btn-detail" class="hidden flex flex-col gap-2 items-center">
+                        <p class="text-[10px] font-black text-rose-500">정말로 삭제하시겠습니까? 기록이 모두 사라집니다.</p>
+                        <div class="flex gap-2 w-full">
+                            <button onclick="window.toggleSowDetailDeleteConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button>
+                            <button onclick="window.deleteSow('${t}')" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">삭제 확인</button>
                         </div>
-                        <div id="sow-confirm-btn-detail" class="hidden flex flex-col gap-2 items-center">
-                            <p class="text-[10px] font-black text-rose-500">정말로 삭제하시겠습니까? 기록이 모두 사라집니다.</p>
-                            <div class="flex gap-2 w-full">
-                                <button onclick="window.toggleSowDetailDeleteConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button>
-                                <button onclick="window.deleteSow('${t}')" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">삭제 확인</button>
-                            </div>
-                        </div>
-                    </div>` : ''}
-                </div>`;
-                
-                setTimeout(() => lucide.createIcons(), 50);
-                return { title: `<div class="flex items-center gap-2">모돈 상세 정보 <button onclick="window.completeSowCycle()" class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 active:scale-95 transition-all border border-emerald-200 shadow-sm ml-1"><i data-lucide="refresh-cw" class="w-3 h-3"></i> 분만/이유 완료</button></div>`, html };
-            },
-            transfer_pen: (t) => {
+                    </div>
+                </div>` : ''}
+            </div>`;
+            
+            setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+            return { title: `<div class="flex items-center gap-2">모돈 상세 정보</div>`, html };
+        },
+        transfer_pen: (t) => {
                 const src = (t.src.stage==='weaning'?state.wBatches:state.gBatches).find(b=>b.id===t.src.batchId), sC = src.penDetails[t.src.penIndex];
                 return { title: '칸 이동', html: `<input type="hidden" id="m-src-stage" value="${t.src.stage}"><input type="hidden" id="m-src-batch" value="${src.id}"><input type="hidden" id="m-src-pen" value="${t.src.penIndex}"><input type="hidden" id="m-dest-stage" value="${t.dest.stage}"><input type="hidden" id="m-dest-batch" value="${t.dest.batchId}"><input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}"><div class="p-6 bg-indigo-50 rounded-xl text-center"><label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC})</label><input id="m-count" type="number" inputmode="numeric" value="${sC}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700"></div>` };
             }
@@ -1957,7 +2218,7 @@
         const saveActions = {
             piglet_calc: async () => {
                 const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0;
-                const nursingSows = state.sowCache.nursingSows;
+                const nursingSows = state.sowCache.nursingSows; 
                 const nursingPiglets = Math.floor(nursingSows * avgPiglets);
                 
                 state.stocks.nursingPiglets = nursingPiglets;
@@ -1983,12 +2244,6 @@
                 })).sort((a, b) => a.parity - b.parity);
                 const data = { sowNo: document.getElementById('s-no').value, parity: parseInt(document.getElementById('s-parity').value)||0, currentStatus: document.getElementById('s-status').value, matingDate: document.getElementById('s-mating').value, history };
                 if (id === 'new') await db.collection(COLS.SOWS).add(data); else await db.doc(`${COLS.SOWS}/${id}`).update(data);
-            },
-            sow_list: async () => {
-                const rows = document.querySelectorAll('.nursing-row');
-                if (rows.length > 0) {
-                    await saveActions.nursing_week();
-                }
             },
             nursing_week: async () => {
                 const rows = document.querySelectorAll('.nursing-row');
@@ -2041,7 +2296,7 @@
                 });
 
                 await Promise.all(updatePromises);
-                utils.showToast("포유 모돈 개체 정보가 성공적으로 일괄 업데이트되었습니다.");
+                utils.showToast("이유 도래 개체 정보가 일괄 저장되었습니다.");
             },
             pen_detail: async () => {
                 const stg = document.getElementById('m-stage').value, bId = parseInt(document.getElementById('m-batch').value), pIdx = parseInt(document.getElementById('m-pen').value);
@@ -2125,7 +2380,7 @@
             shipment_detail_pending: async () => { const date = document.getElementById('m-ship-date').value, memo = document.getElementById('m-ship-memo').value; await db.doc(`${COLS.SHIPMENT_SUMMARIES}/${date}`).set({ memo, updatedAt: new Date().toISOString() }, { merge: true }); }
         };
 
-        window.openModal = (type, target) => { const renderer = modalRenderers[type]; if (!renderer) return; const { title, html, hideSave } = renderer(target); document.getElementById('modal-title').innerHTML = title; document.getElementById('modal-content').innerHTML = html; document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex'; document.getElementById('save-btn').onclick = () => processSave(type); document.getElementById('modal-overlay').classList.remove('hidden'); setTimeout(() => lucide.createIcons(), 20); };
+        window.openModal = (type, target) => { const renderer = modalRenderers[type]; if (!renderer) return; const { title, html, hideSave } = renderer(target); document.getElementById('modal-title').innerHTML = title; document.getElementById('modal-content').innerHTML = html; document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex'; document.getElementById('save-btn').onclick = () => processSave(type); document.getElementById('modal-overlay').classList.remove('hidden'); setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 20); };
         window.closeModal = () => { document.getElementById('modal-overlay').classList.add('hidden'); };
         
         window.deleteShipment = async (docId, date) => {
@@ -2156,7 +2411,7 @@
 
         window.filterSowList = (query) => {
             const lowerQuery = String(query).toLowerCase().trim();
-            const cards = document.querySelectorAll('.sow-card-item');
+            const cards = document.querySelectorAll('.sow-card-item, .sow-list-item');
             cards.forEach(card => {
                 const sowNo = String(card.getAttribute('data-sow-no')).toLowerCase();
                 if (sowNo.includes(lowerQuery)) {
@@ -2271,7 +2526,7 @@
             } catch (e) { 
                 console.error(e);
                 if (e.code === 'permission-denied' || (e.message && e.message.includes('permission'))) {
-                    utils.showToast("저장 실패: 권한이 부족합니다.");
+                    utils.showToast("저장 실패: 파이어베이스 Security Rules 권한이 없습니다.");
                 } else {
                     utils.showToast("처리 실패: " + e.message); 
                 }
