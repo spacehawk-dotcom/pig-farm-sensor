@@ -155,8 +155,8 @@
         <div class="bg-white w-full max-w-lg rounded-t-[2rem] sm:rounded-[2rem] p-6 shadow-2xl modal-animate flex flex-col max-h-[90vh]">
             <div class="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6 sm:hidden shrink-0"></div>
             <div class="flex justify-between items-center mb-6 shrink-0">
-                <h3 id="modal-title" class="text-xl font-black text-slate-800 flex items-center gap-2"></h3>
-                <button onclick="window.closeModal()" class="p-2 bg-slate-100 rounded-full text-slate-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+                <h3 id="modal-title" class="text-xl font-black text-slate-800 flex items-center gap-2 w-full"></h3>
+                <button onclick="window.closeModal()" class="p-2 bg-slate-100 rounded-full text-slate-500 shrink-0"><i data-lucide="x" class="w-5 h-5"></i></button>
             </div>
             <div id="modal-content" class="space-y-4 overflow-y-auto no-scrollbar pb-4 flex-1 relative"></div>
             <div class="flex gap-3 mt-4 shrink-0 pt-4 border-t border-slate-100">
@@ -852,13 +852,13 @@
                 <span class="w-8 shrink-0 flex justify-center"><input type="checkbox" class="n-select-sow w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer" data-dbid="${s.dbId}"></span>
                 <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span>
                 <div class="w-12 shrink-0 px-0.5">
-                    <input type="number" class="n-parity w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${s.parity}">
+                    <input type="number" class="n-parity w-full bg-slate-100 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none cursor-not-allowed text-slate-500" value="${s.parity}" readonly>
                 </div>
                 <div class="w-20 shrink-0 px-0.5">
-                    <input type="text" class="n-mating w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${matingFormatted}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.parentElement.querySelector('.n-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
+                    <input type="text" class="n-mating w-full bg-slate-100 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none cursor-not-allowed text-slate-500" value="${matingFormatted}" placeholder="MM/DD" readonly>
                 </div>
                 <div class="w-20 shrink-0 px-0.5">
-                    <input type="text" class="n-exp w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${expFormatted}" placeholder="MM/DD">
+                    <input type="text" class="n-exp w-full bg-slate-100 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none cursor-not-allowed text-slate-500" value="${expFormatted}" placeholder="MM/DD" readonly>
                 </div>
                 <div class="w-20 shrink-0 px-0.5">
                     <input type="text" class="n-farrow w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${farrowFormatted}" placeholder="MM/DD">
@@ -875,6 +875,32 @@
             </div>`;
         };
 
+        window.renderSowExpectedRowHTML = (s, weekKey) => {
+            const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '';
+            const expDate = s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '';
+            const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '';
+            
+            return `
+            <div class="bg-white px-2 py-1.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-rose-50/50 transition-colors expected-row" data-dbid="${s.dbId}">
+                <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span>
+                <div class="w-12 shrink-0 px-0.5">
+                    <input type="number" class="e-parity w-full bg-slate-100 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none cursor-not-allowed text-slate-500" value="${s.parity}" readonly>
+                </div>
+                <div class="w-20 shrink-0 px-0.5">
+                    <input type="text" class="e-mating w-full bg-slate-100 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none cursor-not-allowed text-slate-500" value="${matingFormatted}" readonly>
+                </div>
+                <div class="w-20 shrink-0 px-0.5">
+                    <input type="text" class="e-exp w-full bg-slate-100 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none cursor-not-allowed text-slate-500" value="${expFormatted}" readonly>
+                </div>
+                <div class="w-24 shrink-0 px-0.5">
+                    <input type="number" id="e-born-${s.dbId}" class="w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 transition-all" placeholder="마리">
+                </div>
+                <div class="w-28 shrink-0 px-0.5 text-center">
+                    <button onclick="window.completeSingleSowFarrowing('${s.dbId}', '${weekKey}')" class="bg-rose-500 hover:bg-rose-600 text-white font-black text-[11px] px-2.5 py-1.5 rounded-lg active:scale-95 transition-all shadow-sm">포유완료</button>
+                </div>
+            </div>`;
+        };
+
         window.toggleSelectGroup = (checkbox, groupClass) => {
             const rows = document.querySelectorAll(`.${groupClass} .n-select-sow`);
             rows.forEach(cb => {
@@ -887,6 +913,89 @@
             checkboxes.forEach(cb => {
                 cb.checked = checked;
             });
+        };
+
+        window.completeSingleSowFarrowing = async (dbId, weekKey) => {
+            const bornInput = document.getElementById(`e-born-${dbId}`);
+            const born = bornInput && bornInput.value !== '' ? parseInt(bornInput.value) || 0 : 0;
+
+            const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
+            if (sowIdx === -1) return;
+            const sow = state.sowList[sowIdx];
+
+            // Format today's date as MM/DD for history
+            const today = new Date();
+            const todayMMDD = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+
+            let history = [...(sow.history || [])];
+            history.sort((a, b) => b.parity - a.parity);
+
+            if (history.length === 0 || history[0].date) {
+                const matingMMDD = sow.matingDate ? `${String(new Date(sow.matingDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(sow.matingDate).getDate()).padStart(2, '0')}` : '';
+                const expDate = sow.matingDate ? utils.getExpectedFarrow(sow.matingDate) : '';
+                const expMMDD = expDate ? `${String(new Date(expDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(expDate).getDate()).padStart(2, '0')}` : '';
+                
+                history.push({
+                    parity: sow.parity,
+                    matingDate: matingMMDD,
+                    expDate: expMMDD,
+                    date: todayMMDD,
+                    weaningDate: '', 
+                    born: born,
+                    weaned: '',
+                    move: ''
+                });
+            } else {
+                history[0].date = todayMMDD;
+                history[0].born = born;
+            }
+
+            const dataToUpdate = {
+                currentStatus: '포유',
+                history: history
+            };
+
+            try {
+                if (isLocalEnv) {
+                    state.sowList[sowIdx] = {
+                        ...sow,
+                        ...dataToUpdate
+                    };
+                    utils.showToast(`${sow.sowNo}번 모돈 분만 완료(포유 전환)되었습니다.`);
+                    
+                    const remaining = state.sowList.filter(s => {
+                        if (!s.matingDate || s.farrowingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false;
+                        const expectedFarrowingDate = utils.getExpectedFarrow(s.matingDate);
+                        return utils.getWeekKey(expectedFarrowingDate) === weekKey;
+                    });
+                    if (remaining.length > 0) {
+                        window.openModal('expected_week', weekKey);
+                    } else {
+                        window.closeModal();
+                    }
+                    renderAll();
+                } else {
+                    await db.collection(COLS.SOWS).doc(dbId).update(dataToUpdate);
+                    utils.showToast(`${sow.sowNo}번 모돈 분만 완료(포유 전환)되었습니다.`);
+                    await saveDailyHistory();
+                    
+                    setTimeout(() => {
+                        const remaining = state.sowList.filter(s => {
+                            if (!s.matingDate || s.farrowingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false;
+                            const expectedFarrowingDate = utils.getExpectedFarrow(s.matingDate);
+                            return utils.getWeekKey(expectedFarrowingDate) === weekKey;
+                        });
+                        if (remaining.length > 0) {
+                            window.openModal('expected_week', weekKey);
+                        } else {
+                            window.closeModal();
+                        }
+                    }, 500);
+                }
+            } catch (e) {
+                console.error("Farrowing error:", e);
+                utils.showToast("처리에 실패했습니다: " + e.message);
+            }
         };
 
         window.completeSelectedSowsCycle = async () => {
@@ -1594,34 +1703,27 @@
                     return utils.getWeekKey(expectedFarrowingDate) === weekKey;
                 });
                 sows.sort((a,b) => String(a.matingDate||'').localeCompare(String(b.matingDate||'')));
-                const listHtml = sows.map(s => {
-                    const expDate = utils.getExpectedFarrow(s.matingDate) || '';
-                    const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '-';
-                    const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '-';
-                    
-                    return `
-                    <div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white px-4 py-3 border-b border-slate-100 flex items-center justify-between hover:bg-rose-50 transition-colors cursor-pointer text-center text-[13px] font-bold text-slate-600">
-                        <span class="w-1/4 shrink-0 text-slate-800 font-black">${s.sowNo}</span>
-                        <span class="w-1/4 shrink-0 text-rose-600">${s.parity}산</span>
-                        <span class="w-1/4 shrink-0">${matingFormatted}</span>
-                        <span class="w-1/4 shrink-0 text-rose-500">${expFormatted}</span>
-                    </div>`;
-                }).join('');
+                const listHtml = sows.map(s => window.renderSowExpectedRowHTML(s, weekKey)).join('');
 
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="calendar-heart" class="text-rose-500"></i> <span class="text-lg font-black leading-tight">${utils.getWeekOfMonth(weekKey)} 예정 <span class="text-rose-600 ml-1 inline-block">${sows.length}복</span></span></div>`, 
                     html: `
-                    <div class="mt-2 border border-slate-200 rounded-2xl overflow-hidden max-h-[60vh] relative shadow-sm">
-                        <div class="bg-slate-100 border-b border-slate-200 flex items-center justify-between px-4 py-2.5 text-[11px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider">
-                            <span class="w-1/4 shrink-0">번호</span>
-                            <span class="w-1/4 shrink-0">산차</span>
-                            <span class="w-1/4 shrink-0">종부일</span>
-                            <span class="w-1/4 shrink-0">예상일</span>
+                    <p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 해당 모돈의 포유두수를 적은 뒤 우측 [포유완료] 버튼을 클릭해 주세요. 자동으로 오늘 날짜로 분만 처리되어 포유 모돈으로 연동됩니다.</p>
+                    <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[50vh] relative shadow-sm mb-4">
+                        <div class="min-w-max">
+                            <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
+                                <span class="w-14 shrink-0">번호</span>
+                                <span class="w-12 shrink-0">산차</span>
+                                <span class="w-20 shrink-0">종부일</span>
+                                <span class="w-20 shrink-0">예상일</span>
+                                <span class="w-24 shrink-0">포유두수 입력</span>
+                                <span class="w-28 shrink-0">포유완료</span>
+                            </div>
+                            <div class="bg-slate-50 flex flex-col">
+                                ${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full">해당 주차 분만 예정 개체 없음</div>'}
+                            </div>
                         </div>
-                        <div class="bg-slate-50 flex flex-col max-h-[45vh] overflow-y-auto no-scrollbar">
-                            ${listHtml || '<div class="text-center py-12 text-slate-400 font-bold text-xs bg-white w-full">예정된 개체가 없습니다.</div>'}
-                        </div>
-                    </div>`, 
+                    </div>`,
                     hideSave: true
                 };
             },
@@ -1640,8 +1742,8 @@
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="baby" class="text-emerald-500"></i> <span class="text-lg font-black leading-tight">${titleStr} 도래 <span class="text-emerald-600 ml-1 inline-block">${sows.length}복</span></span></div>`, 
                     html: `
-                    <p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 바로 입력하고 아래 확인 버튼을 눌러 일괄 저장할 수 있습니다.</p>
-                    <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[60vh] relative shadow-sm">
+                    <p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 산차가 1 증가하며 '이유' 상태로 변경됩니다.</p>
+                    <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[50vh] relative shadow-sm mb-4">
                         <div class="min-w-max">
                             <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
                                 <span class="w-8 shrink-0 flex justify-center"><input type="checkbox" id="n-select-all" onclick="window.toggleSelectAllNursing(this.checked)" class="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"></span>
@@ -1658,7 +1760,12 @@
                                 ${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full">해당 주차 20일령 도래 개체 없음</div>'}
                             </div>
                         </div>
-                    </div>`
+                    </div>
+                    ${sows.length > 0 ? `
+                    <button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all mb-2">
+                        <i data-lucide="check-circle" class="w-5 h-5"></i> 선택 모돈 분만/이유 완료 처리 (산차+1, 이유)
+                    </button>
+                    ` : ''}`
                 };
             },
             shipment_detail_confirmed: (date) => {
@@ -1794,11 +1901,10 @@
                 const pDate = count > 0 ? ((b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr()) : utils.getTodayStr();
                 const isGrower = t.stage === 'grower';
                 const isResidual = b.penIsResidual ? b.penIsResidual[t.penIndex] : false;
-                const isSick = b.penIsSick ? b.penIsSick[t.penIndex] : false;
                 
                 const relevantAccidents = state.accidents.filter(a => a.stage === t.stage && a.batchId === t.batchId && a.penIndex === t.penIndex);
                 const accHistoryHtml = relevantAccidents.length > 0 
-                    ? `<div class="mt-2 space-y-1.5 border-t border-amber-100 pt-2">
+                    ? `<div class="mt-2 space-y-1.5 border-t border-amber-100 pt-2 w-full">
                         ${relevantAccidents.slice(0, 3).map(a => `
                             <div class="flex justify-between items-center bg-white/50 px-2 py-1 rounded-lg">
                                 <span class="text-[10px] font-bold text-amber-600">${a.date} <span class="text-[9px] text-amber-500 ml-1 font-black">${a.type === 'sick' ? '(환돈)' : '(폐사)'}</span></span>
@@ -1807,79 +1913,141 @@
                         `).join('')}
                         ${relevantAccidents.length > 3 ? '<p class="text-[8px] text-center text-amber-400 mt-1">최근 3건만 표시됨</p>' : ''}
                        </div>`
-                    : '<p class="text-[9px] text-amber-300 mt-2 text-center">기록된 폐사/환돈 내역 없음</p>';
+                    : '<p class="text-[9px] text-amber-300 mt-2 text-center w-full">기록된 폐사/환돈 내역 없음</p>';
+
+                let titleHtml = `${t.stage==='weaning'?'이유사':'육성사'} ${b.id===8?'후보사':b.id+'배치'} - ${t.penIndex+1}번`;
+                if (isGrower) {
+                    titleHtml = `
+                    <div class="flex items-center justify-between w-full pr-2">
+                        <span>${titleHtml}</span>
+                        <div class="flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 mr-2 shrink-0">
+                            <label class="text-[11px] font-black text-rose-600 cursor-pointer" for="m-pen-residual">잔류</label>
+                            <input id="m-pen-residual" type="checkbox" ${isResidual ? 'checked' : ''} class="w-4 h-4 rounded text-rose-600 accent-rose-600 cursor-pointer">
+                        </div>
+                    </div>`;
+                }
 
                 let html = `
                 <input type="hidden" id="m-stage" value="${t.stage}">
                 <input type="hidden" id="m-batch" value="${t.batchId}">
                 <input type="hidden" id="m-pen" value="${t.penIndex}">
-                
-                <div class="grid grid-cols-2 gap-2">
-                    <div class="flex flex-col gap-2">
-                        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center flex-1 flex flex-col justify-center overflow-hidden">
-                            <input id="m-count" type="number" inputmode="numeric" value="${count||''}" placeholder="0" class="w-full bg-transparent text-7xl font-black text-center text-emerald-600 outline-none focus:ring-0 p-0 m-0">
-                        </div>
-                        <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center">
-                            <label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">이유일</label>
-                            <input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center">
-                        </div>
-                    </div>
-                    <div class="flex flex-col gap-2">
-                        <div class="bg-orange-50 p-3 px-4 rounded-xl border border-orange-100 flex-1 flex justify-between items-center">
-                            <label class="text-[12px] font-black text-orange-600">환돈</label>
-                            <input id="m-pen-sick" type="checkbox" ${isSick ? 'checked' : ''} class="w-6 h-6 accent-orange-600 cursor-pointer">
-                        </div>
-                        ${isGrower ? `
-                        <div class="bg-indigo-50 p-3 px-4 rounded-xl border border-indigo-100 flex-1 flex justify-between items-center">
-                            <label class="text-[12px] font-black text-indigo-600">잔류돈</label>
-                            <input id="m-pen-residual" type="checkbox" ${isResidual ? 'checked' : ''} class="w-6 h-6 accent-indigo-600 cursor-pointer">
-                        </div>` : ''}
-                    </div>
-                </div>
+                `;
 
-                ${count > 0 ? `
-                <div class="${isGrower ? 'grid grid-cols-2 gap-2 mt-3' : 'mt-3'}">
-                    <div class="bg-amber-50 p-3 rounded-xl border border-amber-100 shadow-inner flex flex-col">
-                        <label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0">
-                            <i data-lucide="skull" class="w-3 h-3 text-amber-500"></i> 폐사/도태 기록
-                        </label>
-                        <div class="flex flex-col gap-1.5 flex-1">
-                            <div>
-                                <label class="text-[8px] font-bold text-amber-400 block mb-0.5">발생 날짜</label>
-                                <input id="m-acc-date" type="date" value="${utils.getTodayStr()}" class="w-full bg-transparent text-[11px] font-bold text-amber-800 border-b border-amber-200 pb-0.5">
+                if (!isGrower) {
+                    // 이유사 모달: 환돈 삭제, 그 자리에 폐사/도태 기록 배치
+                    html += `
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- 좌측 컬럼: 현재 두수 및 이유일 -->
+                        <div class="flex flex-col gap-2">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center flex-1 flex flex-col justify-center overflow-hidden">
+                                <input id="m-count" type="number" inputmode="numeric" value="${count||''}" placeholder="0" class="w-full bg-transparent text-7xl font-black text-center text-emerald-600 outline-none focus:ring-0 p-0 m-0">
                             </div>
-                            <div>
-                                <label class="text-[8px] font-bold text-amber-400 block mb-0.5">차감 두수</label>
-                                <input id="m-acc-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-amber-200 text-amber-800 pb-0.5">
+                            <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center">
+                                <label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">이유일</label>
+                                <input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center">
                             </div>
                         </div>
-                        <div class="mt-auto">
+                        
+                        <!-- 우측 컬럼: 환돈 지우고 폐사/도태 기록 배치 -->
+                        <div class="bg-amber-50 p-3 rounded-xl border border-amber-100 flex flex-col shadow-inner">
+                            <label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0">
+                                <i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i> 폐사/도태 기록
+                            </label>
+                            <div class="flex flex-col gap-1.5 flex-1 justify-center">
+                                <div>
+                                    <label class="text-[8px] font-bold text-amber-400 block mb-0.5">발생 날짜</label>
+                                    <input id="m-acc-date" type="date" value="${utils.getTodayStr()}" class="w-full bg-transparent text-[11px] font-bold text-amber-800 border-b border-amber-200 pb-0.5">
+                                </div>
+                                <div>
+                                    <label class="text-[8px] font-bold text-amber-400 block mb-0.5">차감 두수</label>
+                                    <input id="m-acc-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-amber-200 text-amber-800 pb-0.5">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        ${accHistoryHtml}
+                    </div>
+                    `;
+                } else {
+                    // 육성사 모달: 환돈 삭제, 그 자리에 출하 기록(🚚) 배치, 아래에 폐사/도태(💀) 배치
+                    html += `
+                    <div class="grid grid-cols-2 gap-3">
+                        <!-- 좌측 컬럼: 현재 두수 및 이유일 -->
+                        <div class="flex flex-col gap-2">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center flex-1 flex flex-col justify-center overflow-hidden">
+                                <input id="m-count" type="number" inputmode="numeric" value="${count||''}" placeholder="0" class="w-full bg-transparent text-7xl font-black text-center text-emerald-600 outline-none focus:ring-0 p-0 m-0">
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center">
+                                <label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">이유일</label>
+                                <input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center">
+                            </div>
+                        </div>
+                        
+                        <!-- 우측 컬럼: 환돈 치우고 출하 기록 이동 -->
+                        <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col shadow-inner">
+                            <label class="text-[9px] font-black text-rose-600 block mb-2 flex items-center gap-1 shrink-0">
+                                <i data-lucide="truck" class="w-3.5 h-3.5 text-rose-500"></i> 출하 기록
+                            </label>
+                            <div class="flex flex-col gap-1.5 flex-1 justify-center">
+                                <div>
+                                    <label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하일</label>
+                                    <input type="date" id="m-ship-date" value="${utils.getTomorrowStr()}" class="w-full bg-transparent text-[11px] font-black text-rose-700 border-b border-rose-200 pb-0.5">
+                                </div>
+                                <div>
+                                    <label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하 두수</label>
+                                    <input id="m-ship-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-rose-200 text-rose-800 pb-0.5">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                        <!-- 하단 좌측: 폐사/도태 기록 -->
+                        <div class="bg-amber-50 p-3 rounded-xl border border-amber-100 shadow-inner flex flex-col">
+                            <label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0">
+                                <i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i> 폐사/도태 기록
+                            </label>
+                            <div class="flex flex-col gap-1.5 flex-1 justify-center">
+                                <div>
+                                    <label class="text-[8px] font-bold text-amber-400 block mb-0.5">발생 날짜</label>
+                                    <input id="m-acc-date" type="date" value="${utils.getTodayStr()}" class="w-full bg-transparent text-[11px] font-bold text-amber-800 border-b border-amber-200 pb-0.5">
+                                </div>
+                                <div>
+                                    <label class="text-[8px] font-bold text-amber-400 block mb-0.5">차감 두수</label>
+                                    <input id="m-acc-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-amber-200 text-amber-800 pb-0.5">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 하단 우측: 사고 내역 이력 -->
+                        <div class="flex flex-col justify-end">
                             ${accHistoryHtml}
                         </div>
                     </div>
+                    `;
+                }
 
-                    ${isGrower ? `
-                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col">
-                        <label class="text-[9px] font-black text-rose-600 block mb-2 flex items-center gap-1 shrink-0">
-                            <i data-lucide="truck" class="w-3 h-3 text-rose-500"></i> 출하 기록
-                        </label>
-                        <div class="flex flex-col gap-1.5">
-                            <div>
-                                <label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하일</label>
-                                <input type="date" id="m-ship-date" value="${utils.getTomorrowStr()}" class="w-full bg-transparent text-[11px] font-black text-rose-700 border-b border-rose-200 pb-0.5">
-                            </div>
-                            <div>
-                                <label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하 두수</label>
-                                <input id="m-ship-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-rose-200 text-rose-800 pb-0.5">
+                // 돼지 이동 기능 바인딩 (이동 두수 입력창 포함)
+                if (count > 0) {
+                    html += `
+                    <div class="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex flex-col gap-2.5">
+                        <div class="flex justify-between items-center px-1">
+                            <label class="text-[11px] font-black text-indigo-700">이동할 두수</label>
+                            <div class="flex items-baseline gap-1">
+                                <input type="number" id="m-transfer-count" inputmode="numeric" placeholder="0" class="w-20 bg-white border border-indigo-200 rounded-lg text-center text-base font-black text-indigo-700 py-1.5 shadow-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none transition-all">
+                                <span class="text-[11px] text-indigo-500 font-bold">두</span>
                             </div>
                         </div>
-                    </div>` : ''}
-                </div>` : ''}
+                        <button onclick="window.startTransfer('${t.stage}', ${t.batchId}, ${t.penIndex})" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg active:scale-95 transition-all text-sm shadow-sm flex justify-center items-center gap-2">
+                            <i data-lucide="move-right" class="w-4 h-4"></i> 이 칸의 돼지 이동하기
+                        </button>
+                    </div>`;
+                }
 
-                ${count > 0 ? `<button onclick="window.startTransfer('${t.stage}', ${t.batchId}, ${t.penIndex})" class="w-full mt-4 py-3 bg-indigo-50 text-indigo-600 font-bold rounded-xl border border-indigo-100">이 칸의 돼지 이동하기</button>` : ''}
-                `;
                 setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
-                return { title: `${t.stage==='weaning'?'이유사':'육성사'} ${b.id===8?'후보사':b.id+'배치'} - ${t.penIndex+1}번`, html };
+                return { title: titleHtml, html };
             },
             batch_settings: (t) => {
                 const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => x.id === t.batchId);
@@ -1991,10 +2159,17 @@
                         </div>
                         <button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-400 px-1 mb-4 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 각 모돈 번호를 선택해 상세 생산 기록을 수정하거나 메인화면의 "도래 복수" 영역에서 일괄 완료 처리를 하세요.</p>
-                    <div class="space-y-4 max-h-[55vh] overflow-y-auto no-scrollbar pb-4 px-1" id="sow-list-container">
+                    <p class="text-[10px] font-bold text-slate-400 px-1 mb-2 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 일괄 완료 처리를 하세요.</p>
+                    <div class="space-y-4 max-h-[45vh] overflow-y-auto no-scrollbar pb-4 px-1" id="sow-list-container">
                         ${tablesHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">포유 중인 모돈이 없습니다.</div>'}
-                    </div>`;
+                    </div>
+                    ${list.length > 0 ? `
+                    <div class="mt-2 pt-3 border-t border-slate-100 shrink-0">
+                        <button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all">
+                            <i data-lucide="check-circle" class="w-5 h-5"></i> 선택 모돈 분만/이유 완료 처리 (산차+1, 이유)
+                        </button>
+                    </div>
+                    ` : ''}`;
 
                     setTimeout(() => {
                         if (typeof lucide !== 'undefined') lucide.createIcons();
@@ -2211,7 +2386,8 @@
         },
         transfer_pen: (t) => {
                 const src = (t.src.stage==='weaning'?state.wBatches:state.gBatches).find(b=>b.id===t.src.batchId), sC = src.penDetails[t.src.penIndex];
-                return { title: '칸 이동', html: `<input type="hidden" id="m-src-stage" value="${t.src.stage}"><input type="hidden" id="m-src-batch" value="${src.id}"><input type="hidden" id="m-src-pen" value="${t.src.penIndex}"><input type="hidden" id="m-dest-stage" value="${t.dest.stage}"><input type="hidden" id="m-dest-batch" value="${t.dest.batchId}"><input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}"><div class="p-6 bg-indigo-50 rounded-xl text-center"><label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC})</label><input id="m-count" type="number" inputmode="numeric" value="${sC}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700"></div>` };
+                const defaultCount = t.src.count > 0 ? t.src.count : sC;
+                return { title: '칸 이동', html: `<input type="hidden" id="m-src-stage" value="${t.src.stage}"><input type="hidden" id="m-src-batch" value="${src.id}"><input type="hidden" id="m-src-pen" value="${t.src.penIndex}"><input type="hidden" id="m-dest-stage" value="${t.dest.stage}"><input type="hidden" id="m-dest-batch" value="${t.dest.batchId}"><input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}"><div class="p-6 bg-indigo-50 rounded-xl text-center"><label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC})</label><input id="m-count" type="number" inputmode="numeric" value="${defaultCount}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700"></div>` };
             }
         };
 
@@ -2307,7 +2483,7 @@
                 
                 const b = (stg === 'weaning' ? state.wBatches : state.gBatches).find(x => x.id === bId);
                 if (!b.penIsResidual) b.penIsResidual = Array(b.penDetails.length).fill(false); b.penIsResidual[pIdx] = document.getElementById('m-pen-residual')?.checked || false;
-                if (!b.penIsSick) b.penIsSick = Array(b.penDetails.length).fill(false); b.penIsSick[pIdx] = document.getElementById('m-pen-sick')?.checked || false;
+                if (!b.penIsSick) b.penIsSick = Array(b.penDetails.length).fill(false); b.penIsSick[pIdx] = false;
                 
                 const cStockDate = currentPenDate || (b.penDates && b.penDates[pIdx]) || b.weaningDate || b.date;
                 
@@ -2503,7 +2679,28 @@
             }
         };
 
-        window.startTransfer = (stg, bId, pIdx) => { window.closeModal(); state.transfer = { active: true, src: { stage: stg, batchId: bId, penIndex: pIdx } }; const msg = `<h2 class="text-base font-black text-rose-600 animate-pulse">도착할 칸을 터치하세요!</h2>`; document.getElementById('weaning-header').innerHTML = msg; document.getElementById('grower-header').innerHTML = msg; renderGrower(); renderWeaning(); }
+        window.startTransfer = (stg, bId, pIdx) => { 
+            const transferCountInput = document.getElementById('m-transfer-count');
+            const count = transferCountInput ? parseInt(transferCountInput.value) || 0 : 0;
+            const maxCount = parseInt(document.getElementById('m-count').value) || 0;
+            
+            if (count <= 0) {
+                utils.showToast("이동할 두수를 1마리 이상 입력하세요.");
+                return;
+            }
+            if (count > maxCount) {
+                utils.showToast("이동 두수가 현재 칸에 있는 두수보다 많습니다.");
+                return;
+            }
+
+            window.closeModal(); 
+            state.transfer = { active: true, src: { stage: stg, batchId: bId, penIndex: pIdx, count: count } }; 
+            const msg = `<h2 class="text-base font-black text-rose-600 animate-pulse">도착할 칸을 터치하세요!</h2>`; 
+            document.getElementById('weaning-header').innerHTML = msg; 
+            document.getElementById('grower-header').innerHTML = msg; 
+            renderGrower(); 
+            renderWeaning(); 
+        };
         
         window.quickSaveBatchMemo = async (stg, bId, memoVal) => {
             try {
