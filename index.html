@@ -803,7 +803,7 @@
         window.handleBatchClick = (stg, bId) => { if (!state.transfer.active) window.openModal('batch_settings', { stage: stg, batchId: bId }); };
         function renderAllHeaders() { document.getElementById('weaning-header').innerHTML = WEANING_HEADER_DEFAULT; document.getElementById('grower-header').innerHTML = GROWER_HEADER_DEFAULT; renderGrower(); renderWeaning(); }
 
-        window.addSowHistoryRow = (parity = '', matingDate = '', expDate = '', farrowDate = '', weaningDate = '', born = '', weaned = '', move = '') => {
+        window.addSowHistoryRow = (parity = '', matingDate = '', expDate = '', farrowDate = '', weaningDate = '', total = '', born = '', weaned = '', move = '') => {
             const container = document.getElementById('sow-history-container');
             if (!container) return;
             const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
@@ -814,6 +814,7 @@
                 <input type="text" class="h-exp w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${expDate}" placeholder="MM/DD">
                 <input type="text" class="h-farrow w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${farrowDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}">
                 <input type="text" class="h-weaning-date w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${weaningDate}" placeholder="MM/DD">
+                <input type="number" class="h-total w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${total}" placeholder="산자수">
                 <input type="number" class="h-born w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${born}" placeholder="포유">
                 <input type="text" class="h-weaned w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${weaned}" placeholder="이동">
                 <input type="text" class="h-move w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${move}" placeholder="이유">
@@ -1009,8 +1010,6 @@
                     const mRaw = row.querySelector('.n-mating').value;
                     const eRaw = row.querySelector('.n-exp').value;
                     const fRaw = row.querySelector('.n-farrow').value;
-                    const totalInput = row.querySelector('.n-total').value;
-                    const total = totalInput === '' ? '' : parseInt(totalInput) || 0;
                     const bornInput = row.querySelector('.n-born').value;
                     const born = bornInput === '' ? '' : parseInt(bornInput) || 0;
                     const weaned = row.querySelector('.n-weaned').value;
@@ -1026,7 +1025,6 @@
                             expDate: eRaw,
                             date: fRaw,
                             weaningDate: todayMMDD, 
-                            total: total,
                             born: born,
                             weaned: weaned,
                             move: move
@@ -1037,7 +1035,6 @@
                         history[0].expDate = eRaw;
                         history[0].date = fRaw;
                         history[0].weaningDate = todayMMDD; 
-                        history[0].total = total;
                         history[0].born = born;
                         history[0].weaned = weaned;
                         history[0].move = move;
@@ -1093,6 +1090,7 @@
             const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
             if (sowIdx === -1) return;
             const sow = state.sowList[sowIdx];
+            const originalStatus = sow.currentStatus || '이유';
             
             if (!rowMating) {
                 utils.showToast("종부일을 입력해주세요.");
@@ -1141,7 +1139,7 @@
                     await db.collection(COLS.SOWS).doc(dbId).update(updatePayload);
                 }
                 utils.showToast(statusMsg);
-                window.openModal('sow_list', '이유');
+                window.openModal('sow_list', originalStatus);
             } catch(e) {
                 console.error("Save row error:", e);
                 utils.showToast("저장 실패: " + e.message);
@@ -2137,7 +2135,6 @@
                                         <span class="w-20 shrink-0">종부일</span>
                                         <span class="w-20 shrink-0">예상일</span>
                                         <span class="w-20 shrink-0">분만일</span>
-                                        <span class="w-16 shrink-0">산자수</span>
                                         <span class="w-14 shrink-0">포유</span>
                                         <span class="w-16 shrink-0">이동</span>
                                         <span class="w-16 shrink-0">이유</span>
@@ -2160,7 +2157,7 @@
                         </div>
                         <button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button>
                     </div>
-                    <p class="text-[10px] font-bold text-slate-400 px-1 mb-2 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 일괄 완료 처리를 하세요.</p>
+                    <p class="text-[10px] font-bold text-slate-400 px-1 mb-2 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 개체 선택 후 아래 '분만/이유 완료' 버튼을 눌러 일괄 완료 처리를 하세요.</p>
                     <div class="space-y-4 max-h-[45vh] overflow-y-auto no-scrollbar pb-4 px-1" id="sow-list-container">
                         ${tablesHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">포유 중인 모돈이 없습니다.</div>'}
                     </div>
@@ -2180,11 +2177,11 @@
                     return { title, html, hideSave: true };
                 }
 
-                if (f === '이유') {
+                if (f === '이유' || f === '재발') {
                     const getSortableWeaningDate = (s) => {
                         if (!s.history || s.history.length === 0) return '9999-12-31';
                         const sortedHistory = [...s.history].sort((a,b) => b.parity - a.parity);
-                        const wDate = sortedHistory[0].weaningDate || '';
+                        const wDate = sortedHistory[0].weaningDate || sortedHistory[0].date || '';
                         if (!wDate) return '9999-12-31';
                         if (wDate.match(/^\d{4}-\d{2}-\d{2}$/)) return wDate;
                         const match = wDate.match(/^(\d{1,2})\/(\d{1,2})$/);
@@ -2207,6 +2204,8 @@
                         return dateA.localeCompare(dateB);
                     });
 
+                    const dateHeaderLabel = f === '재발' ? '최근 재발일' : '이전 이유일';
+
                     const html = `
                     <div class="flex gap-2 mb-4 shrink-0">
                         <div class="relative flex-1">
@@ -2223,7 +2222,7 @@
                             <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider">
                                 <span class="w-14 shrink-0">번호</span>
                                 <span class="w-12 shrink-0">산차</span>
-                                <span class="w-20 shrink-0">이전 이유일</span>
+                                <span class="w-20 shrink-0">${dateHeaderLabel}</span>
                                 <span class="w-24 shrink-0">종부일 입력</span>
                                 <span class="w-24 shrink-0">분만일 (자동)</span>
                                 <span class="w-16 shrink-0">저장</span>
@@ -2247,7 +2246,7 @@
                                             <button onclick="window.saveWeanedSowRow('${s.dbId}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-[11px] px-2.5 py-1.5 rounded-lg border border-blue-100 active:scale-95 transition-all">저장</button>
                                         </div>
                                     </div>`;
-                                }).join('') || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl">이유 중인 모돈이 없습니다.</div>'}
+                                }).join('') || `<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl">${f === '재발' ? '재발' : '이유'} 중인 모돈이 없습니다.</div>`}
                             </div>
                         </div>
                     </div>`;
@@ -2301,7 +2300,7 @@
             sow_detail: (t) => {
                 const s = t==='new'?{sowNo:'',parity:0,currentStatus:'이유', matingDate: '', history: []}:state.sowList.find(x=>x.dbId===t);
                 if (!s) return { title: '오류', html: '<p class="text-center py-10 text-slate-500 font-bold">찾을 수 없음</p>', hideSave: true };
-                setTimeout(() => { (s.history || []).forEach(h => window.addSowHistoryRow(h.parity, h.matingDate || '', h.expDate || '', h.date, h.weaningDate || '', h.born, h.weaned, h.move)); }, 100);
+                setTimeout(() => { (s.history || []).forEach(h => window.addSowHistoryRow(h.parity, h.matingDate || '', h.expDate || '', h.date, h.weaningDate || '', h.total || '', h.born, h.weaned, h.move)); }, 100);
                 
                 let html = `
                 <input type="hidden" id="s-dbid" value="${t}">
@@ -2342,7 +2341,7 @@
                                 <p class="text-[8px] font-bold text-slate-400 mt-1 uppercase">Production History</p>
                             </div>
                             <div class="flex gap-2">
-                                <button onclick="const mating = document.getElementById('s-mating').value; const mDateStr = mating ? mating.substring(5).replace('-', '/') : ''; const exp = mating ? utils.getExpectedFarrow(mating).substring(5).replace('-', '/') : ''; window.addSowHistoryRow(document.getElementById('s-parity').value, mDateStr, exp, '', '', '', '', '')" class="bg-slate-800 text-white p-1.5 rounded-lg hover:bg-slate-700 transition-colors active:scale-95">
+                                <button onclick="const mating = document.getElementById('s-mating').value; const mDateStr = mating ? mating.substring(5).replace('-', '/') : ''; const exp = mating ? utils.getExpectedFarrow(mating).substring(5).replace('-', '/') : ''; window.addSowHistoryRow(document.getElementById('s-parity').value, mDateStr, exp, '', '', '', '', '', '')" class="bg-slate-800 text-white p-1.5 rounded-lg hover:bg-slate-700 transition-colors active:scale-95">
                                     <i data-lucide="plus" class="w-4 h-4"></i>
                                 </button>
                             </div>
@@ -2355,6 +2354,7 @@
                                 <span class="w-16 shrink-0">예상일</span>
                                 <span class="w-16 shrink-0">분만일</span>
                                 <span class="w-16 shrink-0">이유일</span>
+                                <span class="w-12 shrink-0">산자수</span>
                                 <span class="w-12 shrink-0">포유</span>
                                 <span class="w-12 shrink-0">이동</span>
                                 <span class="w-12 shrink-0">이유</span>
@@ -2415,6 +2415,7 @@
                     expDate: row.querySelector('.h-exp').value,
                     date: row.querySelector('.h-farrow').value, 
                     weaningDate: row.querySelector('.h-weaning-date').value,
+                    total: parseInt(row.querySelector('.h-total').value) || 0,
                     born: parseInt(row.querySelector('.h-born').value) || 0, 
                     weaned: row.querySelector('.h-weaned').value, 
                     move: row.querySelector('.h-move').value 
@@ -2436,6 +2437,8 @@
                     const mRaw = row.querySelector('.n-mating').value;
                     const eRaw = row.querySelector('.n-exp').value;
                     const fRaw = row.querySelector('.n-farrow').value;
+                    const totalInput = row.querySelector('.n-total').value;
+                    const total = totalInput === '' ? '' : parseInt(totalInput) || 0;
                     const bornInput = row.querySelector('.n-born').value;
                     const born = bornInput === '' ? '' : parseInt(bornInput) || 0;
                     const weaned = row.querySelector('.n-weaned').value; 
@@ -2445,12 +2448,13 @@
                     history.sort((a,b) => b.parity - a.parity);
                     
                     if (history.length === 0) {
-                        history.push({ parity: parity, matingDate: mRaw, expDate: eRaw, date: fRaw, weaningDate: '', born: born, weaned: weaned, move: move });
+                        history.push({ parity: parity, matingDate: mRaw, expDate: eRaw, date: fRaw, weaningDate: '', total: total, born: born, weaned: weaned, move: move });
                     } else {
                         history[0].parity = parity;
                         history[0].matingDate = mRaw;
                         history[0].expDate = eRaw;
                         history[0].date = fRaw;
+                        history[0].total = total;
                         history[0].born = born;
                         history[0].weaned = weaned;
                         history[0].move = move;
