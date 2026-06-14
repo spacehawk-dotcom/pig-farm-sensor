@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>성암농장 사료 주문</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- React & ReactDOM (Production v18) -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel (브라우저에서 JSX 실시간 해석) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Firebase SDK (호환 버전: 단일 HTML 환경용) -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+        body { 
+            font-family: 'Noto Sans KR', sans-serif; 
+            -webkit-tap-highlight-color: transparent; 
+        }
+        /* Excel Table borders styling */
+        .excel-table th, .excel-table td {
+            border: 1px solid #cbd5e1; /* slate-300 */
+        }
+        .excel-table th {
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        @keyframes slideUp { 
+            from { transform: translateY(100%); opacity: 0; } 
+            to { transform: translateY(0); opacity: 1; } 
+        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        /* Input number spinner 제거 */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+    </style>
+</head>
+<body class="bg-stone-100 text-slate-800 antialiased">
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- 내장 SVG 아이콘 컴포넌트 (React용 일괄 정의) ---
+        const Container = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="12" x="2" y="6" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/></svg>;
+        const PenTool = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
+        const CalendarIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>;
+        const ChevronDown = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m6 9 6 6 6-6"/></svg>;
+        const PlusCircle = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
+        const Calculator = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
+        const Table = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3v18"/><path d="M3 12h18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>;
+        const MessageSquare = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
+        const Trash2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+        const Edit3 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
+        const CalendarRange = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M17 14h-6"/><path d="M13 18H7"/><path d="M7 14h.01"/><path d="M17 18h.01"/></svg>;
+        const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const Send = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
+        const Share2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>;
+        const Copy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const Activity = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
+
+        // --- 성암농장 실제 Firebase Configuration ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
+            authDomain: "sungamfarm.firebaseapp.com",
+            projectId: "sungamfarm",
+            storageBucket: "sungamfarm.firebasestorage.app",
+            messagingSenderId: "811107235779",
+            appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
+        };
+
+        // Firebase 초기화
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+
+        // 성암농장 사료 주문 컬렉션 경로
+        const FEED_ORDERS_COLLECTION_PATH = 'farms/sungamfarm/feed_orders';
+
+        // 알림창 컴포넌트
+        const CustomAlert = ({ message, onClose }) => (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
+                    <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-amber-500 text-xl font-bold">!</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-700 mb-5">{message}</p>
+                    <button 
+                        onClick={onClose}
+                        className="w-full bg-slate-800 text-white font-black py-3 rounded-xl hover:bg-slate-700 active:scale-95 transition-all"
+                    >
+                        확인
+                    </button>
+                </div>
+            </div>
+        );
+
+        // 확인창 컴포넌트
+        const CustomConfirm = ({ message, onConfirm, onCancel }) => (
+            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
+                    <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <span className="text-rose-500 text-xl font-bold">?</span>
+                    </div>
+                    <p className="text-sm font-bold text-slate-700 mb-5">{message}</p>
+                    <div className="flex gap-2">
+                        <button 
+                            onClick={onCancel}
+                            className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-xl hover:bg-slate-200 active:scale-95 transition-all"
+                        >
+                            취소
+                        </button>
+                        <button 
+                            onClick={onConfirm}
+                            className="flex-1 bg-rose-500 text-white font-black py-3 rounded-xl hover:bg-rose-600 active:scale-95 transition-all"
+                        >
+                            확인
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [orders, setOrders] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            // 알림 및 확인 상태 관리
+            const [alertMsg, setAlertMsg] = useState(null);
+            const [confirmConfig, setConfirmConfig] = useState(null);
+
+            // UI 폼 입력 상태 관리
+            const [feedType, setFeedType] = useState('젖돈');
+            const [bulkBin, setBulkBin] = useState('1');
+            const [quantity, setQuantity] = useState('');
+            const [editingOrderId, setEditingOrderId] = useState(null);
+
+            // 모달 상태 관리
+            const [showShareModal, setShowShareModal] = useState(false);
+            const [showCalendarModal, setShowCalendarModal] = useState(false);
+            const [shareNote, setShareNote] = useState('성암농장 사료 배송 부탁드립니다.');
+
+            // 알림 도우미 함수
+            const showAlert = (message) => setAlertMsg(message);
+            const showConfirm = (message, onConfirm) => {
+                setConfirmConfig({
+                    message,
+                    onConfirm: () => { onConfirm(); setConfirmConfig(null); },
+                    onCancel: () => setConfirmConfig(null)
+                });
+            };
+
+            // 토스트 상태 알림 창 (임시 노출용)
+            const [toastConfig, setToastConfig] = useState({ show: false, message: '', bgColor: 'bg-slate-900' });
+            const showToast = (message, bgColor = 'bg-slate-900') => {
+                setToastConfig({ show: true, message, bgColor });
+                setTimeout(() => {
+                    setToastConfig({ show: false, message: '', bgColor: 'bg-slate-900' });
+                }, 3000);
+            };
+
+            // 1. Firebase 익명 로그인 및 상태 트래킹
+            useEffect(() => {
+                auth.signInAnonymously().catch(err => {
+                    console.warn("익명 로그인 실패:", err);
+                });
+
+                const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
+                    setUser(currentUser);
+                    if (!currentUser) setLoading(false);
+                });
+
+                return () => unsubscribeAuth();
+            }, []);
+
+            // 2. Firestore 실시간 사료 주문 데이터 스트림 연동
+            useEffect(() => {
+                if (!user) return;
+
+                const unsubscribeOrders = db.collection(FEED_ORDERS_COLLECTION_PATH)
+                    .onSnapshot(
+                        (snapshot) => {
+                            const ordersData = snapshot.docs.map(doc => {
+                                const data = doc.data();
+                                return data ? { id: doc.id, ...data } : null;
+                            }).filter(Boolean);
+
+                            // 정렬: 최신 날짜순 정렬 (기본)
+                            ordersData.sort((a, b) => b.date.localeCompare(a.date));
+                            setOrders(ordersData);
+                            setLoading(false);
+                        },
+                        (error) => {
+                            console.error("사료 주문 데이터 갱신 실패:", error);
+                            setLoading(false);
+                        }
+                    );
+
+                return () => unsubscribeOrders();
+            }, [user]);
+
+            // 오늘 날짜 한글 요일 계산 포맷팅
+            const todayDateString = useMemo(() => {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+                const weekDay = weekDays[today.getDay()];
+                return `${year}년 ${month}월 ${day}일 (${weekDay})`;
+            }, []);
+
+            // 사료 종류별 합산 통계 산출 (집계표 동기화)
+            const summaryStats = useMemo(() => {
+                const stats = {
+                    '젖돈': 0,
+                    '육성': 0,
+                    '임신': 0,
+                    '포유': 0,
+                    '후보돈': 0,
+                    'total': 0
+                };
+
+                orders.forEach(order => {
+                    const q = parseFloat(order.quantity) || 0;
+                    if (stats[order.feedType] !== undefined) {
+                        stats[order.feedType] += q;
+                    }
+                    stats.total += q;
+                });
+
+                // 소수점 1자리 고정 반환
+                return {
+                    '젖돈': parseFloat(stats['젖돈'].toFixed(1)),
+                    '육성': parseFloat(stats['육성'].toFixed(1)),
+                    '임신': parseFloat(stats['임신'].toFixed(1)),
+                    '포유': parseFloat(stats['포유'].toFixed(1)),
+                    '후보돈': parseFloat(stats['후보돈'].toFixed(1)),
+                    'total': parseFloat(stats.total.toFixed(1))
+                };
+            }, [orders]);
+
+            // --- 데이터베이스 핸들러 작성 ---
+
+            // 주문서 신규 제출 및 수정 처리
+            const handleSubmitOrder = async (e) => {
+                e.preventDefault();
+                if (!user) return;
+
+                const qVal = parseFloat(quantity);
+                if (!feedType || !bulkBin || isNaN(qVal) || qVal <= 0) {
+                    showAlert("모든 값을 올바르게 기입해 주세요.");
+                    return;
+                }
+
+                const now = new Date();
+                const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                try {
+                    if (editingOrderId) {
+                        // 수정 모드
+                        await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(editingOrderId).update({
+                            feedType,
+                            bulkBin,
+                            quantity: qVal,
+                            date: dateString + " (수정됨)"
+                        });
+                        showToast("📝 사료 주문서가 성공적으로 수정되었습니다.", "bg-amber-600");
+                        setEditingOrderId(null);
+                    } else {
+                        // 신규 저장 모드
+                        await db.collection(FEED_ORDERS_COLLECTION_PATH).add({
+                            feedType,
+                            bulkBin,
+                            quantity: qVal,
+                            unit: '톤',
+                            date: dateString
+                        });
+                        showToast("✨ 새 사료 주문이 등록되어 요약 합계에 반영되었습니다!", "bg-emerald-600");
+                    }
+                    resetForm();
+                } catch (err) {
+                    console.error("주문 저장 실패:", err);
+                    showAlert("데이터 저장 실패: " + err.message);
+                }
+            };
+
+            // 수정 모드 실행 트리거
+            const handleEditClick = (order) => {
+                setEditingOrderId(order.id);
+                setFeedType(order.feedType);
+                setBulkBin(order.bulkBin);
+                setQuantity(order.quantity);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                showToast("✏️ 주문 정보 수정 상태입니다.", "bg-indigo-600");
+            };
+
+            // 단일 항목 삭제
+            const handleDeleteClick = (id) => {
+                showConfirm("이 사료 주문 내역을 삭제하시겠습니까?", async () => {
+                    try {
+                        await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(id).delete();
+                        showToast("🗑️ 주문 내역이 완전히 삭제되었습니다.", "bg-slate-700");
+                        if (editingOrderId === id) resetForm();
+                    } catch (err) {
+                        showAlert("삭제 실패: " + err.message);
+                    }
+                });
+            };
+
+            // 전체 삭제 처리
+            const handleClearAllClick = () => {
+                if (orders.length === 0) return;
+                showConfirm("정말로 모든 사료 주문 기록을 초기화하시겠습니까?", async () => {
+                    try {
+                        const batch = db.batch();
+                        const snapshot = await db.collection(FEED_ORDERS_COLLECTION_PATH).get();
+                        snapshot.docs.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        await batch.commit();
+                        showToast("🗑️ 모든 사료 기록이 초기화되었습니다.", "bg-rose-700");
+                        resetForm();
+                    } catch (err) {
+                        showAlert("초기화 실패: " + err.message);
+                    }
+                });
+            };
+
+            // 입력 폼 리셋
+            const resetForm = () => {
+                setEditingOrderId(null);
+                setFeedType('젖돈');
+                setBulkBin('1');
+                setQuantity('');
+            };
+
+            // 카카오톡 텍스트 자동 제너레이터
+            const generatedKakaoText = useMemo(() => {
+                if (orders.length === 0) return "현재 등록된 사료 주문서 내역이 없습니다.";
+
+                const today = new Date();
+                const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                let text = `[성암농장 사료 주문서]\n`;
+                text += `발송일자: ${dateStr}\n\n`;
+
+                text += `■ 주문 요약 (집계표)\n`;
+                text += `-------------------------\n`;
+                Object.keys(summaryStats).forEach(type => {
+                    if (type !== 'total' && summaryStats[type] > 0) {
+                        text += `- ${type}: ${summaryStats[type].toFixed(1)} 톤\n`;
+                    }
+                });
+                text += `-------------------------\n`;
+                text += `★ 총 수량합계: ${summaryStats.total.toFixed(1)} 톤\n\n`;
+
+                text += `■ 벌크통별 상세 주문\n`;
+                orders.forEach((order, idx) => {
+                    const num = orders.length - idx;
+                    text += `${num}. 벌크 ${order.bulkBin}호통 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
+                });
+
+                text += `\n-------------------------\n`;
+                text += `${shareNote}`;
+
+                return text;
+            }, [orders, summaryStats, shareNote]);
+
+            // 모바일 네이티브 다이렉트 전송
+            const sendNativeShare = async () => {
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: '성암농장 사료 주문서',
+                            text: generatedKakaoText
+                        });
+                        showToast('💬 주문서 공유가 성공적으로 완료되었습니다.', 'bg-emerald-600');
+                        setShowShareModal(false);
+                    } catch (err) {
+                        if (err.name !== 'AbortError') {
+                            showToast('공유가 중단되었습니다.');
+                        }
+                    }
+                } else {
+                    copyShareText();
+                }
+            };
+
+            // 클립보드 강제 우회 복사
+            const copyShareText = () => {
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = generatedKakaoText;
+                tempTextArea.style.position = "fixed";
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                tempTextArea.setSelectionRange(0, 99999);
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        showToast('📋 주문서가 클립보드에 복사되었습니다! 카톡을 실행합니다.', 'bg-indigo-600');
+                        setTimeout(() => {
+                            window.location.href = "kakaolink://";
+                        }, 800);
+                    } else {
+                        showToast('❌ 복사에 실패했습니다.', 'bg-rose-600');
+                    }
+                } catch (err) {
+                    showToast('❌ 클립보드를 지원하지 않는 환경입니다.', 'bg-rose-600');
+                }
+                document.body.removeChild(tempTextArea);
+            };
+
+            // 달력 렌더링용 변수 연산
+            const calendarDaysData = useMemo(() => {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = today.getMonth();
+
+                const firstDayIndex = new Date(year, month, 1).getDay(); // 시작 요일
+                const totalDaysInMonth = new Date(year, month + 1, 0).getDate(); // 말일
+
+                const cells = [];
+                let currentMonthTotal = 0;
+
+                // 1. 공백 처리
+                for (let i = 0; i < firstDayIndex; i++) {
+                    cells.push({ isEmpty: true });
+                }
+
+                // 2. 일별 데이터 매핑 루프
+                for (let day = 1; day <= totalDaysInMonth; day++) {
+                    const dayStr = String(day).padStart(2, '0');
+                    const compareDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${dayStr}`;
+
+                    const dayOrders = orders.filter(o => o.date.startsWith(compareDateStr));
+                    let dayTotal = 0;
+
+                    const badges = dayOrders.map(o => {
+                        const q = parseFloat(o.quantity) || 0;
+                        dayTotal += q;
+                        currentMonthTotal += q;
+                        return {
+                            type: o.feedType,
+                            qty: q
+                        };
+                    });
+
+                    cells.push({
+                        isEmpty: false,
+                        dayNum: day,
+                        dayOfWeek: new Date(year, month, day).getDay(),
+                        isToday: today.getDate() === day && today.getMonth() === month && today.getFullYear() === year,
+                        dayTotal,
+                        badges
+                    });
+                }
+
+                return { cells, currentMonthTotal };
+            }, [orders]);
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center h-screen bg-stone-100">
+                        <p className="text-lg font-bold text-slate-500 animate-pulse">성암농장 데이터베이스 연결 중...</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
+                    
+                    {/* 최상단 얼럿 및 컨펌 커스텀 모달 노출 제어 */}
+                    {alertMsg && <CustomAlert message={alertMsg} onClose={() => setAlertMsg(null)} />}
+                    {confirmConfig && <CustomConfirm message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} />}
+
+                    {/* 실시간 알림 토스트 박스 */}
+                    <div className={`fixed bottom-6 right-6 z-[100] text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2.5 transition-all duration-300 transform ${toastConfig.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'} ${toastConfig.bgColor}`}>
+                        <span>✔️</span>
+                        <span className="text-sm font-medium">{toastConfig.message}</span>
+                    </div>
+
+                    {/* Header */}
+                    <header className="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-stone-200/60">
+                        <div class="flex items-center gap-3">
+                            <div class="p-3 bg-amber-100 rounded-xl text-amber-700">
+                                <Container className="w-8 h-8" />
+                            </div>
+                            <div>
+                                <h1 class="text-2xl font-bold tracking-tight text-slate-900">성암농장 사료 주문</h1>
+                                <p class="text-sm text-slate-500 mt-0.5">사료 벌크통 잔량 관리 및 주문 예약 시스템</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <a href="sow.html" className="bg-rose-50 text-rose-700 border border-rose-200 px-3 py-2 rounded-xl shadow-sm text-xs font-bold flex items-center gap-1.5 active:scale-95 transition hover:bg-rose-100">
+                                <Activity className="w-4 h-4 text-rose-500" /> 모돈관리
+                            </a>
+                            <div class="flex items-center gap-2 text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                실시간 작동 중
+                            </div>
+                        </div>
+                    </header>
+
+                    {/* Main Workspace Grid */}
+                    <div class="grid grid-cols-1 gap-8">
+                        
+                        {/* Input Form Section (TOP) */}
+                        <section class="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6 border-b border-slate-100 pb-4">
+                                <div class="flex items-center gap-2">
+                                    <PenTool className="w-5 h-5 text-amber-600" />
+                                    <h2 class="text-lg font-bold text-slate-800">신규 사료 주문 정보 등록</h2>
+                                </div>
+                                <div class="text-xs sm:text-sm font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/50 self-start sm:self-auto">
+                                    <CalendarIcon className="w-4 h-4 text-amber-600" />
+                                    <span>{todayDateString}</span>
+                                </div>
+                            </div>
+
+                            <form onSubmit={handleSubmitOrder} class="space-y-6">
+                                {/* Feed Type Selector (5가지 정밀 선택형 변경) */}
+                                <div>
+                                    <label class="block text-sm font-semibold text-slate-700 mb-2">사료 종류 <span class="text-rose-500">*</span></label>
+                                    <div class="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                                        {['젖돈', '육성', '임신', '포유', '후보돈'].map(type => (
+                                            <button 
+                                                key={type}
+                                                type="button" 
+                                                onClick={() => setFeedType(type)} 
+                                                class={`border-2 py-3 rounded-xl text-sm font-bold transition-all text-center ${feedType === type ? 'border-amber-500 bg-amber-500 text-white shadow-sm scale-105' : 'border-slate-100 bg-slate-50 text-slate-700 hover:bg-white hover:border-amber-500/50'}`}
+                                            >
+                                                {type}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Bulk Bin Selector & Feed Quantity (Grid) */}
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Bulk Bin Number (Dropdown Style Extended to 13, with 4A & 4B) */}
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">벌크통 번호 <span class="text-rose-500">*</span></label>
+                                        <div class="relative">
+                                            <select 
+                                                value={bulkBin} 
+                                                onChange={e => setBulkBin(e.target.value)}
+                                                required
+                                                class="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all text-sm font-bold text-slate-800 appearance-none cursor-pointer"
+                                            >
+                                                <option value="" disabled>벌크통 번호를 선택하세요</option>
+                                                <option value="1">벌크 1호통</option>
+                                                <option value="2">벌크 2호통</option>
+                                                <option value="3">벌크 3호통</option>
+                                                <option value="4A">벌크 4A호통</option>
+                                                <option value="4B">벌크 4B호통</option>
+                                                <option value="5">벌크 5호통</option>
+                                                <option value="6">벌크 6호통</option>
+                                                <option value="7">벌크 7호통</option>
+                                                <option value="8">벌크 8호통</option>
+                                                <option value="9">벌크 9호통</option>
+                                                <option value="10">벌크 10호통</option>
+                                                <option value="11">벌크 11호통</option>
+                                                <option value="12">벌크 12호통</option>
+                                                <option value="13">벌크 13호통</option>
+                                            </select>
+                                            <div class="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none">
+                                                <Container className="w-4.5 h-4.5" />
+                                            </div>
+                                            <div class="absolute right-3.5 top-3.5 text-slate-500 pointer-events-none">
+                                                <ChevronDown className="w-4.5 h-4.5" />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Feed Quantity (Manual Input, fixed unit: 톤, 소수점 한자리) */}
+                                    <div>
+                                        <label class="block text-sm font-semibold text-slate-700 mb-2">사료 주문량 (톤) <span class="text-rose-500">*</span></label>
+                                        <div class="flex gap-2">
+                                            <input 
+                                                type="number" 
+                                                step="0.1" 
+                                                min="0.1" 
+                                                value={quantity}
+                                                onChange={e => setQuantity(e.target.value)}
+                                                required 
+                                                placeholder="예: 3.5"
+                                                class="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-amber-500 transition-all text-lg font-bold text-slate-800"
+                                            />
+                                            <span class="flex items-center justify-center px-4 bg-slate-100 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 min-w-[3.5rem]">
+                                                톤
+                                            </span>
+                                        </div>
+                                        <p class="text-[11px] text-slate-400 mt-1.5">* 수기 입력이 가능합니다. 소수점 한 자리까지 계산됩니다. (예: 5.2)</p>
+                                    </div>
+                                </div>
+
+                                {/* Buttons */}
+                                <div class="flex gap-3 pt-2">
+                                    {editingOrderId && (
+                                        <button 
+                                            type="button" 
+                                            onClick={resetForm} 
+                                            class="flex-1 py-3.5 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl text-sm font-semibold transition-all"
+                                        >
+                                            수정 취소
+                                        </button>
+                                    )}
+                                    <button 
+                                        type="submit" 
+                                        class={`flex-[2] text-white font-bold py-3.5 px-6 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${editingOrderId ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-amber-600 hover:bg-amber-700'}`}
+                                    >
+                                        <PlusCircle className="w-5 h-5" />
+                                        <span>{editingOrderId ? '사료 주문서 정보 수정' : '사료 주문서 저장'}</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </section>
+
+                        {/* Bottom Section (Dashboard Style Grid Layout) */}
+                        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                            
+                            {/* Left Sidebar: Order Summary Statistics (Excel Style) */}
+                            <section class="lg:col-span-5 bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 space-y-4">
+                                <div class="flex items-center gap-2 border-b border-slate-100 pb-3">
+                                    <Calculator className="text-slate-600 w-5 h-5" />
+                                    <h2 class="text-lg font-bold text-slate-800">주문 합산 요약 (집계표)</h2>
+                                </div>
+
+                                {/* Excel Sheet Table for Summary */}
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs font-mono excel-table border-collapse text-slate-700">
+                                        <thead>
+                                            <tr class="text-center font-bold">
+                                                <th class="p-2.5 w-1/2">구분 (사료)</th>
+                                                <th class="p-2.5 w-1/2 text-right">수량 (톤)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td class="p-2 bg-slate-50/50 font-sans font-semibold text-center">젖돈</td>
+                                                <td class="p-2 text-right font-bold text-blue-600">{summaryStats['젖돈'].toFixed(1)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="p-2 bg-slate-50/50 font-sans font-semibold text-center">육성</td>
+                                                <td class="p-2 text-right font-bold text-emerald-600">{summaryStats['육성'].toFixed(1)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="p-2 bg-slate-50/50 font-sans font-semibold text-center">임신</td>
+                                                <td class="p-2 text-right font-bold text-purple-600">{summaryStats['임신'].toFixed(1)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="p-2 bg-slate-50/50 font-sans font-semibold text-center">포유</td>
+                                                <td class="p-2 text-right font-bold text-pink-600">{summaryStats['포유'].toFixed(1)}</td>
+                                            </tr>
+                                            <tr>
+                                                <td class="p-2 bg-slate-50/50 font-sans font-semibold text-center">후보돈</td>
+                                                <td class="p-2 text-right font-bold text-amber-600">{summaryStats['후보돈'].toFixed(1)}</td>
+                                            </tr>
+                                            <tr class="bg-amber-50/30 border-t-2 border-b-4 border-double border-slate-400 font-bold">
+                                                <td class="p-2.5 font-sans text-center text-slate-900">전체 합계 (Total)</td>
+                                                <td class="p-2.5 text-right text-lg text-slate-950">{summaryStats.total.toFixed(1)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+
+                            {/* Right Column: Registered Order Lists (Excel Spreadsheet Style) */}
+                            <section class="lg:col-span-7 bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 space-y-4">
+                                <div class="flex justify-between items-center border-b border-slate-100 pb-3">
+                                    <div class="flex items-center gap-2">
+                                        <Table className="text-slate-600 w-5 h-5" />
+                                        <h2 class="text-lg font-bold text-slate-800">등록된 주문 (<span id="orderCount">{orders.length}</span>건)</h2>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <button 
+                                            onClick={() => {
+                                                if(orders.length === 0) {
+                                                    showToast("❌ 전송할 주문서가 없습니다.", "bg-amber-600");
+                                                    return;
+                                                }
+                                                setShowShareModal(true);
+                                            }} 
+                                            class="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                                        >
+                                            <MessageSquare className="w-3.5 h-3.5" /> 카톡 전송
+                                        </button>
+                                        <button 
+                                            onClick={handleClearAllClick} 
+                                            class="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors flex items-center gap-1"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" /> 전체 삭제
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Excel Sheet Style List Container */}
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-xs font-mono excel-table border-collapse text-slate-700 min-w-[500px]">
+                                        <thead>
+                                            <tr class="text-center font-bold">
+                                                <th class="p-2 w-12 bg-slate-100">No.</th>
+                                                <th class="p-2 w-32 bg-slate-100">주문 일시</th>
+                                                <th class="p-2 w-24 bg-slate-100">사료 종류</th>
+                                                <th class="p-2 w-28 bg-slate-100">벌크통 번호</th>
+                                                <th class="p-2 w-28 bg-slate-100 text-right">주문량 (톤)</th>
+                                                <th class="p-2 w-20 bg-slate-100">관리</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {orders.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="6" className="p-8 text-center text-slate-400">
+                                                        저장된 주문 내역이 없습니다.
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                orders.map((order, index) => {
+                                                    const rowNo = orders.length - index;
+                                                    return (
+                                                        <tr key={order.id} class="hover:bg-slate-50 transition-all font-mono text-xs text-slate-800">
+                                                            <td class="p-2.5 text-center bg-slate-50/70 font-bold border border-slate-300 text-slate-500">{rowNo}</td>
+                                                            <td class="p-2.5 text-center border border-slate-300 text-slate-500 font-sans">{order.date}</td>
+                                                            <td class="p-2.5 text-center font-sans font-bold border border-slate-300 text-slate-900">{order.feedType}</td>
+                                                            <td class="p-2.5 text-center font-sans font-bold border border-slate-300 text-amber-700">벌크 {order.bulkBin}호</td>
+                                                            <td class="p-2.5 text-right font-bold border border-slate-300 text-slate-950">{parseFloat(order.quantity).toFixed(1)} 톤</td>
+                                                            <td class="p-1.5 text-center border border-slate-300">
+                                                                <div class="flex justify-center gap-1">
+                                                                    <button onClick={() => handleEditClick(order)} title="수정" class="p-1 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-300 rounded transition-all">
+                                                                        <Edit3 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    <button onClick={() => handleDeleteClick(order.id)} title="삭제" class="p-1 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-300 rounded transition-all">
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
+
+                        {/* Calendar Section Trigger Panel */}
+                        <section class="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex flex-col items-center justify-center gap-4">
+                            <button 
+                                type="button" 
+                                onClick={() => setShowCalendarModal(true)} 
+                                class="w-full sm:w-auto bg-slate-800 hover:bg-slate-950 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg transition-all flex items-center justify-center gap-3 animate-pulse"
+                            >
+                                <CalendarRange className="w-5 h-5 text-amber-400" />
+                                <span>📅 당월 주문 내역 (달력 보기)</span>
+                            </button>
+                        </section>
+                    </div>
+
+                    {/* KakaoTalk Sharing Modal */}
+                    {showShareModal && (
+                        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden transform scale-100 transition-all duration-300">
+                                <div class="bg-amber-500 p-5 text-slate-950 flex justify-between items-center">
+                                    <div class="flex items-center gap-2 font-bold text-base">
+                                        <Send className="w-5 h-5" />
+                                        성암농장 카카오톡 주문서 전송
+                                    </div>
+                                    <button onClick={() => setShowShareModal(false)} class="text-slate-900 hover:text-black hover:bg-white/20 p-1.5 rounded-lg transition-all">
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <div class="p-6 space-y-4 flex-1">
+                                    <p class="text-xs text-slate-500 font-semibold leading-relaxed">
+                                        등록된 사료 주문 집계를 문자나 카카오톡 기사님에게 전달하는 양식입니다. 아래 전송 방식을 선택해 보세요.
+                                    </p>
+
+                                    <div class="space-y-1.5">
+                                        <label class="block text-xs font-bold text-slate-700">전송 메시지 실시간 미리보기</label>
+                                        <div class="w-full bg-stone-50 border border-stone-200 text-stone-800 p-4 rounded-xl text-xs font-mono h-56 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
+                                            {generatedKakaoText}
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1.5">인사말 / 서명 추가</label>
+                                        <input 
+                                            type="text" 
+                                            value={shareNote} 
+                                            onChange={e => setShareNote(e.target.value)}
+                                            placeholder="예: 성암농장 배송 부탁드립니다."
+                                            class="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="bg-slate-50 p-4 border-t border-slate-100 flex flex-col gap-2">
+                                    <button onClick={sendNativeShare} class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-all">
+                                        <Share2 className="w-4 h-4" />
+                                        모바일 카톡/메시지 직접 전송하기
+                                    </button>
+                                    <div class="flex gap-2">
+                                        <button onClick={copyShareText} class="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all">
+                                            <Copy className="w-4 h-4" />
+                                            텍스트 복사 후 카톡 열기
+                                        </button>
+                                        <button onClick={() => setShowShareModal(false)} class="bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold py-3 px-4 rounded-xl text-xs transition-all">
+                                            닫기
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Calendar Popup Modal */}
+                    {showCalendarModal && (
+                        <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden transform scale-100 transition-all duration-300 max-h-[90vh]">
+                                <div class="bg-slate-800 p-5 text-white flex justify-between items-center">
+                                    <div class="flex items-center gap-2 font-bold text-base">
+                                        <CalendarRange className="w-5 h-5 text-amber-400" />
+                                        <span>{new Date().getFullYear()}년 {new Date().getMonth() + 1}월 달력 일정표</span>
+                                    </div>
+                                    <button onClick={() => setShowCalendarModal(false)} class="text-slate-300 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-all">
+                                        <X className="w-5 h-5" />
+                                    </button>
+                                </div>
+
+                                <div class="p-6 space-y-4 overflow-y-auto flex-1">
+                                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-slate-100 pb-4">
+                                        <p class="text-xs text-slate-500 font-semibold">각 날짜별 사료 주문량이 배지 형태로 요약 노출됩니다.</p>
+                                        <div class="bg-amber-500/10 border border-amber-500/20 text-amber-950 px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 self-start sm:self-auto">
+                                            <span>당월 주문량 총합: <span class="text-base text-amber-600 font-black">{calendarDaysData.currentMonthTotal.toFixed(1)}</span> 톤</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Weeks Header */}
+                                    <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs bg-slate-100 rounded-lg p-2 mb-2 text-slate-600">
+                                        <div class="text-rose-500">일</div>
+                                        <div>월</div>
+                                        <div>화</div>
+                                        <div>수</div>
+                                        <div>목</div>
+                                        <div>금</div>
+                                        <div class="text-blue-500">토</div>
+                                    </div>
+
+                                    {/* Cells Grid */}
+                                    <div class="grid grid-cols-7 gap-1 md:gap-2">
+                                        {calendarDaysData.cells.map((cell, idx) => {
+                                            if (cell.isEmpty) {
+                                                return <div key={`empty-${idx}`} class="bg-slate-50 border border-slate-200/50 min-h-[5.5rem] rounded-xl opacity-30"></div>;
+                                            }
+
+                                            let dayLabelColor = 'text-slate-800';
+                                            if (cell.dayOfWeek === 0) dayLabelColor = 'text-rose-500';
+                                            if (cell.dayOfWeek === 6) dayLabelColor = 'text-blue-500';
+
+                                            const badgeColors = {
+                                                '젖돈': 'bg-blue-100 text-blue-700 border-blue-200',
+                                                '육성': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+                                                '임신': 'bg-purple-100 text-purple-700 border-purple-200',
+                                                '포유': 'bg-pink-100 text-pink-700 border-pink-200',
+                                                '후보돈': 'bg-amber-100 text-amber-700 border-amber-200'
+                                            };
+
+                                            return (
+                                                <div 
+                                                    key={`day-${cell.dayNum}`} 
+                                                    class={`border border-slate-200 rounded-xl min-h-[5.5rem] flex flex-col justify-between p-1.5 md:p-2.5 transition-all hover:border-slate-400 ${cell.isToday ? 'ring-2 ring-amber-500 bg-amber-50/20' : 'bg-white'}`}
+                                                >
+                                                    <div class="flex justify-between items-center">
+                                                        <span class={`text-xs font-black font-mono ${dayLabelColor}`}>{cell.dayNum}</span>
+                                                        {cell.dayTotal > 0 && (
+                                                            <span class="bg-slate-900 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full scale-90">
+                                                                {cell.dayTotal.toFixed(1)}t
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    <div class="space-y-1 mt-1.5 flex-1 flex flex-col justify-end">
+                                                        {cell.badges.map((badge, bIdx) => (
+                                                            <div key={bIdx} class={`px-1 py-0.5 rounded text-[9px] font-sans font-black flex justify-between items-center border ${badgeColors[badge.type] || 'bg-slate-100 text-slate-700'}`}>
+                                                                <span>{badge.type}</span>
+                                                                <span>{badge.qty.toFixed(1)}t</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                <div class="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
+                                    <button onClick={() => setShowCalendarModal(false)} class="bg-slate-800 hover:bg-slate-950 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition-all">
+                                        닫기
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
