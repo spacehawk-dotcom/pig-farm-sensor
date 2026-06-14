@@ -53,6 +53,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo, useRef } = React;
 
+        // --- 내장 SVG 아이콘 컴포넌트 ---
         const Container = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="12" x="2" y="6" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/></svg>;
         const PenTool = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
         const CalendarIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>;
@@ -61,7 +62,7 @@
         const ChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6"/></svg>;
         const PlusCircle = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
         const Calculator = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
-        const TableIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3v18"/><path d="M3 12h18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>;
+        const Table = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3v18"/><path d="M3 12h18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>;
         const MessageSquare = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
         const Trash2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
         const Edit3 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
@@ -72,6 +73,7 @@
         const Copy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
         const Timer = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>;
 
+        // --- 성암농장 실제 Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
             authDomain: "sungamfarm.firebaseapp.com",
@@ -81,13 +83,17 @@
             appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
         };
 
+        // Firebase 초기화
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
         const auth = firebase.auth();
         const db = firebase.firestore();
+
+        // 성암농장 사료 주문 컬렉션 경로
         const FEED_ORDERS_COLLECTION_PATH = 'farms/sungamfarm/feed_orders';
 
+        // 알림창 컴포넌트
         const CustomAlert = ({ message, onClose }) => (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
@@ -105,6 +111,7 @@
             </div>
         );
 
+        // 확인창 컴포넌트
         const CustomConfirm = ({ message, onConfirm, onCancel }) => (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
@@ -135,26 +142,26 @@
             const [orders, setOrders] = useState([]);
             const [loading, setLoading] = useState(true);
 
-            // 알림 상태
+            // 알림 및 확인 상태 관리
             const [alertMsg, setAlertMsg] = useState(null);
             const [confirmConfig, setConfirmConfig] = useState(null);
-            const [toastConfig, setToastConfig] = useState({ show: false, message: '', bgColor: 'bg-slate-900' });
 
-            // 폼 입력 상태
+            // UI 폼 입력 상태 관리
             const [feedType, setFeedType] = useState('젖돈');
             const [bulkBin, setBulkBin] = useState('1');
             const [quantity, setQuantity] = useState('');
             const [editingOrderId, setEditingOrderId] = useState(null);
 
-            // 모달 및 달력, 공유 상태
+            // 모달 상태 및 카카오톡 전송 상태
             const [showShareModal, setShowShareModal] = useState(false);
             const [showCalendarModal, setShowCalendarModal] = useState(false);
-            const [shareNote, setShareNote] = useState('내일 첫차 배송 부탁드립니다.');
+            const [shareNote, setShareNote] = useState('');
             
+            // 달력 네비게이션 제어용 상태 (이전/다음 달 이동을 위해 현재 연도/월 추적)
             const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
             const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
 
-            // 헬퍼 함수
+            // 알림 도우미 함수
             const showAlert = (message) => setAlertMsg(message);
             const showConfirm = (message, onConfirm) => {
                 setConfirmConfig({
@@ -163,6 +170,9 @@
                     onCancel: () => setConfirmConfig(null)
                 });
             };
+
+            // 토스트 상태 알림 창
+            const [toastConfig, setToastConfig] = useState({ show: false, message: '', bgColor: 'bg-slate-900' });
             const showToast = (message, bgColor = 'bg-slate-900') => {
                 setToastConfig({ show: true, message, bgColor });
                 setTimeout(() => {
@@ -170,6 +180,7 @@
                 }, 3000);
             };
 
+            // 1. Firebase 익명 로그인 및 상태 트래킹
             useEffect(() => {
                 auth.signInAnonymously().catch(err => {
                     console.warn("익명 로그인 실패:", err);
@@ -183,6 +194,7 @@
                 return () => unsubscribeAuth();
             }, []);
 
+            // 2. Firestore 실시간 사료 주문 데이터 스트림 연동
             useEffect(() => {
                 if (!user) return;
 
@@ -194,6 +206,7 @@
                                 return data ? { id: doc.id, ...data } : null;
                             }).filter(Boolean);
 
+                            // 정렬: 최신 날짜순 정렬 (기본)
                             ordersData.sort((a, b) => b.date.localeCompare(a.date));
                             setOrders(ordersData);
                             setLoading(false);
@@ -207,7 +220,7 @@
                 return () => unsubscribeOrders();
             }, [user]);
 
-            // 오늘 날짜 포맷
+            // 오늘 날짜 한글 요일 계산 포맷팅
             const todayDateString = useMemo(() => {
                 const today = new Date();
                 const year = today.getFullYear();
@@ -218,16 +231,39 @@
                 return `${year}년 ${month}월 ${day}일 (${weekDay})`;
             }, []);
 
-            // 총계 데이터
-            const summaryStats = useMemo(() => {
-                const stats = { '젖돈': 0, '육성': 0, '임신': 0, '포유': 0, '후보돈': 0, 'total': 0 };
+            // 당일 날짜 짧은 포맷 (예: 6월 14일)
+            const todayShort = useMemo(() => {
+                const today = new Date();
+                return `${today.getMonth() + 1}월 ${today.getDate()}일`;
+            }, []);
+
+            // 사료 종류별 합산 통계 산출 (오직 '당일' 주문 내역만 합산되도록 변경)
+            const dailySummaryStats = useMemo(() => {
+                const stats = {
+                    '젖돈': 0,
+                    '육성': 0,
+                    '임신': 0,
+                    '포유': 0,
+                    '후보돈': 0,
+                    'total': 0
+                };
+                
+                // 오늘 날짜 포맷 (YYYY-MM-DD) 추출
+                const today = new Date();
+                const targetDayPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
                 orders.forEach(order => {
-                    const q = parseFloat(order.quantity) || 0;
-                    if (stats[order.feedType] !== undefined) {
-                        stats[order.feedType] += q;
+                    // 당일 날짜로 시작하는 주문만 합산에 포함
+                    if (order.date.startsWith(targetDayPrefix)) {
+                        const q = parseFloat(order.quantity) || 0;
+                        if (stats[order.feedType] !== undefined) {
+                            stats[order.feedType] += q;
+                        }
+                        stats.total += q;
                     }
-                    stats.total += q;
                 });
+
+                // 소수점 1자리 고정 반환
                 return {
                     '젖돈': parseFloat(stats['젖돈'].toFixed(1)),
                     '육성': parseFloat(stats['육성'].toFixed(1)),
@@ -238,51 +274,201 @@
                 };
             }, [orders]);
 
-            // 카카오톡 텍스트 자동 완성
+            // --- 데이터베이스 핸들러 작성 ---
+            // 주문서 신규 제출 및 수정 처리
+            const handleSubmitOrder = async (e) => {
+                e.preventDefault();
+                if (!user) return;
+
+                const qVal = parseFloat(quantity);
+                if (!feedType || !bulkBin || isNaN(qVal) || qVal <= 0) {
+                    showAlert("모든 값을 올바르게 기입해 주세요.");
+                    return;
+                }
+
+                const now = new Date();
+                const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+                try {
+                    if (editingOrderId) {
+                        // 수정 모드
+                        await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(editingOrderId).update({
+                            feedType,
+                            bulkBin,
+                            quantity: qVal,
+                            date: dateString + " (수정됨)"
+                        });
+                        showToast("📝 사료 주문서가 성공적으로 수정되었습니다.", "bg-amber-600");
+                        setEditingOrderId(null);
+                    } else {
+                        // 신규 저장 모드
+                        await db.collection(FEED_ORDERS_COLLECTION_PATH).add({
+                            feedType,
+                            bulkBin,
+                            quantity: qVal,
+                            unit: '톤',
+                            date: dateString
+                        });
+                        showToast("✨ 새 사료 주문이 등록되어 요약 합계에 반영되었습니다!", "bg-emerald-600");
+                    }
+                    resetForm();
+                } catch (err) {
+                    console.error("주문 저장 실패:", err);
+                    showAlert("데이터 저장 실패: " + err.message);
+                }
+            };
+
+            // 수정 모드 실행 트리거
+            const handleEditClick = (order) => {
+                setEditingOrderId(order.id);
+                setFeedType(order.feedType);
+                setBulkBin(order.bulkBin);
+                setQuantity(order.quantity);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                showToast("✏️ 주문 정보 수정 상태입니다.", "bg-indigo-600");
+            };
+
+            // 단일 항목 삭제
+            const handleDeleteClick = (id) => {
+                showConfirm("이 사료 주문 내역을 삭제하시겠습니까?", async () => {
+                    try {
+                        await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(id).delete();
+                        showToast("🗑️ 주문 내역이 완전히 삭제되었습니다.", "bg-slate-700");
+                        if (editingOrderId === id) resetForm();
+                    } catch (err) {
+                        showAlert("삭제 실패: " + err.message);
+                    }
+                });
+            };
+
+            // 전체 삭제 처리
+            const handleClearAllClick = () => {
+                if (orders.length === 0) return;
+                showConfirm("정말로 모든 사료 주문 기록을 초기화하시겠습니까?", async () => {
+                    try {
+                        const batch = db.batch();
+                        const snapshot = await db.collection(FEED_ORDERS_COLLECTION_PATH).get();
+                        snapshot.docs.forEach(doc => {
+                            batch.delete(doc.ref);
+                        });
+                        await batch.commit();
+                        showToast("🗑️ 모든 사료 기록이 초기화되었습니다.", "bg-rose-700");
+                        resetForm();
+                    } catch (err) {
+                        showAlert("초기화 실패: " + err.message);
+                    }
+                });
+            };
+
+            // 입력 폼 리셋
+            const resetForm = () => {
+                setEditingOrderId(null);
+                setFeedType('젖돈');
+                setBulkBin('1');
+                setQuantity('');
+            };
+
+            // 카카오톡 텍스트 자동 제너레이터 (당일 주문 기준 집계)
             const generatedKakaoText = useMemo(() => {
                 if (orders.length === 0) return "현재 등록된 사료 주문서 내역이 없습니다.";
 
-                const today = new Date();
-                const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                let text = `[성암농장 ${todayShort} 사료 주문서]\n\n`;
 
-                let text = `[성암농장 사료 주문서]\n`;
-                text += `발송일자: ${dateStr}\n\n`;
-
-                text += `■ 주문 요약 (집계표)\n`;
+                text += `■ 당일 사료 주문 합계\n`;
                 text += `-------------------------\n`;
-                Object.keys(summaryStats).forEach(type => {
-                    if (type !== 'total' && summaryStats[type] > 0) {
-                        text += `- ${type}: ${summaryStats[type].toFixed(1)} 톤\n`;
+                Object.keys(dailySummaryStats).forEach(type => {
+                    if (type !== 'total' && dailySummaryStats[type] > 0) {
+                        text += `- ${type}: ${dailySummaryStats[type].toFixed(1)} 톤\n`;
                     }
                 });
                 text += `-------------------------\n`;
-                text += `★ 총 수량합계: ${summaryStats.total.toFixed(1)} 톤\n\n`;
+                text += `★ 당일 총 주문 수량: ${dailySummaryStats.total.toFixed(1)} 톤\n\n`;
 
-                text += `■ 벌크통별 상세 주문\n`;
-                orders.forEach((order, idx) => {
-                    const num = orders.length - idx;
-                    text += `${num}. 벌크 ${order.bulkBin}호통 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
-                });
+                text += `■ 발주 상세 목록 (당일)\n`;
+                
+                // 당일에 해당하는 주문만 필터하여 텍스트에 삽입
+                const today = new Date();
+                const targetDayPrefix = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                const dailyOrders = orders.filter(o => o.date.startsWith(targetDayPrefix));
 
-                text += `\n-------------------------\n`;
-                text += `${shareNote}`;
+                if (dailyOrders.length === 0) {
+                    text += `- 당일 등록된 상세 내역 없음\n`;
+                } else {
+                    dailyOrders.forEach((order, idx) => {
+                        // 일자만 짧게 표시 (예: 6월 13일)
+                        const shortDate = order.date.substring(5, 10).replace('-', '월 ') + '일';
+                        text += `[${shortDate}] 벌크 ${order.bulkBin}호통 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
+                    });
+                }
+
+                if (shareNote.trim() !== '') {
+                    text += `\n-------------------------\n`;
+                    text += `${shareNote}`;
+                }
 
                 return text;
-            }, [orders, summaryStats, shareNote]);
+            }, [orders, dailySummaryStats, shareNote, todayShort]);
 
-            // 달력 데이터 생성
+            // 모바일 네이티브 다이렉트 전송
+            const sendNativeShare = async () => {
+                if (navigator.share) {
+                    try {
+                        await navigator.share({
+                            title: '성암농장 사료 주문서',
+                            text: generatedKakaoText
+                        });
+                        showToast('💬 주문서 공유가 성공적으로 완료되었습니다.', 'bg-emerald-600');
+                        setShowShareModal(false);
+                    } catch (err) {
+                        if (err.name !== 'AbortError') {
+                            showToast('공유가 중단되었습니다.');
+                        }
+                    }
+                } else {
+                    copyShareText();
+                }
+            };
+
+            // 클립보드 강제 우회 복사
+            const copyShareText = () => {
+                const tempTextArea = document.createElement("textarea");
+                tempTextArea.value = generatedKakaoText;
+                tempTextArea.style.position = "fixed";
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                tempTextArea.setSelectionRange(0, 99999);
+
+                try {
+                    const successful = document.execCommand('copy');
+                    if (successful) {
+                        showToast('📋 주문서가 클립보드에 복사되었습니다! 카톡을 실행합니다.', 'bg-indigo-600');
+                        setTimeout(() => {
+                            window.location.href = "kakaolink://";
+                        }, 800);
+                    } else {
+                        showToast('❌ 복사에 실패했습니다.', 'bg-rose-600');
+                    }
+                } catch (err) {
+                    showToast('❌ 클립보드를 지원하지 않는 환경입니다.', 'bg-rose-600');
+                }
+                document.body.removeChild(tempTextArea);
+            };
+
+            // 달력 렌더링용 변수 연산 (이전 달 / 다음 달 동적 반영)
             const calendarDaysData = useMemo(() => {
-                const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay(); 
-                const totalDaysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate(); 
+                const firstDayIndex = new Date(calendarYear, calendarMonth, 1).getDay(); // 시작 요일
+                const totalDaysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate(); // 해당 월의 총 일수
                 const today = new Date();
 
                 const cells = [];
                 let currentMonthTotal = 0;
 
+                // 1. 앞쪽 공백 처리
                 for (let i = 0; i < firstDayIndex; i++) {
                     cells.push({ isEmpty: true });
                 }
 
+                // 2. 일별 데이터 매핑 루프
                 for (let day = 1; day <= totalDaysInMonth; day++) {
                     const dayStr = String(day).padStart(2, '0');
                     const compareDateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${dayStr}`;
@@ -314,194 +500,7 @@
                 return { cells, currentMonthTotal };
             }, [orders, calendarYear, calendarMonth]);
 
-            // 예측 데이터 생성
-            const binPredictions = useMemo(() => {
-                if (orders.length === 0) return [];
-                const grouped = {};
-                orders.forEach(o => {
-                    if (!grouped[o.bulkBin]) grouped[o.bulkBin] = [];
-                    grouped[o.bulkBin].push(o);
-                });
-
-                const predictions = [];
-                const today = new Date();
-                today.setHours(0,0,0,0);
-
-                Object.keys(grouped).forEach(bin => {
-                    const binOrders = grouped[bin].sort((a, b) => {
-                        const da = new Date(a.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        const db = new Date(b.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        return da - db;
-                    });
-
-                    if (binOrders.length >= 2) {
-                        const lastOrder = binOrders[binOrders.length - 1]; 
-                        const prevOrder = binOrders[binOrders.length - 2]; 
-
-                        const t1 = new Date(prevOrder.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        const t2 = new Date(lastOrder.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        t1.setHours(0,0,0,0);
-                        t2.setHours(0,0,0,0);
-
-                        const diffTime = t2.getTime() - t1.getTime();
-                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-                        if (diffDays > 0) {
-                            const prevQty = parseFloat(prevOrder.quantity);
-                            const lastQty = parseFloat(lastOrder.quantity);
-                            const dailyUsage = prevQty / diffDays;
-                            const expectedDays = Math.ceil(lastQty / dailyUsage);
-
-                            const nextDate = new Date(t2);
-                            nextDate.setDate(nextDate.getDate() + expectedDays);
-
-                            const remainTime = nextDate.getTime() - today.getTime();
-                            const remainDays = Math.ceil(remainTime / (1000 * 60 * 60 * 24));
-
-                            predictions.push({
-                                bin,
-                                feedType: lastOrder.feedType,
-                                dailyUsage,
-                                nextDate,
-                                remainDays,
-                                expectedDays
-                            });
-                        }
-                    }
-                });
-
-                return predictions.sort((a, b) => a.remainDays - b.remainDays);
-            }, [orders]);
-
-            const handleSubmitOrder = async (e) => {
-                e.preventDefault();
-                if (!user) return;
-
-                const qVal = parseFloat(quantity);
-                if (!feedType || !bulkBin || isNaN(qVal) || qVal <= 0) {
-                    showAlert("모든 값을 올바르게 기입해 주세요.");
-                    return;
-                }
-
-                const now = new Date();
-                const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
-                try {
-                    if (editingOrderId) {
-                        await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(editingOrderId).update({
-                            feedType,
-                            bulkBin,
-                            quantity: qVal,
-                            date: dateString + " (수정됨)"
-                        });
-                        showToast("📝 사료 주문서가 성공적으로 수정되었습니다.", "bg-amber-600");
-                        setEditingOrderId(null);
-                    } else {
-                        await db.collection(FEED_ORDERS_COLLECTION_PATH).add({
-                            feedType,
-                            bulkBin,
-                            quantity: qVal,
-                            unit: '톤',
-                            date: dateString
-                        });
-                        showToast("✨ 새 사료 주문이 등록되어 요약 합계에 반영되었습니다!", "bg-emerald-600");
-                    }
-                    resetForm();
-                } catch (err) {
-                    console.error("주문 저장 실패:", err);
-                    showAlert("데이터 저장 실패: " + err.message);
-                }
-            };
-
-            const handleEditClick = (order) => {
-                setEditingOrderId(order.id);
-                setFeedType(order.feedType);
-                setBulkBin(order.bulkBin);
-                setQuantity(order.quantity);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-                showToast("✏️ 주문 정보 수정 상태입니다.", "bg-indigo-600");
-            };
-
-            const handleDeleteClick = (id) => {
-                showConfirm("이 사료 주문 내역을 삭제하시겠습니까?", async () => {
-                    try {
-                        await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(id).delete();
-                        showToast("🗑️ 주문 내역이 완전히 삭제되었습니다.", "bg-slate-700");
-                        if (editingOrderId === id) resetForm();
-                    } catch (err) {
-                        showAlert("삭제 실패: " + err.message);
-                    }
-                });
-            };
-
-            const handleClearAllClick = () => {
-                if (orders.length === 0) return;
-                showConfirm("정말로 모든 사료 주문 기록을 초기화하시겠습니까?", async () => {
-                    try {
-                        const batch = db.batch();
-                        const snapshot = await db.collection(FEED_ORDERS_COLLECTION_PATH).get();
-                        snapshot.docs.forEach(doc => {
-                            batch.delete(doc.ref);
-                        });
-                        await batch.commit();
-                        showToast("🗑️ 모든 사료 기록이 초기화되었습니다.", "bg-rose-700");
-                        resetForm();
-                    } catch (err) {
-                        showAlert("초기화 실패: " + err.message);
-                    }
-                });
-            };
-
-            const resetForm = () => {
-                setEditingOrderId(null);
-                setFeedType('젖돈');
-                setBulkBin('1');
-                setQuantity('');
-            };
-
-            const sendNativeShare = async () => {
-                if (navigator.share) {
-                    try {
-                        await navigator.share({
-                            title: '성암농장 사료 주문서',
-                            text: generatedKakaoText
-                        });
-                        showToast('💬 주문서 공유가 성공적으로 완료되었습니다.', 'bg-emerald-600');
-                        setShowShareModal(false);
-                    } catch (err) {
-                        if (err.name !== 'AbortError') {
-                            showToast('공유가 중단되었습니다.');
-                        }
-                    }
-                } else {
-                    copyShareText();
-                }
-            };
-
-            const copyShareText = () => {
-                const tempTextArea = document.createElement("textarea");
-                tempTextArea.value = generatedKakaoText;
-                tempTextArea.style.position = "fixed";
-                document.body.appendChild(tempTextArea);
-                tempTextArea.select();
-                tempTextArea.setSelectionRange(0, 99999);
-
-                try {
-                    const successful = document.execCommand('copy');
-                    if (successful) {
-                        showToast('📋 주문서가 클립보드에 복사되었습니다! 카톡을 실행합니다.', 'bg-indigo-600');
-                        setTimeout(() => {
-                            window.location.href = "kakaolink://";
-                        }, 800);
-                    } else {
-                        showToast('❌ 복사에 실패했습니다.', 'bg-rose-600');
-                    }
-                } catch (err) {
-                    showToast('❌ 클립보드를 지원하지 않는 환경입니다.', 'bg-rose-600');
-                }
-                document.body.removeChild(tempTextArea);
-            };
-
+            // 캘린더 달력 이동 컨트롤러
             const handlePrevMonth = () => {
                 if (calendarMonth === 0) {
                     setCalendarMonth(11);
@@ -520,6 +519,71 @@
                 }
             };
 
+            // --- 🔔 벌크통 사료 소진 및 주문 예측 알고리즘 ---
+            const binPredictions = useMemo(() => {
+                if (orders.length === 0) return [];
+
+                const grouped = {};
+                orders.forEach(o => {
+                    if (!grouped[o.bulkBin]) grouped[o.bulkBin] = [];
+                    grouped[o.bulkBin].push(o);
+                });
+
+                const predictions = [];
+                const today = new Date();
+                today.setHours(0,0,0,0);
+
+                Object.keys(grouped).forEach(bin => {
+                    // 날짜 오름차순 정렬 (오래된 순)
+                    const binOrders = grouped[bin].sort((a, b) => {
+                        const da = new Date(a.date.replace(' (수정됨)', '').replace(/-/g, '/'));
+                        const db = new Date(b.date.replace(' (수정됨)', '').replace(/-/g, '/'));
+                        return da - db;
+                    });
+
+                    // 최소 2건 이상의 주문 기록이 있어야 일수 계산 가능
+                    if (binOrders.length >= 2) {
+                        const lastOrder = binOrders[binOrders.length - 1]; // 가장 최근 주문
+                        const prevOrder = binOrders[binOrders.length - 2]; // 직전 주문
+
+                        const t1 = new Date(prevOrder.date.replace(' (수정됨)', '').replace(/-/g, '/'));
+                        const t2 = new Date(lastOrder.date.replace(' (수정됨)', '').replace(/-/g, '/'));
+                        
+                        t1.setHours(0,0,0,0);
+                        t2.setHours(0,0,0,0);
+
+                        let diffDays = Math.ceil((t2.getTime() - t1.getTime()) / (1000 * 60 * 60 * 24));
+                        
+                        // 테스트 시 당일 다중 입력을 위한 보정 (동일 날짜 입력 시 1일 경과로 산주)
+                        if (diffDays <= 0) diffDays = 1; 
+
+                        const prevQty = parseFloat(prevOrder.quantity);
+                        const lastQty = parseFloat(lastOrder.quantity);
+                        
+                        const dailyUsage = prevQty / diffDays;
+                        const expectedDays = Math.ceil(lastQty / dailyUsage);
+
+                        const nextDate = new Date(t2);
+                        nextDate.setDate(nextDate.getDate() + expectedDays);
+
+                        const remainTime = nextDate.getTime() - today.getTime();
+                        const remainDays = Math.ceil(remainTime / (1000 * 60 * 60 * 24));
+
+                        predictions.push({
+                            bin,
+                            feedType: lastOrder.feedType,
+                            dailyUsage,
+                            nextDate,
+                            remainDays,
+                            expectedDays
+                        });
+                    }
+                });
+
+                // 임박한 순서대로 정렬 (남은 일수가 적은 순)
+                return predictions.sort((a, b) => a.remainDays - b.remainDays);
+            }, [orders]);
+
             if (loading) {
                 return (
                     <div className="flex items-center justify-center h-screen bg-stone-100">
@@ -531,11 +595,11 @@
             return (
                 <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
                     
-                    {/* 최상단 알림 모달 */}
+                    {/* 모달 노출 제어 */}
                     {alertMsg && <CustomAlert message={alertMsg} onClose={() => setAlertMsg(null)} />}
                     {confirmConfig && <CustomConfirm message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} />}
 
-                    {/* 실시간 알림 토스트 박스 */}
+                    {/* 실시간 알림 토스트 */}
                     <div className={`fixed bottom-6 right-6 z-[100] text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2.5 transition-all duration-300 transform ${toastConfig.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'} ${toastConfig.bgColor}`}>
                         <span>✔️</span>
                         <span className="text-sm font-medium">{toastConfig.message}</span>
@@ -552,40 +616,37 @@
                                 <p className="text-sm text-slate-500 mt-0.5">사료 벌크통 잔량 관리 및 주문 예약 시스템</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100">
-                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                실시간 작동 중
-                            </div>
+                        <div className="flex items-center gap-2 text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                            실시간 작동 중
                         </div>
                     </header>
 
-                    {/* Main Content Layout */}
-                    <div className="flex flex-col gap-8">
+                    {/* Main Workspace */}
+                    <div className="grid grid-cols-1 gap-8">
                         
-                        {/* 주문 폼 & 집계표 (가로 배치) */}
-                        <div className="flex flex-col lg:flex-row gap-6 items-start">
-                            
-                            {/* Input Form Section (Left, 8 cols equivalent) */}
-                            <section className="w-full lg:w-2/3 bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60">
+                        {/* 최상단: 주문 양식 및 합계표 좌우 분할 그리드 */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                            {/* Input Form Section (좌측 넓게) */}
+                            <section className="lg:col-span-8 bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6 border-b border-slate-100 pb-4">
                                     <div className="flex items-center gap-2">
                                         <PenTool className="w-5 h-5 text-amber-600" />
-                                        <h2 className="text-lg font-bold text-slate-800">신규 사료 주문 등록</h2>
+                                        <h2 className="text-lg font-bold text-slate-800">신규 사료 주문 정보 등록</h2>
                                     </div>
-                                    <div className="text-xs sm:text-sm font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/50">
+                                    <div className="text-xs sm:text-sm font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/50 self-start sm:self-auto">
                                         <CalendarIcon className="w-4 h-4 text-amber-600" />
                                         <span>{todayDateString}</span>
                                     </div>
                                 </div>
 
                                 <form onSubmit={handleSubmitOrder} className="space-y-4">
-                                    {/* Inputs in one row on desktop */}
+                                    {/* 입력을 가로 한 줄로 배치하는 Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                         
-                                        {/* 1. 사료 종류 드롭다운 */}
+                                        {/* 1. Feed Type Dropdown */}
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">사료 종류 <span className="text-rose-500">*</span></label>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 종류 <span className="text-rose-500">*</span></label>
                                             <div className="relative">
                                                 <select 
                                                     value={feedType} 
@@ -605,9 +666,9 @@
                                             </div>
                                         </div>
 
-                                        {/* 2. 벌크통 번호 드롭다운 */}
+                                        {/* 2. Bulk Bin Selector (Dropdown) */}
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">벌크통 번호 <span className="text-rose-500">*</span></label>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">벌크통 번호 <span className="text-rose-500">*</span></label>
                                             <div className="relative">
                                                 <select 
                                                     value={bulkBin} 
@@ -640,9 +701,9 @@
                                             </div>
                                         </div>
 
-                                        {/* 3. 사료 주문량 입력 */}
+                                        {/* 3. Feed Quantity */}
                                         <div>
-                                            <label className="block text-xs font-semibold text-slate-700 mb-1.5">사료 주문량 (톤) <span className="text-rose-500">*</span></label>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 주문량 (톤) <span className="text-rose-500">*</span></label>
                                             <div className="flex gap-2">
                                                 <input 
                                                     type="number" 
@@ -652,7 +713,7 @@
                                                     onChange={e => setQuantity(e.target.value)}
                                                     required 
                                                     placeholder="예: 3.5"
-                                                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-bold text-slate-800"
+                                                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-black text-slate-800"
                                                 />
                                                 <span className="flex items-center justify-center px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600">
                                                     톤
@@ -683,176 +744,68 @@
                                 </form>
                             </section>
 
-                            {/* Order Summary Statistics (Right, 4 cols equivalent) */}
-                            <section className="w-full lg:w-1/3 bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60">
-                                <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
-                                    <Calculator className="text-slate-600 w-5 h-5" />
-                                    <h2 className="text-lg font-bold text-slate-800">주문 합산 요약</h2>
-                                </div>
+                            {/* Right Sidebar: Order Summary Statistics (엑셀형 좌측 요약표 대치됨) */}
+                            <section className="lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex flex-col justify-between h-full">
+                                <div>
+                                    <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
+                                        <Calculator className="text-slate-600 w-5 h-5" />
+                                        <h2 className="text-base font-bold text-slate-800">당일 주문 합산 요약</h2>
+                                    </div>
 
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700">
-                                        <thead>
-                                            <tr className="text-center font-bold">
-                                                <th className="p-2 w-1/2">구분 (사료)</th>
-                                                <th className="p-2 w-1/2 text-right">수량 (톤)</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td className="p-1.5 bg-slate-50/50 font-sans font-semibold text-center">젖돈</td>
-                                                <td className="p-1.5 text-right font-bold text-blue-600">{summaryStats['젖돈'].toFixed(1)}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="p-1.5 bg-slate-50/50 font-sans font-semibold text-center">육성</td>
-                                                <td className="p-1.5 text-right font-bold text-emerald-600">{summaryStats['육성'].toFixed(1)}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="p-1.5 bg-slate-50/50 font-sans font-semibold text-center">임신</td>
-                                                <td className="p-1.5 text-right font-bold text-purple-600">{summaryStats['임신'].toFixed(1)}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="p-1.5 bg-slate-50/50 font-sans font-semibold text-center">포유</td>
-                                                <td className="p-1.5 text-right font-bold text-pink-600">{summaryStats['포유'].toFixed(1)}</td>
-                                            </tr>
-                                            <tr>
-                                                <td className="p-1.5 bg-slate-50/50 font-sans font-semibold text-center">후보돈</td>
-                                                <td className="p-1.5 text-right font-bold text-amber-600">{summaryStats['후보돈'].toFixed(1)}</td>
-                                            </tr>
-                                            <tr className="bg-amber-50/30 border-t-2 border-b-4 border-double border-slate-400 font-bold">
-                                                <td className="p-2 font-sans text-center text-slate-900">전체 합계</td>
-                                                <td className="p-2 text-right text-base text-slate-950">{summaryStats.total.toFixed(1)}</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </section>
-
-                        </div>
-
-                        {/* Registered Order Lists (Full Width Bottom) */}
-                        <section className="w-full bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 space-y-4">
-                            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
-                                <div className="flex items-center gap-2">
-                                    <TableIcon className="text-slate-600 w-5 h-5" />
-                                    <h2 className="text-lg font-bold text-slate-800">등록된 주문 목록 (<span id="orderCount">{orders.length}</span>건)</h2>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <button 
-                                        onClick={() => {
-                                            if(orders.length === 0) {
-                                                showToast("❌ 전송할 주문서가 없습니다.", "bg-amber-600");
-                                                return;
-                                            }
-                                            setShowShareModal(true);
-                                        }} 
-                                        className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
-                                    >
-                                        <MessageSquare className="w-3.5 h-3.5" /> 카톡 전송
-                                    </button>
-                                    <button 
-                                        onClick={handleClearAllClick} 
-                                        className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors flex items-center gap-1"
-                                    >
-                                        <Trash2 className="w-3.5 h-3.5" /> 전체 삭제
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700 min-w-[600px]">
-                                    <thead>
-                                        <tr className="text-center font-bold">
-                                            <th className="p-2 w-12 bg-slate-100">No.</th>
-                                            <th className="p-2 w-40 bg-slate-100">주문 일시</th>
-                                            <th className="p-2 w-28 bg-slate-100">사료 종류</th>
-                                            <th className="p-2 w-32 bg-slate-100">벌크통 번호</th>
-                                            <th className="p-2 w-32 bg-slate-100 text-right">주문량 (톤)</th>
-                                            <th className="p-2 w-24 bg-slate-100">관리</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {orders.length === 0 ? (
-                                            <tr>
-                                                <td colSpan="6" className="p-8 text-center text-slate-400 font-sans">
-                                                    하단에 저장된 주문 내역이 나타납니다.
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            orders.map((order, index) => {
-                                                const rowNo = orders.length - index;
-                                                return (
-                                                    <tr key={order.id} className="hover:bg-slate-50 transition-all font-mono text-xs text-slate-800">
-                                                        <td className="p-2.5 text-center bg-slate-50/70 font-bold border border-slate-300 text-slate-500">{rowNo}</td>
-                                                        <td className="p-2.5 text-center border border-slate-300 text-slate-500 font-sans">{order.date}</td>
-                                                        <td className="p-2.5 text-center font-sans font-bold border border-slate-300 text-slate-900">{order.feedType}</td>
-                                                        <td className="p-2.5 text-center font-sans font-bold border border-slate-300 text-amber-700">벌크 {order.bulkBin}호</td>
-                                                        <td className="p-2.5 text-right font-bold border border-slate-300 text-slate-950">{parseFloat(order.quantity).toFixed(1)} 톤</td>
-                                                        <td className="p-1.5 text-center border border-slate-300">
-                                                            <div className="flex justify-center gap-1">
-                                                                <button onClick={() => handleEditClick(order)} title="수정" className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-300 rounded transition-all">
-                                                                    <Edit3 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                                <button onClick={() => handleDeleteClick(order.id)} title="삭제" className="p-1.5 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-300 rounded transition-all">
-                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </section>
-
-                        {/* Calendar & Prediction Triggers */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <section className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex items-center justify-center">
-                                <button 
-                                    type="button" 
-                                    onClick={() => {
-                                        const today = new Date();
-                                        setCalendarYear(today.getFullYear());
-                                        setCalendarMonth(today.getMonth());
-                                        setShowCalendarModal(true);
-                                    }} 
-                                    className="w-full bg-slate-800 hover:bg-slate-950 text-white font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-3 animate-pulse"
-                                >
-                                    <CalendarRange className="w-5 h-5 text-amber-400" />
-                                    <span>📅 달력으로 일정 및 요약 보기</span>
-                                </button>
-                            </section>
-
-                            <section className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 flex flex-col justify-center">
-                                <div className="flex items-center gap-2 mb-2">
-                                    <Timer className="text-rose-500 w-5 h-5" />
-                                    <h3 className="text-sm font-bold text-slate-800">예측 알림 작동 현황</h3>
-                                </div>
-                                <p className="text-xs text-slate-500 mb-2">벌크통 과거 기록을 바탕으로 소모량을 추적합니다.</p>
-                                <div className="flex gap-2 text-[10px] font-bold">
-                                    <span className="bg-blue-50 text-blue-600 px-2 py-1 rounded">안정 {binPredictions.filter(p => p.remainDays > 7).length}건</span>
-                                    <span className="bg-amber-50 text-amber-600 px-2 py-1 rounded">주의 {binPredictions.filter(p => p.remainDays > 3 && p.remainDays <= 7).length}건</span>
-                                    <span className="bg-rose-50 text-rose-600 px-2 py-1 rounded">임박 {binPredictions.filter(p => p.remainDays <= 3).length}건</span>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700">
+                                            <thead>
+                                                <tr className="text-center font-bold">
+                                                    <th className="p-2.5 w-1/2">사료 구분</th>
+                                                    <th className="p-2.5 w-1/2 text-right">수량 (톤)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    <td className="p-2 bg-slate-50/50 font-sans font-semibold text-center">젖돈</td>
+                                                    <td className="p-2 text-right font-bold text-blue-600">{dailySummaryStats['젖돈'].toFixed(1)}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="p-2 bg-slate-50/50 font-sans font-semibold text-center">육성</td>
+                                                    <td className="p-2 text-right font-bold text-emerald-600">{dailySummaryStats['육성'].toFixed(1)}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="p-2 bg-slate-50/50 font-sans font-semibold text-center">임신</td>
+                                                    <td className="p-2 text-right font-bold text-purple-600">{dailySummaryStats['임신'].toFixed(1)}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="p-2 bg-slate-50/50 font-sans font-semibold text-center">포유</td>
+                                                    <td className="p-2 text-right font-bold text-pink-600">{dailySummaryStats['포유'].toFixed(1)}</td>
+                                                </tr>
+                                                <tr>
+                                                    <td className="p-2 bg-slate-50/50 font-sans font-semibold text-center">후보돈</td>
+                                                    <td className="p-2 text-right font-bold text-amber-600">{dailySummaryStats['후보돈'].toFixed(1)}</td>
+                                                </tr>
+                                                <tr className="bg-amber-50/30 border-t-2 border-b-4 border-double border-slate-400 font-bold">
+                                                    <td className="p-2.5 font-sans text-center text-slate-900">당일 전체 합계</td>
+                                                    <td className="p-2.5 text-right text-base text-slate-950">{dailySummaryStats.total.toFixed(1)}</td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </section>
                         </div>
 
-                        {/* 🔔 Feed Prediction Notification Panel */}
+                        {/* 🔔 예측 알림 작동 현황 Panel (배치 이동됨) */}
                         <section className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex flex-col space-y-4">
                             <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-3 gap-2">
                                 <div className="flex items-center gap-2">
                                     <Timer className="text-rose-500 w-5 h-5" />
-                                    <h2 className="text-lg font-bold text-slate-800">벌크통별 주문 시기 예측 알림</h2>
+                                    <h2 className="text-lg font-bold text-slate-800">예측 알림 작동 현황</h2>
                                 </div>
-                                <span className="text-[11px] font-semibold text-slate-400 bg-slate-50 px-2 py-1 rounded">※ 개별 벌크통의 과거 소진 패턴 기반 연산</span>
+                                <span className="text-[11px] font-semibold text-slate-400 bg-slate-50 px-2 py-1 rounded">※ 과거 주문 일수 및 투입량을 기반으로 자동 연산된 예상 데이터입니다.</span>
                             </div>
 
                             {binPredictions.length === 0 ? (
                                 <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
                                     <Timer className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                                    <p className="text-xs font-bold text-slate-400">사료 소진일을 예측할 데이터가 부족합니다.<br/>(각 벌크통별 최소 2회 이상의 누적 주문 기록 필요)</p>
+                                    <p className="text-xs font-bold text-slate-400">사료 소진일을 예측할 데이터가 부족합니다.<br/>(각 벌크통별 최소 2회 이상의 주문 기록이 필요합니다)</p>
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -894,7 +847,7 @@
                                                     <span className="text-slate-700 font-mono text-[13px]">{pred.dailyUsage.toFixed(2)} 톤/일</span>
                                                 </div>
                                                 <div className="flex justify-between items-center text-xs font-semibold">
-                                                    <span className="text-slate-500">다음 주문 필요일:</span>
+                                                    <span className="text-slate-500">주문 필요일 (예상):</span>
                                                     <span className="text-slate-900 font-black tracking-tight bg-white px-2 py-0.5 rounded border border-slate-200">
                                                         {pred.nextDate.getFullYear()}년 {pred.nextDate.getMonth()+1}월 {pred.nextDate.getDate()}일경
                                                     </span>
@@ -906,6 +859,99 @@
                             )}
                         </section>
 
+                        {/* Middle: Registered Order Lists (엑셀 테이블 스타일) - 주문일시 삭제 됨 */}
+                        <section className="w-full bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 space-y-4">
+                            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+                                <div className="flex items-center gap-2">
+                                    <Table className="text-slate-600 w-5 h-5" />
+                                    <h2 className="text-lg font-bold text-slate-800">등록된 주문 전체 리스트 (<span id="orderCount">{orders.length}</span>건)</h2>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <button 
+                                        onClick={() => {
+                                            if(orders.length === 0) {
+                                                showToast("❌ 전송할 주문서가 없습니다.", "bg-amber-600");
+                                                return;
+                                            }
+                                            setShowShareModal(true);
+                                        }} 
+                                        className="text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-slate-950 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1 shadow-sm"
+                                    >
+                                        <MessageSquare className="w-3.5 h-3.5" /> {todayShort} 카톡 전송
+                                    </button>
+                                    <button 
+                                        onClick={handleClearAllClick} 
+                                        className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors flex items-center gap-1"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" /> 기록 전체 삭제
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700 min-w-[500px]">
+                                    <thead>
+                                        <tr className="text-center font-bold">
+                                            <th className="p-2.5 w-16 bg-slate-100">No.</th>
+                                            <th className="p-2.5 w-32 bg-slate-100">사료 종류</th>
+                                            <th className="p-2.5 w-32 bg-slate-100">벌크통 번호</th>
+                                            <th className="p-2.5 w-32 bg-slate-100 text-right pr-4">주문량 (톤)</th>
+                                            <th className="p-2.5 w-24 bg-slate-100">관리</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {orders.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="5" className="p-8 text-center text-slate-400 font-sans">
+                                                    저장된 사료 주문 내역이 없습니다.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            orders.map((order, index) => {
+                                                const rowNo = orders.length - index;
+                                                return (
+                                                    <tr key={order.id} className="hover:bg-slate-50 transition-all text-sm text-slate-800">
+                                                        <td className="p-3 text-center bg-slate-50/70 font-black border border-slate-300 text-slate-400">{rowNo}</td>
+                                                        <td className="p-3 text-center font-sans font-black border border-slate-300 text-slate-900">{order.feedType}</td>
+                                                        <td className="p-3 text-center font-sans font-black border border-slate-300 text-amber-700">벌크 {order.bulkBin}호</td>
+                                                        <td className="p-3 text-right pr-4 font-black border border-slate-300 text-slate-950">{parseFloat(order.quantity).toFixed(1)} 톤</td>
+                                                        <td className="p-2 text-center border border-slate-300">
+                                                            <div className="flex justify-center gap-1.5">
+                                                                <button onClick={() => handleEditClick(order)} title="수정" className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-300 rounded shadow-sm transition-all">
+                                                                    <Edit3 className="w-4 h-4" />
+                                                                </button>
+                                                                <button onClick={() => handleDeleteClick(order.id)} title="삭제" className="p-1.5 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-300 rounded shadow-sm transition-all">
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+
+                        {/* Bottom Actions (캘린더 보기 하단 고정) */}
+                        <div className="pb-10">
+                            <section className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 flex items-center justify-center">
+                                <button 
+                                    type="button" 
+                                    onClick={() => {
+                                        const today = new Date();
+                                        setCalendarYear(today.getFullYear());
+                                        setCalendarMonth(today.getMonth());
+                                        setShowCalendarModal(true);
+                                    }} 
+                                    className="w-full sm:max-w-md mx-auto bg-slate-800 hover:bg-slate-950 text-white font-bold py-4 rounded-xl shadow-lg transition-all flex items-center justify-center gap-3 animate-pulse"
+                                >
+                                    <CalendarRange className="w-5 h-5 text-amber-400" />
+                                    <span>📅 달력으로 전체 일정 보기</span>
+                                </button>
+                            </section>
+                        </div>
                     </div>
 
                     {/* --- Modals --- */}
@@ -917,7 +963,7 @@
                                 <div className="bg-amber-500 p-5 text-slate-950 flex justify-between items-center">
                                     <div className="flex items-center gap-2 font-bold text-base">
                                         <Send className="w-5 h-5" />
-                                        카카오톡 주문서 전송
+                                        카카오톡 주문서 전송 ({todayShort})
                                     </div>
                                     <button onClick={() => setShowShareModal(false)} className="text-slate-900 hover:text-black hover:bg-white/20 p-1.5 rounded-lg transition-all">
                                         <X className="w-5 h-5" />
@@ -926,31 +972,31 @@
 
                                 <div className="p-6 space-y-4 flex-1">
                                     <div className="space-y-1.5">
-                                        <label className="block text-xs font-bold text-slate-700">전송 메시지 실시간 미리보기</label>
+                                        <label className="block text-xs font-bold text-slate-700">실시간 미리보기</label>
                                         <div className="w-full bg-stone-50 border border-stone-200 text-stone-800 p-4 rounded-xl text-xs font-mono h-56 overflow-y-auto whitespace-pre-wrap leading-relaxed shadow-inner">
                                             {generatedKakaoText}
                                         </div>
                                     </div>
 
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">전달사항 입력</label>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">전달사항 추가</label>
                                         <div className="flex flex-col gap-2">
                                             <div className="relative">
                                                 <select 
                                                     onChange={e => {
                                                         if (e.target.value !== 'direct') {
                                                             setShareNote(e.target.value);
-                                                            e.target.value = 'direct'; // Reset option
+                                                            e.target.value = 'direct'; // 리셋하여 재선택 가능하게
                                                         }
                                                     }}
                                                     defaultValue="direct"
                                                     className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold appearance-none cursor-pointer"
                                                 >
-                                                    <option value="direct">자주 쓰는 상용구 선택 (클릭)</option>
-                                                    <option value="성암농장 사료 배송 부탁드립니다.">성암농장 사료 배송 부탁드립니다.</option>
+                                                    <option value="direct">자주 쓰는 전달사항 선택 (클릭)</option>
                                                     <option value="내일 첫차 배송 부탁드립니다.">내일 첫차 배송 부탁드립니다.</option>
                                                     <option value="내일 막차 배송 부탁드립니다.">내일 막차 배송 부탁드립니다.</option>
                                                     <option value="오늘 막차 배송 부탁드립니다.">오늘 막차 배송 부탁드립니다.</option>
+                                                    <option value="경사로 진입 시 주의 부탁드립니다.">경사로 진입 시 주의 부탁드립니다.</option>
                                                 </select>
                                                 <div className="absolute right-2.5 top-2 text-slate-400 pointer-events-none">
                                                     <ChevronDown className="w-4 h-4" />
@@ -970,12 +1016,12 @@
                                 <div className="bg-slate-50 p-4 border-t border-slate-100 flex flex-col gap-2">
                                     <button onClick={sendNativeShare} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-2 shadow-md transition-all">
                                         <Share2 className="w-4 h-4" />
-                                        모바일 카톡/메시지 직접 전송하기
+                                        모바일 카톡/메시지 직접 열기
                                     </button>
                                     <div className="flex gap-2">
                                         <button onClick={copyShareText} className="flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold py-3 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 transition-all">
                                             <Copy className="w-4 h-4" />
-                                            복사 후 카톡 열기
+                                            텍스트 복사 후 톡 실행
                                         </button>
                                         <button onClick={() => setShowShareModal(false)} className="bg-slate-200 hover:bg-slate-300 text-slate-600 font-bold py-3 px-4 rounded-xl text-xs transition-all">
                                             닫기
@@ -994,7 +1040,7 @@
                                 <div className="bg-slate-800 p-4 text-white flex justify-between items-center">
                                     <div className="flex items-center gap-2 font-bold text-base">
                                         <CalendarRange className="w-5 h-5 text-amber-400" />
-                                        <span>주문 달력 일정표</span>
+                                        <span>주문 일정표 달력</span>
                                     </div>
                                     <button onClick={() => setShowCalendarModal(false)} className="text-slate-300 hover:text-white hover:bg-white/10 p-1.5 rounded-lg transition-all">
                                         <X className="w-5 h-5" />
@@ -1005,7 +1051,6 @@
                                     
                                     {/* 달력 상단 네비게이션 컨트롤러 */}
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
-                                        
                                         <div className="flex items-center gap-4 bg-slate-100 p-1.5 rounded-xl self-center sm:self-auto">
                                             <button onClick={handlePrevMonth} className="p-2 bg-white rounded-lg shadow-sm text-slate-600 hover:text-blue-600 transition-colors">
                                                 <ChevronLeft className="w-4 h-4" />
@@ -1068,12 +1113,12 @@
                                                         )}
                                                     </div>
                                                     
-                                                    {/* 배지 나열 영역 (사료종류, 통, 수량) */}
+                                                    {/* 배지 나열 영역: 사료종류(좌), 통번호(중앙), 수량(우) */}
                                                     <div className="space-y-1 mt-1 flex-1 flex flex-col justify-end">
                                                         {cell.badges.map((badge, bIdx) => (
                                                             <div key={bIdx} className={`px-1 py-0.5 rounded text-[8.5px] font-sans font-black flex justify-between items-center border ${badgeColors[badge.type] || 'bg-slate-100 text-slate-700'} tracking-tighter`}>
                                                                 <span className="truncate w-1/3">{badge.type}</span>
-                                                                <span className="text-center w-1/3 opacity-75">{badge.bin}호</span>
+                                                                <span className="text-center w-1/3 opacity-75">{badge.bin}</span>
                                                                 <span className="text-right w-1/3">{badge.qty.toFixed(1)}t</span>
                                                             </div>
                                                         ))}
@@ -1092,7 +1137,6 @@
                             </div>
                         </div>
                     )}
-
                 </div>
             );
         }
