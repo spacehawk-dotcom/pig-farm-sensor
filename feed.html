@@ -395,19 +395,18 @@
 
             // 카카오톡 텍스트 자동 제너레이터 (당일 주문 기준 집계)
             const generatedKakaoText = useMemo(() => {
-                if (dailyOrders.length === 0) return "당일 등록된 사료 주문서 내역이 없습니다.";
+                if (dailyOrders.length === 0) return "등록된 사료 주문서 내역이 없습니다.";
 
-                let text = `■ 당일 사료 주문 합계\n`;
-                text += `-------------------------\n`;
+                let text = `-------------------------\n`;
                 Object.keys(dailySummaryStats).forEach(type => {
                     if (type !== 'total' && dailySummaryStats[type] > 0) {
                         text += `- ${type}: ${dailySummaryStats[type].toFixed(1)} 톤\n`;
                     }
                 });
                 text += `-------------------------\n`;
-                text += `★ 당일 총 주문 수량: ${dailySummaryStats.total.toFixed(1)} 톤\n\n`;
+                text += `★ 총 주문 수량: ${dailySummaryStats.total.toFixed(1)} 톤\n\n`;
 
-                text += `■ 발주 상세 목록 (당일)\n`;
+                text += `■ 발주 상세 목록\n`;
 
                 dailyOrders.forEach((order, idx) => {
                     text += `${order.bulkBin}호통 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
