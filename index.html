@@ -314,6 +314,170 @@
             await Promise.all(promises);
         }
 
+        window.exportToExcel = async () => {
+            const btn = document.querySelector('[onclick="window.exportToExcel()"]');
+            if (btn) { btn.disabled = true; btn.innerText = "데이터 수집 중..."; }
+            try {
+                const start = document.getElementById('excel-start').value, end = document.getElementById('excel-end').value;
+                const historySnap = await db.collection(COLS.HISTORY).get();
+                const historyRaw = historySnap.docs.map(d => ({ date: d.id, ...d.data() }));
+                const filteredHistory = historyRaw.filter(h => h.date >= start && h.date <= end).sort((a,b) => String(a.date||'').localeCompare(String(b.date||''))).map(h => ({
+                    '날짜': h.date, '모돈(1산↑)': h.stocks?.sow || 0, '후보돈(0산)': h.stocks?.replacement || 0, '웅돈': h.stocks?.boar || 0, '자돈(이유)': h.stocks?.piglet || 0, '육성돈': h.stocks?.grower || 0, '합계': (h.stocks?.sow||0) + (h.stocks?.replacement||0) + (h.stocks?.boar||0) + (h.stocks?.piglet||0) + (h.stocks?.grower||0)
+                }));
+                const filteredShipments = state.shipments.filter(s => s.date >= start && s.date <= end).map(s => ({
+                    '날짜': s.date, '이유일': s.stockingDate || '-', '구분': s.batchId === 8 ? '후보사' : s.batchId + '배치', '칸': (s.penIndex !== undefined ? s.penIndex + 1 : '-') + '번', '두수': s.count
+                }));
+                const filteredAccidents = state.accidents.filter(a => a.date >= start && a.date <= end).map(a => ({
+                    '날짜': a.date, '구분': a.type === 'sick' ? '환돈' : '폐사/도태', '단계': a.stage === 'weaning' ? '이유사' : '육성사', '배치': a.batchId === 8 ? '후보사' : a.batchId + '배치', '칸': (a.penIndex + 1) + '번', '두수': a.count
+                }));
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredHistory), "사육현황(일자별)");
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredShipments), "출하기록");
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filteredAccidents), "폐사_환돈기록");
+                XLSX.writeFile(wb, `성암농장_리포트_${start}_to_${end}.xlsx`);
+                utils.showToast("엑셀 파일이 생성되었습니다.");
+            } catch (e) { console.error("Excel Export Error:", e); utils.showToast("엑셀 생성 중 오류가 발생했습니다."); } finally { if (btn) { btn.disabled = false; btn.innerText = "리포트 생성 및 다운로드"; } }
+        };
+
+        window.exportShipmentLogToExcel = () => {
+            try {
+                const start = document.getElementById('log-start').value;
+                const end = document.getElementById('log-end').value;
+
+                if (!state.shipments || state.shipments.length === 0) {
+                    utils.showToast("출하 기록이 없습니다."); return;
+                }
+                const filteredShipments = state.shipments.filter(r => r.date >= start && r.date <= end);
+                if (filteredShipments.length === 0) {
+                    utils.showToast("해당 기간에 출하 기록이 없습니다."); return;
+                }
+
+                const dateGroups = {};
+                filteredShipments.forEach(r => {
+                    if (!dateGroups[r.date]) dateGroups[r.date] = { date: r.date, totalCount: 0, totalAgeSum: 0, validRecordsCount: 0 };
+                    dateGroups[r.date].totalCount += (r.count || 0);
+                    let rDate = r.stockingDate || '';
+                    if(!rDate && r.batchId) {
+                        const b = state.gBatches.find(x => x.id === r.batchId);
+                        if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date;
+                    }
+                    if (rDate) {
+                        const age = utils.getDiffDays(rDate, r.date) + 20;
+                        dateGroups[r.date].totalAgeSum += age * (r.count || 0);
+                        dateGroups[r.date].validRecordsCount += (r.count || 0);
+                    }
+                });
+
+                const excelData = Object.values(dateGroups).sort((a,b) => String(b.date).localeCompare(String(a.date))).map(g => {
+                    const avgAge = g.validRecordsCount > 0 ? Math.round(g.totalAgeSum / g.validRecordsCount) : '-';
+                    const weight = state.shipmentSummaries[g.date]?.avgWeight || '-';
+                    const memo = state.shipmentSummaries[g.date]?.memo || '';
+                    return { '출하일': g.date, '총 출하두수': g.totalCount, '평균 일령': avgAge, '평균 체중(kg)': weight, '비고': memo };
+                });
+
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(excelData), "일별 출하요약");
+                
+                const detailData = filteredShipments.map(s => {
+                    let rDate = s.stockingDate || '';
+                    if(!rDate && s.batchId) {
+                        const b = state.gBatches.find(x => x.id === s.batchId);
+                        if(b) rDate = (b.penDates && b.penDates[s.penIndex]) || b.weaningDate || b.date;
+                    }
+                    const age = rDate ? utils.getDiffDays(rDate, s.date) + 20 : '-';
+                    return { '출하일': s.date, '배치': s.batchId === 8 ? '후보사' : s.batchId + '배치', '칸': (s.penIndex + 1) + '번', '두수': s.count, '일령': age };
+                }).sort((a,b) => String(b['출하일']).localeCompare(String(a['출하일'])));
+                
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detailData), "출하상세내역");
+                XLSX.writeFile(wb, `출하기록_${start}_to_${end}.xlsx`);
+                utils.showToast("출하 기록 엑셀이 생성되었습니다.");
+                window.closeModal();
+            } catch(e) { console.error("Shipment Excel Export Error:", e); utils.showToast("엑셀 생성 중 오류가 발생했습니다."); }
+        };
+
+        window.exportExpectedFarrowingToExcel = () => {
+            try {
+                const sows = state.sowList.filter(s => s.matingDate && !s.farrowingDate && s.currentStatus !== '재발' && s.currentStatus !== '포유');
+                if (sows.length === 0) { utils.showToast("다운로드할 예정 분만 데이터가 없습니다."); return; }
+                sows.sort((a,b) => {
+                    const wkA = utils.getWeekKey(utils.getExpectedFarrow(a.matingDate)), wkB = utils.getWeekKey(utils.getExpectedFarrow(b.matingDate));
+                    if (!wkA) return 1; if (!wkB) return -1;
+                    return wkA.localeCompare(wkB) || String(a.matingDate).localeCompare(String(b.matingDate));
+                });
+                const excelData = sows.map(s => {
+                    const expectedFarrowingDate = utils.getExpectedFarrow(s.matingDate);
+                    const weekKey = utils.getWeekKey(expectedFarrowingDate);
+                    const weekText = utils.getWeekOfMonth(weekKey).replace(/<[^>]*>?/gm, '');
+                    return { '분만 예정 주차': weekText, '실제 분만 예정일': expectedFarrowingDate || '오류', '관리 번호': s.sowNo, '산차': s.parity, '최근 종부일': s.matingDate };
+                });
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(excelData), "주간_예상_분만");
+                XLSX.writeFile(wb, `예상분만리스트_${utils.getTodayStr()}.xlsx`);
+                utils.showToast("예상 분만 리스트 엑셀이 생성되었습니다.");
+            } catch (e) { console.error("Excel Export Error:", e); utils.showToast("엑셀 생성 중 오류가 발생했습니다."); }
+        };
+
+        window.updateExpectedShipment = () => {
+            const inputEl = document.getElementById('target-age-input');
+            const descEl = document.getElementById('expected-shipment-desc');
+            const resultsEl = document.getElementById('expected-shipment-results');
+            const annualSummaryEl = document.getElementById('expected-shipment-annual-summary');
+            if (!inputEl || !resultsEl) return;
+
+            const targetAge = parseInt(inputEl.value) || 170;
+            const daysToAdd = targetAge - 20;
+
+            if (descEl) descEl.innerText = `* 각 칸의 이유일로부터 ${targetAge}일령이 되는 달을 기준으로 합산합니다.`;
+
+            const monthlyCounts = {};
+            const yearlyCounts = {};
+            const batches = [...state.wBatches, ...state.gBatches];
+            
+            batches.forEach(b => {
+                if (b.status === 'empty' || b.pigs === 0) return;
+                for (let i = 0; i < b.penDetails.length; i++) {
+                    const count = b.penDetails[i];
+                    if (count > 0) {
+                        const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date;
+                        if (penDate) {
+                            const d = utils.parseDate(penDate);
+                            if (d) {
+                                d.setDate(d.getDate() + daysToAdd);
+                                const yyyy = d.getFullYear();
+                                const yearMonth = `${yyyy}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                                if (!monthlyCounts[yearMonth]) monthlyCounts[yearMonth] = 0;
+                                monthlyCounts[yearMonth] += count;
+                                if (!yearlyCounts[yyyy]) yearlyCounts[yyyy] = 0;
+                                yearlyCounts[yyyy] += count;
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (annualSummaryEl) {
+                const sortedYears = Object.keys(yearlyCounts).sort();
+                const annualHtml = sortedYears.map(y => `<div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex-1 text-center min-w-[120px] shadow-sm"><p class="text-[11px] font-bold text-indigo-600 mb-1">${y}년 총 출하예측</p><p class="text-2xl font-black text-indigo-800">${yearlyCounts[y]}<span class="text-[11px] ml-1 font-bold text-indigo-500">두</span></p></div>`).join('');
+                annualSummaryEl.innerHTML = annualHtml || '<div class="text-xs text-slate-400 w-full text-center">예측 데이터 없음</div>';
+            }
+
+            const currentYearMonth = utils.getTodayStr().substring(0, 7);
+            const allSortedMonths = Object.keys(monthlyCounts).sort();
+
+            const html = allSortedMonths.map(ym => {
+                const [yyyy, mm] = ym.split('-');
+                const count = monthlyCounts[ym];
+                const isPast = ym < currentYearMonth;
+                const isCurrent = ym === currentYearMonth;
+                let borderCls = 'border-slate-100', barCls = 'bg-slate-400', labelText = `${yyyy}년 ${parseInt(mm)}월`, textCls = 'text-slate-500';
+                if (isPast) { borderCls = 'border-rose-100'; barCls = 'bg-rose-400'; labelText += ' <span class="text-[9px] text-rose-500 font-bold ml-0.5">(지연)</span>'; textCls = 'text-rose-500'; }
+                else if (isCurrent) { borderCls = 'border-purple-200'; barCls = 'bg-purple-500'; labelText += ' <span class="text-[9px] text-purple-600 font-bold ml-0.5">(이번달)</span>'; textCls = 'text-purple-600'; }
+                else { borderCls = 'border-indigo-100'; barCls = 'bg-indigo-400'; textCls = 'text-indigo-600'; }
+                return `<div class="bg-white p-4 rounded-2xl border ${borderCls} shadow-sm flex flex-col justify-between relative overflow-hidden"><div class="absolute top-0 left-0 w-1.5 h-full ${barCls}"></div><p class="text-[13px] font-black ${textCls} mb-2 pl-2">${labelText}</p><p class="text-3xl font-black text-slate-800 pl-2 text-right">${count}<span class="text-xs font-bold text-slate-400 ml-1">두</span></p></div>`;
+            }).join('');
+            resultsEl.innerHTML = html || '<div class="col-span-2 p-6 text-center text-xs text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-2xl">데이터 없음</div>';
+        };
+
         function renderBatchList(targetId, batches, type, stage, typeCls, bgCls, txtCls) {
             document.getElementById(targetId).innerHTML = batches.map(b => {
                 const isEmpty = b.status === 'empty' || b.pigs === 0, isRes = stage === 'grower' && b.id === 8;
