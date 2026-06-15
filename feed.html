@@ -206,8 +206,26 @@
                                 return data ? { id: doc.id, ...data } : null;
                             }).filter(Boolean);
 
-                            // 정렬: 최신 날짜순 정렬 (기본)
-                            ordersData.sort((a, b) => b.date.localeCompare(a.date));
+                            // 커스텀 정렬 순서 정의 (UI 버튼 순서)
+                            const feedTypeSortOrder = {
+                                '젖돈': 1,
+                                '육성': 2,
+                                '임신': 3,
+                                '포유': 4,
+                                '후보돈': 5
+                            };
+
+                            // 정렬: 1순위 사료종류, 2순위 최신날짜
+                            ordersData.sort((a, b) => {
+                                const typeA = feedTypeSortOrder[a.feedType] || 99;
+                                const typeB = feedTypeSortOrder[b.feedType] || 99;
+                                
+                                if (typeA !== typeB) {
+                                    return typeA - typeB; // 사료 종류별로 먼저 그룹화
+                                }
+                                return b.date.localeCompare(a.date); // 같은 사료 내에서는 최신순
+                            });
+                            
                             setOrders(ordersData);
                             setLoading(false);
                         },
@@ -372,9 +390,7 @@
             const generatedKakaoText = useMemo(() => {
                 if (orders.length === 0) return "현재 등록된 사료 주문서 내역이 없습니다.";
 
-                let text = `[성암농장 ${todayShort} 사료 주문서]\n\n`;
-
-                text += `■ 당일 사료 주문 합계\n`;
+                let text = `■ 당일 사료 주문 합계\n`;
                 text += `-------------------------\n`;
                 Object.keys(dailySummaryStats).forEach(type => {
                     if (type !== 'total' && dailySummaryStats[type] > 0) {
@@ -395,9 +411,7 @@
                     text += `- 당일 등록된 상세 내역 없음\n`;
                 } else {
                     dailyOrders.forEach((order, idx) => {
-                        // 일자만 짧게 표시 (예: 6월 13일)
-                        const shortDate = order.date.substring(5, 10).replace('-', '월 ') + '일';
-                        text += `[${shortDate}] 벌크 ${order.bulkBin}호통 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
+                        text += `${order.bulkBin}호통 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
                     });
                 }
 
@@ -713,9 +727,9 @@
                                                     onChange={e => setQuantity(e.target.value)}
                                                     required 
                                                     placeholder="예: 3.5"
-                                                    className="flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-black text-slate-800"
+                                                    className="flex-1 w-full min-w-0 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-black text-slate-800"
                                                 />
-                                                <span className="flex items-center justify-center px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600">
+                                                <span className="flex items-center justify-center px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 shrink-0">
                                                     톤
                                                 </span>
                                             </div>
@@ -908,7 +922,7 @@
                                             </tr>
                                         ) : (
                                             orders.map((order, index) => {
-                                                const rowNo = orders.length - index;
+                                                const rowNo = index + 1; // 정렬 그룹화에 맞춰 번호를 1부터 순차적으로 부여
                                                 return (
                                                     <tr key={order.id} className="hover:bg-slate-50 transition-all text-sm text-slate-800">
                                                         <td className="p-3 text-center bg-slate-50/70 font-black border border-slate-300 text-slate-400">{rowNo}</td>
