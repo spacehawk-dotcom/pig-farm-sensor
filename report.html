@@ -12,8 +12,8 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Babel (브라우저에서 JSX 문법 실시간 해석) -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Babel (브라우저에서 JSX 문법 실시간 해석, 버전 고정 및 React 프리셋 명시) -->
+  <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
 
   <!-- SheetJS (엑셀 다운로드 라이브러리 추가) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -40,7 +40,7 @@
   <div id="root"></div>
 
   <!-- 여기서부터 React 코드를 브라우저가 실시간으로 해석합니다 -->
-  <script type="text/babel">
+  <script type="text/babel" data-presets="react">
     const { useState, useEffect, useMemo, useRef } = React;
 
     // --- 내장 SVG 아이콘 컴포넌트 ---
