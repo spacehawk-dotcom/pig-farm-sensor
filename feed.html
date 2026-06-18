@@ -12,7 +12,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     
-    <!-- Babel (브라우저 환경에 맞는 안정적인 버전 7.23.6 고정) -->
+    <!-- Babel (안정적인 버전 7.23.6 고정) -->
     <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
 
     <!-- Firebase SDK (호환 버전: 단일 HTML 환경용) -->
@@ -46,32 +46,35 @@
         }
     </style>
 </head>
-<body className="bg-stone-100 text-slate-800 antialiased">
+<body class="bg-stone-100 text-slate-800 antialiased">
 
     <div id="root"></div>
 
     <script type="text/babel">
+        /* @jsx React.createElement */
+        /* @jsxFrag React.Fragment */
+
         const { useState, useEffect, useMemo, useRef } = React;
 
         // --- 내장 SVG 아이콘 컴포넌트 ---
-        const Container = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="12" x="2" y="6" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/></svg>;
-        const PenTool = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
-        const CalendarIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>;
-        const ChevronDown = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m6 9 6 6 6-6"/></svg>;
-        const ChevronLeft = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m15 18-6-6 6-6"/></svg>;
-        const ChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6"/></svg>;
-        const PlusCircle = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
-        const Calculator = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
-        const Table = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 3v18"/><path d="M3 12h18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>;
-        const MessageSquare = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
-        const Trash2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
-        const Edit3 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
-        const CalendarRange = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M17 14h-6"/><path d="M13 18H7"/><path d="M7 14h.01"/><path d="M17 18h.01"/></svg>;
-        const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
-        const Send = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
-        const Share2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>;
-        const Copy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
-        const Timer = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>;
+        const Container = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" class={className}><rect width="20" height="12" x="2" y="6" rx="2"/><path d="M12 12h.01"/><path d="M17 12h.01"/><path d="M7 12h.01"/></svg>;
+        const PenTool = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
+        const CalendarIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>;
+        const ChevronDown = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="m6 9 6 6 6-6"/></svg>;
+        const ChevronLeft = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="m15 18-6-6 6-6"/></svg>;
+        const ChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="m9 18 6-6-6-6"/></svg>;
+        const PlusCircle = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>;
+        const Calculator = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>;
+        const Table = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="M12 3v18"/><path d="M3 12h18"/><rect width="18" height="18" x="3" y="3" rx="2"/></svg>;
+        const MessageSquare = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>;
+        const Trash2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
+        const Edit3 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>;
+        const CalendarRange = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M3 10h18"/><path d="M8 2v4"/><path d="M17 14h-6"/><path d="M13 18H7"/><path d="M7 14h.01"/><path d="M17 18h.01"/></svg>;
+        const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
+        const Send = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
+        const Share2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>;
+        const Copy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const Timer = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>;
 
         const firebaseConfig = {
             apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
@@ -89,7 +92,11 @@
         const db = firebase.firestore();
 
         const FEED_ORDERS_COLLECTION_PATH = 'farms/sungamfarm/feed_orders';
+        const WEANING_RECORDS_COLLECTION_PATH = 'farms/sungamfarm/weaning_records';
+        const WEANING_BATCHES_COLLECTION_PATH = 'farms/sungamfarm/weaning';
+        const GROWER_BATCHES_COLLECTION_PATH = 'farms/sungamfarm/grower';
 
+        // --- STREAMING_CHUNK: Defining popup modals helper components ---
         const CustomAlert = ({ message, onClose }) => (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
@@ -97,10 +104,7 @@
                         <span className="text-amber-500 text-xl font-bold">!</span>
                     </div>
                     <p className="text-sm font-bold text-slate-700 mb-5">{message}</p>
-                    <button 
-                        onClick={onClose}
-                        className="w-full bg-slate-800 text-white font-black py-3 rounded-xl hover:bg-slate-700 active:scale-95 transition-all"
-                    >
+                    <button onClick={onClose} className="w-full bg-slate-800 text-white font-black py-3 rounded-xl hover:bg-slate-700 active:scale-95 transition-all">
                         확인
                     </button>
                 </div>
@@ -115,38 +119,33 @@
                     </div>
                     <p className="text-sm font-bold text-slate-700 mb-5">{message}</p>
                     <div className="flex gap-2">
-                        <button 
-                            onClick={onCancel}
-                            className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-xl hover:bg-slate-200 active:scale-95 transition-all"
-                        >
-                            취소
-                        </button>
-                        <button 
-                            onClick={onConfirm}
-                            className="flex-1 bg-rose-500 text-white font-black py-3 rounded-xl hover:bg-rose-600 active:scale-95 transition-all"
-                        >
-                            확인
-                        </button>
+                        <button onClick={onCancel} className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-xl hover:bg-slate-200 active:scale-95 transition-all">취소</button>
+                        <button onClick={onConfirm} className="flex-1 bg-rose-500 text-white font-black py-3 rounded-xl hover:bg-rose-600 active:scale-95 transition-all">확인</button>
                     </div>
                 </div>
             </div>
         );
 
         function App() {
+            // --- STREAMING_CHUNK: Declaring core state variables within App ---
             const [user, setUser] = useState(null);
             const [orders, setOrders] = useState([]);
             const [loading, setLoading] = useState(true);
 
-            // 상태 관리
+            // 공통 토스트 및 팝업
             const [alertMsg, setAlertMsg] = useState(null);
             const [confirmConfig, setConfirmConfig] = useState(null);
             const [toastConfig, setToastConfig] = useState({ show: false, message: '', bgColor: 'bg-slate-900' });
 
-            const [feedType, setFeedType] = useState('젖돈');
+            // 벌크 사료 주문 상태
+            const [bulkFeedType, setBulkFeedType] = useState('젖돈');
             const [bulkBin, setBulkBin] = useState('1');
-            const [quantity, setQuantity] = useState('');
+            const [bulkQuantity, setBulkQuantity] = useState('');
+
+            // 수정 관련 제어
             const [editingOrderId, setEditingOrderId] = useState(null);
 
+            // 공유 및 달력 모달 제어
             const [showShareModal, setShowShareModal] = useState(false);
             const [showCalendarModal, setShowCalendarModal] = useState(false);
             const [shareNote, setShareNote] = useState('');
@@ -154,28 +153,94 @@
             const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
             const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
 
-            // 예측 알림 개별 숨김 처리 상태
+            // 수동 알림 예측 숨김(Dismiss) 처리 목록
             const [dismissedPredictions, setDismissedPredictions] = useState([]);
+
+            // 계산기 접기/펴기
+            const [showCalculator, setShowCalculator] = useState(false);
+
+            // 사육현황 앱 실시간 동기화용 수집 상태
+            const [weaningRecords, setWeaningRecords] = useState({});
+            const [batchList, setBatchList] = useState([]);
+
+            // 계산기 지대 수동 재고 입력창 상태
+            const [stockF1, setStockF1] = useState('');
+            const [stockF2, setStockF2] = useState('');
+            const [stockF3, setStockF3] = useState('');
+
+            // 목요일 기준 역산 4주치 날짜 구조 빌드
+            const targetThursdays = useMemo(() => {
+                const dates = [];
+                const today = new Date();
+                const dayOfWeek = today.getDay();
+                const daysToThursday = (4 - dayOfWeek + 7) % 7;
+                const targetThursday = new Date(today);
+                targetThursday.setDate(today.getDate() + daysToThursday);
+
+                for (let i = 3; i >= 0; i--) {
+                    const d = new Date(targetThursday);
+                    d.setDate(targetThursday.getDate() - (i * 7));
+                    const year = d.getFullYear();
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    dates.push({
+                        dbKey: `${year}-${month}-${day}`,
+                        display: `${month}/${day}`,
+                        weekLabel: i === 3 ? 'w3' : i === 2 ? 'w2' : i === 1 ? 'w1' : 'w0'
+                    });
+                }
+                return dates;
+            }, []);
+
+            // 금주 1호 사료 수동 입력두수 상태
+            const [manualW0, setManualW0] = useState('');
 
             const showAlert = (message) => setAlertMsg(message);
             const showConfirm = (message, onConfirm) => {
-                setConfirmConfig({
-                    message,
-                    onConfirm: () => { onConfirm(); setConfirmConfig(null); },
-                    onCancel: () => setConfirmConfig(null)
-                });
+                setConfirmConfig({ message, onConfirm: () => { onConfirm(); setConfirmConfig(null); }, onCancel: () => setConfirmConfig(null) });
             };
             const showToast = (message, bgColor = 'bg-slate-900') => {
                 setToastConfig({ show: true, message, bgColor });
                 setTimeout(() => setToastConfig({ show: false, message: '', bgColor: 'bg-slate-900' }), 3000);
             };
 
-            // 알림 수동 삭제
-            const handleDismissPrediction = (bin) => {
-                setDismissedPredictions(prev => [...prev, bin]);
-                showToast(`벌크 ${bin}호통 알림을 삭제했습니다.`, "bg-slate-700");
+            // --- STREAMING_CHUNK: Formatting current day and week title memo ---
+            const todayDateString = useMemo(() => {
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+                return `${year}년 ${month}월 ${day}일 (${weekDays[today.getDay()]})`;
+            }, []);
+
+            // 수동 알림 제외 함수 (주문완료 버튼 클릭 시 숨김)
+            const handleOrderComplete = (bin) => {
+                showConfirm(`[${bin.startsWith('지대') ? bin : `벌크 ${bin}호`}] 주문을 완료하셨습니까?\n확인을 누르면 대시보드 예측 목록에서 제외되어 완료 처리됩니다.`, () => {
+                    setDismissedPredictions(prev => [...prev, bin]);
+                    showToast(`✨ [${bin.startsWith('지대') ? bin : `벌크 ${bin}호`}] 알림 카드가 완료 상태로 숨김 처리되었습니다.`, "bg-emerald-600");
+                });
             };
 
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        await auth.signInAnonymously();
+                        db.collection(FEED_ORDERS_COLLECTION_PATH).onSnapshot(
+                            snapshot => setOrders(snapshot.docs.map(doc => {
+                                const data = doc.data();
+                                return data ? { id: doc.id, ...data } : null;
+                            }).filter(Boolean).sort((a,b) => b.date.localeCompare(a.date))),
+                            err => console.error("Firestore Error:", err)
+                        );
+                    } catch (e) {
+                        console.error("Auth Init Error:", e);
+                    }
+                };
+                initAuth();
+            }, []);
+
+            // --- STREAMING_CHUNK: Binding real-time observers to database tables ---
             useEffect(() => {
                 auth.signInAnonymously().catch(err => console.warn("익명 로그인 실패:", err));
                 const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
@@ -187,53 +252,135 @@
 
             useEffect(() => {
                 if (!user) return;
-                const unsubscribeOrders = db.collection(FEED_ORDERS_COLLECTION_PATH)
+
+                const unsubscribeWeaningRecords = db.collection(WEANING_RECORDS_COLLECTION_PATH)
                     .onSnapshot(
                         (snapshot) => {
-                            const ordersData = snapshot.docs.map(doc => {
+                            const records = {};
+                            snapshot.docs.forEach(doc => {
                                 const data = doc.data();
-                                return data ? { id: doc.id, ...data } : null;
-                            }).filter(Boolean);
-                            ordersData.sort((a, b) => b.date.localeCompare(a.date));
-                            setOrders(ordersData);
-                            setLoading(false);
+                                if (data) records[doc.id] = data;
+                            });
+                            setWeaningRecords(records);
                         },
-                        (error) => {
-                            console.error("사료 주문 데이터 갱신 실패:", error);
-                            setLoading(false);
-                        }
+                        (error) => console.warn("사육현황 성적 수집 실패:", error)
                     );
-                return () => unsubscribeOrders();
+
+                const unsubscribeWeaningBatches = db.collection(WEANING_BATCHES_COLLECTION_PATH)
+                    .onSnapshot(
+                        (snapshot) => {
+                            const weaningList = snapshot.docs.map(doc => ({ id: doc.id, type: 'weaning', ...doc.data() }));
+                            setBatchList(prev => [...prev.filter(b => b.type !== 'weaning'), ...weaningList]);
+                        },
+                        (error) => console.warn("이유사 배치 수집 실패:", error)
+                    );
+
+                const unsubscribeGrowerBatches = db.collection(GROWER_BATCHES_COLLECTION_PATH)
+                    .onSnapshot(
+                        (snapshot) => {
+                            const growerList = snapshot.docs.map(doc => ({ id: doc.id, type: 'grower', ...doc.data() }));
+                            setBatchList(prev => [...prev.filter(b => b.type !== 'grower'), ...growerList]);
+                        },
+                        (error) => console.warn("육성사 배치 수집 실패:", error)
+                    );
+
+                return () => {
+                    unsubscribeWeaningRecords();
+                    unsubscribeWeaningBatches();
+                    unsubscribeGrowerBatches();
+                };
             }, [user]);
 
-            const todayDateString = useMemo(() => {
-                const today = new Date();
-                const year = today.getFullYear();
-                const month = String(today.getMonth() + 1).padStart(2, '0');
-                const day = String(today.getDate()).padStart(2, '0');
-                const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
-                return `${year}년 ${month}월 ${day}일 (${weekDays[today.getDay()]})`;
-            }, []);
+            // --- STREAMING_CHUNK: Processing active wean and grow batch sizes memo ---
+            const computedWeanCounts = useMemo(() => {
+                const getCountForDate = (dateStr) => {
+                    if (weaningRecords[dateStr] && weaningRecords[dateStr].totalWeaned > 0) {
+                        return { count: weaningRecords[dateStr].totalWeaned, source: 'record' };
+                    }
 
-            // 당일 주문 필터링 및 사료 종류별/최신순 정렬
+                    let sum = 0;
+                    batchList.forEach(b => {
+                        if (b.penDates && b.penDetails) {
+                            b.penDates.forEach((pd, idx) => {
+                                if (pd === dateStr) {
+                                    sum += (b.penDetails[idx] || 0);
+                                }
+                            });
+                        }
+                    });
+
+                    if (sum > 0) {
+                        return { count: sum, source: 'batch' };
+                    }
+
+                    return { count: 0, source: 'none' };
+                };
+
+                const w3Data = getCountForDate(targetThursdays[0].dbKey);
+                const w2Data = getCountForDate(targetThursdays[1].dbKey);
+                const w1Data = getCountForDate(targetThursdays[2].dbKey);
+                const w0Data = getCountForDate(targetThursdays[3].dbKey);
+                
+                return {
+                    w3: w3Data,
+                    w2: w2Data,
+                    w1: w1Data,
+                    w0: w0Data
+                };
+            }, [weaningRecords, batchList, targetThursdays]);
+
+            useEffect(() => {
+                if (computedWeanCounts.w0.count > 0 && manualW0 === '') {
+                    setManualW0(computedWeanCounts.w0.count.toString());
+                }
+            }, [computedWeanCounts.w0]);
+
+            const weanCountsForCalc = useMemo(() => {
+                return {
+                    w3: computedWeanCounts.w3.count,
+                    w2: computedWeanCounts.w2.count,
+                    w1: computedWeanCounts.w1.count,
+                    w0: manualW0 !== '' ? (parseInt(manualW0) || 0) : computedWeanCounts.w0.count
+                };
+            }, [computedWeanCounts, manualW0]);
+
+            // --- STREAMING_CHUNK: Fetching real-time pen locations matching target dates ---
+            const getActiveBarnsForDate = (dateStr) => {
+                const activeBarns = [];
+                batchList.forEach(b => {
+                    const numId = b.id ? String(b.id).replace('batch_', '') : '';
+                    const hasDateInPens = b.penDates && b.penDates.some((pd, idx) => pd === dateStr && (b.penDetails?.[idx] > 0));
+                    if (hasDateInPens) {
+                        const shortName = b.type === 'weaning' ? `이유 ${numId}` : (numId === '8' ? '후보사' : `육성 ${numId}`);
+                        if (!activeBarns.includes(shortName)) {
+                            activeBarns.push(shortName);
+                        }
+                    }
+                });
+                return activeBarns.length > 0 ? activeBarns.join(', ') : '-';
+            };
+
             const dailyOrders = useMemo(() => {
                 const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-                
                 const filtered = orders.filter(o => o.date.startsWith(todayStr));
-                
-                // 사료별 우선순위 가중치
                 const typeOrder = { '젖돈': 1, '육성': 2, '임신': 3, '포유': 4, '후보돈': 5 };
-                
                 return filtered.sort((a, b) => {
-                    if (typeOrder[a.feedType] !== typeOrder[b.feedType]) {
-                        return typeOrder[a.feedType] - typeOrder[b.feedType];
-                    }
-                    // 동일 사료 내에서는 최신순
+                    if (typeOrder[a.feedType] !== typeOrder[b.feedType]) return typeOrder[a.feedType] - typeOrder[b.feedType];
                     return b.date.localeCompare(a.date);
                 });
             }, [orders]);
 
-            // 당일 합산 요약 통계
+            const bagOrders = useMemo(() => {
+                return dailyOrders
+                    .filter(o => o.bulkBin && o.bulkBin.startsWith('지대'))
+                    .sort((a, b) => String(a.bulkBin).localeCompare(String(b.bulkBin), undefined, { numeric: true }));
+            }, [dailyOrders]);
+
+            const bulkOrders = useMemo(() => {
+                return dailyOrders.filter(o => !o.bulkBin || !o.bulkBin.startsWith('지대'));
+            }, [dailyOrders]);
+
+            // --- STREAMING_CHUNK: Computing sum statistics for today ---
             const dailySummaryStats = useMemo(() => {
                 const stats = { '젖돈': 0, '육성': 0, '임신': 0, '포유': 0, '후보돈': 0, 'total': 0 };
                 dailyOrders.forEach(order => {
@@ -251,12 +398,125 @@
                 };
             }, [dailyOrders]);
 
-            const handleSubmitOrder = async (e) => {
+            const calcProgramResults = useMemo(() => {
+                const parseVal = (v) => isNaN(parseInt(v)) ? 0 : parseInt(v);
+                
+                const n3 = Math.ceil(parseVal(weanCountsForCalc.w3) / 33) || 0;
+                const n2 = Math.ceil(parseVal(weanCountsForCalc.w2) / 33) || 0;
+                const n1 = Math.ceil(parseVal(weanCountsForCalc.w1) / 33) || 0;
+                const n0 = Math.ceil(parseVal(weanCountsForCalc.w0) / 33) || 0;
+
+                const w3_f3 = n3 * 5 * 1.3;
+                const w2_f3 = n2 * 8;
+                const w1_f2 = n1 * 8 * 0.8;
+                const w0_f1 = n0 > 0 ? (n0 * 3) + 10 : 0;
+                const w0_f2 = n0 * 1.5;
+
+                const totalF1 = parseFloat(w0_f1.toFixed(1));
+                const totalF2 = parseFloat((w1_f2 + w0_f2).toFixed(1));
+                const totalF3 = parseFloat((w3_f3 + w2_f3).toFixed(1));
+
+                return {
+                    n3, n2, n1, n0,
+                    w3_f3, w2_f3, w1_f2, w0_f1, w0_f2,
+                    totalF1, totalF2, totalF3
+                };
+            }, [weanCountsForCalc]);
+
+            // --- STREAMING_CHUNK: Computing stock and net order values memo ---
+            const { netF1, netF2, netF3 } = useMemo(() => {
+                const s1 = parseFloat(stockF1) || 0;
+                const s2 = parseFloat(stockF2) || 0;
+                const s3 = parseFloat(stockF3) || 0;
+
+                const rawNet1 = Math.max(0, calcProgramResults.totalF1 - s1);
+                const rawNet2 = Math.max(0, calcProgramResults.totalF2 - s2);
+                const rawNet3 = Math.max(0, calcProgramResults.totalF3 - s3);
+
+                const roundTo5Unit = (val) => {
+                    const rounded = Math.round(val / 5) * 5;
+                    return Math.max(0, rounded);
+                };
+
+                return {
+                    netF1: roundTo5Unit(rawNet1),
+                    netF2: roundTo5Unit(rawNet2),
+                    netF3: roundTo5Unit(rawNet3)
+                };
+            }, [calcProgramResults.totalF1, calcProgramResults.totalF2, calcProgramResults.totalF3, stockF1, stockF2, stockF3]);
+
+            const handleAddCalculatorToOrders = () => {
+                showConfirm(`재고 차감 및 5단위로 보정된 최종 실주문량 1호(${netF1}포), 2호(${netF2}포), 3호(${netF3}포)를 당일 주문에 즉시 추가하시겠습니까?`, async () => {
+                    try {
+                        const now = new Date();
+                        const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        
+                        const batch = db.batch();
+                        let count = 0;
+
+                        if (netF1 > 0) {
+                            const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
+                            const qtyTons = parseFloat((netF1 * 10 / 1000).toFixed(3));
+                            batch.set(ref, {
+                                feedType: '젖돈',
+                                bulkBin: '지대 1',
+                                quantity: qtyTons,
+                                unit: '톤',
+                                date: dateString
+                            });
+                            count++;
+                        }
+                        if (netF2 > 0) {
+                            const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
+                            const qtyTons = parseFloat((netF2 * 20 / 1000).toFixed(3));
+                            batch.set(ref, {
+                                feedType: '젖돈',
+                                bulkBin: '지대 2',
+                                quantity: qtyTons,
+                                unit: '톤',
+                                date: dateString
+                            });
+                            count++;
+                        }
+                        if (netF3 > 0) {
+                            const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
+                            const qtyTons = parseFloat((netF3 * 20 / 1000).toFixed(3));
+                            batch.set(ref, {
+                                feedType: '젖돈',
+                                bulkBin: '지대 3',
+                                quantity: qtyTons,
+                                unit: '톤',
+                                date: dateString
+                            });
+                            count++;
+                        }
+
+                        if (count > 0) {
+                            await batch.commit();
+                            showToast("✨ 실주문량 산출값 " + count + "건이 규격톤수로 변환되어 추가되었습니다!", "bg-emerald-600");
+                            setShowCalculator(false);
+                        } else {
+                            showAlert("실제 추가할 주문 수량이 존재하지 않습니다. (재고가 필요량보다 많거나 보정 후 0포가 됨)");
+                        }
+                    } catch (err) {
+                        showAlert("주문 추가 실패: " + err.message);
+                    }
+                });
+            };
+
+            const resetForms = () => {
+                setEditingOrderId(null);
+                setBulkFeedType('젖돈');
+                setBulkBin('1');
+                setBulkQuantity('');
+            };
+
+            const handleSubmitBulkOrder = async (e) => {
                 e.preventDefault();
                 if (!user) return;
 
-                const qVal = parseFloat(quantity);
-                if (!feedType || !bulkBin || isNaN(qVal) || qVal <= 0) {
+                const qVal = parseFloat(bulkQuantity);
+                if (!bulkFeedType || !bulkBin || isNaN(qVal) || qVal <= 0) {
                     showAlert("모든 값을 올바르게 기입해 주세요.");
                     return;
                 }
@@ -267,65 +527,48 @@
                 try {
                     if (editingOrderId) {
                         await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(editingOrderId).update({
-                            feedType, bulkBin, quantity: qVal, date: dateString + " (수정됨)"
+                            feedType: bulkFeedType, bulkBin, quantity: qVal, date: dateString + " (수정됨)"
                         });
-                        showToast("📝 사료 주문서가 수정되었습니다.", "bg-amber-600");
+                        showToast("📝 벌크 사료 주문서가 수정되었습니다.", "bg-amber-600");
                     } else {
                         await db.collection(FEED_ORDERS_COLLECTION_PATH).add({
-                            feedType, bulkBin, quantity: qVal, unit: '톤', date: dateString
+                            feedType: bulkFeedType, bulkBin, quantity: qVal, unit: '톤', date: dateString
                         });
-                        showToast("✨ 새 주문이 당일 요약표에 반영되었습니다!", "bg-emerald-600");
+                        showToast("✨ 새 벌크 주문이 등록되었습니다!", "bg-emerald-600");
                     }
-                    resetForm();
+                    resetForms();
                 } catch (err) {
                     showAlert("저장 실패: " + err.message);
                 }
             };
 
             const handleEditClick = (order) => {
+                const isBag = order.bulkBin.startsWith('지대');
+                if (isBag) {
+                    showToast("💡 지대 사료는 계산기를 통해 등록되므로, 삭제 후 계산기에서 다시 등록해 주세요.", "bg-amber-600");
+                    return;
+                }
                 setEditingOrderId(order.id);
-                setFeedType(order.feedType);
+                setBulkFeedType(order.feedType);
                 setBulkBin(order.bulkBin);
-                setQuantity(order.quantity);
+                setBulkQuantity(order.quantity);
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                showToast("✏️ 주문 정보 수정 상태입니다.", "bg-indigo-600");
+                showToast("✏️ 벌크 사료 주문 정보 수정 상태로 돌입합니다.", "bg-indigo-600");
             };
 
             const handleDeleteClick = (id) => {
                 showConfirm("이 주문 내역을 삭제하시겠습니까?", async () => {
                     try {
                         await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(id).delete();
-                        showToast("🗑️ 삭제되었습니다.", "bg-slate-700");
-                        if (editingOrderId === id) resetForm();
+                        showToast("🗑️ 성공적으로 삭제되었습니다.", "bg-slate-700");
+                        if (editingOrderId === id) resetForms();
                     } catch (err) {
                         showAlert("삭제 실패: " + err.message);
                     }
                 });
             };
 
-            const handleClearAllClick = () => {
-                if (orders.length === 0) return;
-                showConfirm("정말로 '모든 과거 기록'까지 포함하여 전체 초기화하시겠습니까?", async () => {
-                    try {
-                        const batch = db.batch();
-                        const snapshot = await db.collection(FEED_ORDERS_COLLECTION_PATH).get();
-                        snapshot.docs.forEach(doc => batch.delete(doc.ref));
-                        await batch.commit();
-                        showToast("🗑️ 모든 기록이 초기화되었습니다.", "bg-rose-700");
-                        resetForm();
-                    } catch (err) {
-                        showAlert("초기화 실패: " + err.message);
-                    }
-                });
-            };
-
-            const resetForm = () => {
-                setEditingOrderId(null);
-                setFeedType('젖돈');
-                setBulkBin('1');
-                setQuantity('');
-            };
-
+            // --- STREAMING_CHUNK: Formatting Kakao text for copy and share memo ---
             const generatedKakaoText = useMemo(() => {
                 if (dailyOrders.length === 0) return "당일 등록된 사료 주문 내역이 없습니다.";
 
@@ -337,18 +580,29 @@
                 });
                 text += `-------------------------\n\n`;
 
-                text += `■ 발주 상세 목록\n`;
-                dailyOrders.forEach((order) => {
-                    text += `${order.bulkBin}번 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
-                });
+                if (bagOrders.length > 0) {
+                    text += `■ 지대 사료 주문\n`;
+                    bagOrders.forEach((order) => {
+                        const bags = order.bulkBin === '지대 1' ? Math.round(parseFloat(order.quantity) * 100) : Math.round(parseFloat(order.quantity) * 50);
+                        text += `${order.bulkBin} ${bags}포\n`;
+                    });
+                    text += `\n`;
+                }
+
+                if (bulkOrders.length > 0) {
+                    text += `■ 벌크통 사료 주문\n`;
+                    bulkOrders.forEach((order) => {
+                        text += `${order.bulkBin}번 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
+                    });
+                }
 
                 if (shareNote.trim() !== '') {
                     text += `\n-------------------------\n`;
                     text += `${shareNote}`;
                 }
 
-                return text;
-            }, [dailyOrders, dailySummaryStats, shareNote]);
+                return text.trim();
+            }, [dailyOrders, bagOrders, bulkOrders, dailySummaryStats, shareNote]);
 
             const sendNativeShare = async () => {
                 if (navigator.share) {
@@ -359,7 +613,9 @@
                     } catch (err) {
                         if (err.name !== 'AbortError') showToast('공유가 중단되었습니다.');
                     }
-                } else copyShareText();
+                } else {
+                    copyShareText();
+                }
             };
 
             const copyShareText = () => {
@@ -373,7 +629,9 @@
                     if (document.execCommand('copy')) {
                         showToast('📋 텍스트가 복사되었습니다! 카톡을 실행합니다.', 'bg-indigo-600');
                         setTimeout(() => window.location.href = "kakaolink://", 800);
-                    } else showToast('❌ 복사에 실패했습니다.', 'bg-rose-600');
+                    } else {
+                        showToast('❌ 복사에 실패했습니다.', 'bg-rose-600');
+                    }
                 } catch (err) {
                     showToast('❌ 클립보드를 지원하지 않는 환경입니다.', 'bg-rose-600');
                 }
@@ -423,8 +681,15 @@
                 else setCalendarMonth(m => m + 1);
             };
 
+            // --- STREAMING_CHUNK: Processing feed bin predictions based on usage logs ---
             const binPredictions = useMemo(() => {
                 if (orders.length === 0) return [];
+
+                // 당일 주문 완료된 벌크통 및 지대 번호 수집 (알림 자동 삭제 대상)
+                const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+                const orderedBinsToday = orders
+                    .filter(o => o.date.startsWith(todayStr))
+                    .map(o => o.bulkBin);
 
                 const grouped = {};
                 orders.forEach(o => {
@@ -470,19 +735,10 @@
                     }
                 });
 
-                // 삭제 처리된 항목 숨김 + 임박한 순 정렬
                 return predictions
-                    .filter(p => !dismissedPredictions.includes(p.bin))
+                    .filter(p => !orderedBinsToday.includes(p.bin) && !dismissedPredictions.includes(p.bin))
                     .sort((a, b) => a.remainDays - b.remainDays);
             }, [orders, dismissedPredictions]);
-
-            if (loading) {
-                return (
-                    <div className="flex items-center justify-center h-screen bg-stone-100">
-                        <p className="text-lg font-bold text-slate-500 animate-pulse">성암농장 데이터베이스 연결 중...</p>
-                    </div>
-                );
-            }
 
             return (
                 <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
@@ -502,88 +758,310 @@
                             </div>
                             <div>
                                 <h1 className="text-2xl font-bold tracking-tight text-slate-900">성암농장 사료 주문</h1>
-                                <p className="text-sm text-slate-500 mt-0.5">사료 벌크통 잔량 관리 및 당일 주문 시스템</p>
+                                <p class="text-sm text-slate-500 mt-0.5">사료 벌크통 잔량 관리 및 당일 주문 시스템</p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2 text-xs font-semibold bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-full border border-emerald-100">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            실시간 작동 중
+                            사육현황 연동 중
                         </div>
                     </header>
 
+                    {/* --- STREAMING_CHUNK: Rendering primary interface layout grid --- */}
                     <div className="grid grid-cols-1 gap-8">
                         
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                            <section className="lg:col-span-8 bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
-                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6 border-b border-slate-100 pb-4">
-                                    <div className="flex items-center gap-2">
-                                        <PenTool className="w-5 h-5 text-amber-600" />
-                                        <h2 className="text-lg font-bold text-slate-800">신규 사료 주문 정보 등록</h2>
+                            
+                            {/* --- Left Column: Stacked Forms --- */}
+                            <div className="lg:col-span-8 space-y-6">
+                                
+                                {/* 1. 벌크 사료 주문 정보 폼 */}
+                                <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6 border-b border-slate-100 pb-4">
+                                        <div className="flex items-center gap-2">
+                                            <PenTool className="w-5 h-5 text-amber-600" />
+                                            <h2 className="text-lg font-bold text-slate-800">벌크 사료 주문 정보</h2>
+                                        </div>
+                                        <div className="text-xs sm:text-sm font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/50 self-start sm:self-auto">
+                                            <CalendarIcon className="w-4 h-4 text-amber-600" />
+                                            <span>{todayDateString}</span>
+                                        </div>
                                     </div>
-                                    <div className="text-xs sm:text-sm font-bold text-slate-500 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200/50 self-start sm:self-auto">
-                                        <CalendarIcon className="w-4 h-4 text-amber-600" />
-                                        <span>{todayDateString}</span>
-                                    </div>
-                                </div>
 
-                                <form onSubmit={handleSubmitOrder} className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 종류 <span className="text-rose-500">*</span></label>
-                                            <div className="relative">
-                                                <select value={feedType} onChange={e => setFeedType(e.target.value)} required
-                                                    className="w-full pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-800 appearance-none cursor-pointer">
-                                                    <option value="젖돈">젖돈</option>
-                                                    <option value="육성">육성</option>
-                                                    <option value="임신">임신</option>
-                                                    <option value="포유">포유</option>
-                                                    <option value="후보돈">후보돈</option>
-                                                </select>
-                                                <div className="absolute right-3.5 top-3.5 text-slate-500 pointer-events-none"><ChevronDown className="w-4.5 h-4.5" /></div>
+                                    <form onSubmit={handleSubmitBulkOrder} className="space-y-4">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 종류 <span className="text-rose-500">*</span></label>
+                                                <div className="relative">
+                                                    <select value={bulkFeedType} onChange={e => setBulkFeedType(e.target.value)} required
+                                                        className="w-full pl-4 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-800 appearance-none cursor-pointer">
+                                                        <option value="젖돈">젖돈</option>
+                                                        <option value="육성">육성</option>
+                                                        <option value="임신">임신</option>
+                                                        <option value="포유">포유</option>
+                                                        <option value="후보돈">후보돈</option>
+                                                    </select>
+                                                    <div className="absolute right-3.5 top-3.5 text-slate-500 pointer-events-none"><ChevronDown className="w-4.5 h-4.5" /></div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">벌크통 번호 <span className="text-rose-500">*</span></label>
+                                                <div className="relative">
+                                                    <select value={bulkBin} onChange={e => setBulkBin(e.target.value)} required
+                                                        className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-800 appearance-none cursor-pointer">
+                                                        <option value="" disabled>번호 선택</option>
+                                                        <option value="1">벌크 1호통</option><option value="2">벌크 2호통</option><option value="3">벌크 3호통</option>
+                                                        <option value="4A">벌크 4A호통</option><option value="4B">벌크 4B호통</option><option value="5">벌크 5호통</option>
+                                                        <option value="6">벌크 6호통</option><option value="7">벌크 7호통</option><option value="8">벌크 8호통</option>
+                                                        <option value="9">벌크 9호통</option><option value="10">벌크 10호통</option><option value="11">벌크 11호통</option>
+                                                        <option value="12">벌크 12호통</option><option value="13">벌크 13호통</option>
+                                                    </select>
+                                                    <div className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none"><Container className="w-4.5 h-4.5" /></div>
+                                                    <div className="absolute right-3.5 top-3.5 text-slate-500 pointer-events-none"><ChevronDown className="w-4.5 h-4.5" /></div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 주문량 (톤) <span className="text-rose-500">*</span></label>
+                                                <div className="flex gap-2">
+                                                    <input type="number" step="0.1" min="0.1" value={bulkQuantity} onChange={e => setBulkQuantity(e.target.value)} required placeholder="예: 3.5"
+                                                        className="w-full min-w-0 flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-black text-slate-800"
+                                                    />
+                                                    <span className="flex items-center justify-center shrink-0 px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600">
+                                                        톤
+                                                    </span>
+                                                </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">벌크통 번호 <span className="text-rose-500">*</span></label>
-                                            <div className="relative">
-                                                <select value={bulkBin} onChange={e => setBulkBin(e.target.value)} required
-                                                    className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-800 appearance-none cursor-pointer">
-                                                    <option value="" disabled>번호 선택</option>
-                                                    <option value="1">벌크 1호통</option><option value="2">벌크 2호통</option><option value="3">벌크 3호통</option>
-                                                    <option value="4A">벌크 4A호통</option><option value="4B">벌크 4B호통</option><option value="5">벌크 5호통</option>
-                                                    <option value="6">벌크 6호통</option><option value="7">벌크 7호통</option><option value="8">벌크 8호통</option>
-                                                    <option value="9">벌크 9호통</option><option value="10">벌크 10호통</option><option value="11">벌크 11호통</option>
-                                                    <option value="12">벌크 12호통</option><option value="13">벌크 13호통</option>
-                                                </select>
-                                                <div className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none"><Container className="w-4.5 h-4.5" /></div>
-                                                <div className="absolute right-3.5 top-3.5 text-slate-500 pointer-events-none"><ChevronDown className="w-4.5 h-4.5" /></div>
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 주문량 (톤) <span className="text-rose-500">*</span></label>
-                                            <div className="flex gap-2">
-                                                <input type="number" step="0.1" min="0.1" value={quantity} onChange={e => setQuantity(e.target.value)} required placeholder="예: 3.5"
-                                                    className="w-full min-w-0 flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-black text-slate-800"
-                                                />
-                                                <span className="flex items-center justify-center shrink-0 px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600">
-                                                    톤
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="flex gap-3 pt-4 border-t border-slate-100">
-                                        {editingOrderId && (
-                                            <button type="button" onClick={resetForm} className="flex-1 py-3 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl text-sm font-semibold transition-all">
-                                                수정 취소
+                                        <div className="flex gap-3 pt-4 border-t border-slate-100">
+                                            {editingOrderId && (
+                                                <button type="button" onClick={resetForms} className="flex-1 py-3 border border-slate-200 text-slate-500 hover:text-slate-800 rounded-xl text-sm font-semibold transition-all">
+                                                    수정 취소
+                                                </button>
+                                            )}
+                                            <button type="submit" className={`flex-[2] text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${editingOrderId ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
+                                                <PlusCircle className="w-5 h-5" />
+                                                <span>{editingOrderId ? '벌크 정보 수정' : '벌크 주문서 저장'}</span>
                                             </button>
-                                        )}
-                                        <button type="submit" className={`flex-[2] text-white font-bold py-3 px-6 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${editingOrderId ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
-                                            <PlusCircle className="w-5 h-5" />
-                                            <span>{editingOrderId ? '사료 주문서 정보 수정' : '사료 주문서 저장'}</span>
-                                        </button>
-                                    </div>
-                                </form>
-                            </section>
+                                        </div>
+                                    </form>
+                                </section>
 
+                                {/* --- STREAMING_CHUNK: Rendering weaned piglets starter program section --- */}
+                                {/* 2. 📋 이유자돈 사료 프로그램 자동 계산기 */}
+                                <section className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60">
+                                    <button 
+                                        type="button"
+                                        onClick={() => setShowCalculator(!showCalculator)}
+                                        className="w-full flex items-center justify-between text-left"
+                                    >
+                                        <div className="flex items-center gap-2.5">
+                                            <Calculator className="w-6 h-6 text-amber-500" />
+                                            <div>
+                                                <div className="flex items-center gap-2">
+                                                    <h2 className="text-base font-black text-slate-800">이유자돈 사료 프로그램 주문 계산기</h2>
+                                                    <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded font-black flex items-center gap-1">
+                                                        🐷 사육현황 DB 실시간 연동 중
+                                                    </span>
+                                                </div>
+                                                <p className="text-xs text-slate-500 mt-0.5">사육현황에서 기록한 이유 성적 및 돈사 칸 입식두수가 날짜별로 연동되어 계산됩니다.</p>
+                                            </div>
+                                        </div>
+                                        <div className="p-1.5 bg-slate-50 border border-slate-200/50 rounded-lg text-slate-500 transition-all">
+                                            <ChevronDown className={`w-5 h-5 transform transition-transform duration-200 ${showCalculator ? 'rotate-180' : ''}`} />
+                                        </div>
+                                    </button>
+
+                                    {showCalculator && (
+                                        <div className="mt-6 border-t border-slate-100 pt-5 space-y-5 animate-[slideUp_0.15s_ease-out]">
+                                            
+                                            {/* 계산기 설정 제어 및 일정 가이드라인 */}
+                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
+                                                <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+                                                    <div>
+                                                        <h4 className="text-xs font-black text-slate-700">📌 주문 가이드</h4>
+                                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                                            수식 반영 조건: <strong className="text-amber-600">1호 주문수량+10포</strong> | <strong className="text-emerald-600">2호-0.8배수</strong> | <strong className="text-purple-600">3호-1, 1.3배수 적용</strong>
+                                                        </p>
+                                                    </div>
+                                                    <span className="text-[10px] font-black bg-white border border-slate-200 rounded px-2.5 py-1 text-slate-600 self-stretch sm:self-auto text-center shadow-sm">
+                                                        포대 수 기반 수식 계산 적용
+                                                    </span>
+                                                </div>
+                                                <div className="border-t border-dashed border-slate-200 pt-2 text-[11px] leading-relaxed text-slate-500 font-medium">
+                                                    📅 <strong className="text-slate-800">배송 타임라인:</strong> 성암농장은 매주 <span className="text-blue-600 font-black">목요일 이유</span> 스케줄이 고정이므로, <span className="text-indigo-600 font-black">화요일 사료 주문</span> 시 수요일에 배송받아 일정을 정확히 소화하게 설계되었습니다.
+                                                </div>
+                                            </div>
+
+                                            {/* 엑셀 스타일 테이블 */}
+                                            <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                                <table className="w-full text-xs font-mono text-center text-slate-700 excel-table border-collapse min-w-[650px]">
+                                                    <thead>
+                                                        <tr className="bg-slate-100 font-bold">
+                                                            <th className="p-2.5 w-16">이유일</th>
+                                                            <th className="p-2.5">이유두수</th>
+                                                            <th className="p-2.5 w-24">이유두수/33</th>
+                                                            <th className="p-2.5 w-28 text-amber-700">1호</th>
+                                                            <th className="p-2.5 w-28 text-emerald-700">2호</th>
+                                                            <th className="p-2.5 w-28 text-purple-700">3호</th>
+                                                            <th className="p-2.5 w-24">돈사</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody class="divide-y divide-slate-200">
+                                                        {/* 3주 전 이유 (3호 사료 급여 - 사육현황 자동 로드) */}
+                                                        <tr>
+                                                            <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[0].display}</td>
+                                                            <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
+                                                                <div className="flex items-center justify-center gap-1.5">
+                                                                    <span className="text-[13px]">{weanCountsForCalc.w3} 두</span>
+                                                                    {computedWeanCounts.w3.source === 'batch' && <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-600 px-1.5 py-0.5 rounded-md font-bold">배치 연동</span>}
+                                                                    {computedWeanCounts.w3.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-2.5 bg-slate-50/50 font-bold">{calcProgramResults.n3}</td>
+                                                            <td className="p-2.5 text-slate-400">-</td>
+                                                            <td className="p-2.5 text-slate-400">-</td>
+                                                            <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w3_f3.toFixed(1)} 포</td>
+                                                            <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[0].dbKey)}</td>
+                                                        </tr>
+                                                        {/* 2주 전 이유 (3호 사료 급여 - 사육현황 자동 로드) */}
+                                                        <tr>
+                                                            <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[1].display}</td>
+                                                            <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
+                                                                <div className="flex items-center justify-center gap-1.5">
+                                                                    <span className="text-[13px]">{weanCountsForCalc.w2} 두</span>
+                                                                    {computedWeanCounts.w2.source === 'batch' && <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-600 px-1.5 py-0.5 rounded-md font-bold">배치 연동</span>}
+                                                                    {computedWeanCounts.w2.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-2.5 bg-slate-50/50 font-bold">{calcProgramResults.n2}</td>
+                                                            <td className="p-2.5 text-slate-400">-</td>
+                                                            <td className="p-2.5 text-slate-400">-</td>
+                                                            <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w2_f3.toFixed(1)} 포</td>
+                                                            <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[1].dbKey)}</td>
+                                                        </tr>
+                                                        {/* 1주 전 이유 (2호 사료 급여 - 사육현황 자동 로드) */}
+                                                        <tr>
+                                                            <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[2].display}</td>
+                                                            <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
+                                                                <div className="flex items-center justify-center gap-1.5">
+                                                                    <span className="text-[13px]">{weanCountsForCalc.w1} 두</span>
+                                                                    {computedWeanCounts.w1.source === 'batch' && <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-600 px-1.5 py-0.5 rounded-md font-bold">배치 연동</span>}
+                                                                    {computedWeanCounts.w1.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-2.5 bg-slate-50/50 font-bold">{calcProgramResults.n1}</td>
+                                                            <td className="p-2.5 text-slate-400">-</td>
+                                                            <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w1_f2.toFixed(1)} 포</td>
+                                                            <td className="p-2.5 text-slate-400">-</td>
+                                                            <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[2].dbKey)}</td>
+                                                        </tr>
+                                                        {/* 금주 이유 (1호 사료 급여 - 직접 기입 우선 및 연동 폴백 지원) */}
+                                                        <tr>
+                                                            <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[3].display}</td>
+                                                            <td className="p-1.5 bg-amber-50/10">
+                                                                <div className="relative flex items-center justify-center">
+                                                                    <input 
+                                                                        type="number" 
+                                                                        value={manualW0} 
+                                                                        onChange={(e) => setManualW0(e.target.value)} 
+                                                                        placeholder="직접 입력"
+                                                                        className="w-full text-center py-1 bg-white border border-slate-200 focus:border-amber-500 focus:outline-none font-black text-slate-900 rounded shadow-inner" 
+                                                                    />
+                                                                    {computedWeanCounts.w0.source === 'batch' && (
+                                                                        <span className="absolute right-1 text-[8px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1 rounded scale-90 pointer-events-none">
+                                                                            배치완료
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-2.5 bg-slate-50/50 font-bold">{calcProgramResults.n0}</td>
+                                                            <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w0_f1.toFixed(1)} 포</td>
+                                                            <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w0_f2.toFixed(1)} 포</td>
+                                                            <td className="p-2.5 text-slate-400">-</td>
+                                                            <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[3].dbKey)}</td>
+                                                        </tr>
+                                                        
+                                                        {/* 합계 행 */}
+                                                        <tr className="bg-slate-100 font-black text-slate-900 border-t-2 border-slate-300">
+                                                            <td className="p-3 text-center">합계</td>
+                                                            <td colSpan="2" className="p-3 text-right text-[11px] text-slate-400 font-semibold pr-4">포대 수 합계:</td>
+                                                            <td className="p-3 text-amber-600 text-[13px]">{calcProgramResults.totalF1.toFixed(1)} 포</td>
+                                                            <td className="p-3 text-emerald-600 text-[13px]">{calcProgramResults.totalF2.toFixed(1)} 포</td>
+                                                            <td className="p-3 text-purple-600 text-[13px]">{calcProgramResults.totalF3.toFixed(1)} 포</td>
+                                                            <td className="p-3"></td>
+                                                        </tr>
+
+                                                        {/* 재고수량 행 */}
+                                                        <tr className="bg-slate-50 font-bold text-slate-700">
+                                                            <td className="p-3 text-center text-slate-800">재고수량</td>
+                                                            <td colSpan="2" className="p-3 text-right text-[11px] text-slate-400 font-semibold pr-4">창고 보유 포대 수:</td>
+                                                            <td className="p-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={stockF1} 
+                                                                    onChange={(e) => setStockF1(e.target.value)} 
+                                                                    placeholder="0"
+                                                                    className="w-full text-center py-1.5 bg-white border border-slate-200 focus:border-amber-500 focus:outline-none font-black text-slate-800 rounded shadow-sm" 
+                                                                />
+                                                            </td>
+                                                            <td className="p-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={stockF2} 
+                                                                    onChange={(e) => setStockF2(e.target.value)} 
+                                                                    placeholder="0"
+                                                                    className="w-full text-center py-1.5 bg-white border border-slate-200 focus:border-amber-500 focus:outline-none font-black text-slate-800 rounded shadow-sm" 
+                                                                />
+                                                            </td>
+                                                            <td className="p-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={stockF3} 
+                                                                    onChange={(e) => setStockF3(e.target.value)} 
+                                                                    placeholder="0"
+                                                                    className="w-full text-center py-1.5 bg-white border border-slate-200 focus:border-amber-500 focus:outline-none font-black text-slate-800 rounded shadow-sm" 
+                                                                />
+                                                            </td>
+                                                            <td className="p-3"></td>
+                                                        </tr>
+
+                                                        {/* 실주문량 행 */}
+                                                        <tr className="bg-amber-50/60 font-black text-slate-900 border-t border-b-2 border-slate-300">
+                                                            <td className="p-3 text-center text-amber-800">실주문량</td>
+                                                            <td colSpan="2" className="p-3 text-right text-[11px] text-amber-700 font-bold pr-4">최종 발주 포대 수:</td>
+                                                            <td className="p-3 text-amber-600 text-[13px]">{netF1} 포</td>
+                                                            <td className="p-3 text-emerald-600 text-[13px]">{netF2} 포</td>
+                                                            <td className="p-3 text-purple-600 text-[13px]">{netF3} 포</td>
+                                                            <td className="p-3"></td>
+                                                        </tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            {/* 연동 및 최종 등록 실행 버튼 */}
+                                            <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3 pt-2">
+                                                <div className="text-[11px] text-slate-500 font-bold leading-relaxed bg-slate-50 px-3.5 py-3 rounded-xl border border-slate-200/50 flex-1">
+                                                    💡 사육현황 앱의 데이터가 변경될 때마다 여기에 실시간으로 반영됩니다. 최종 합계 톤수로 자동 치환하여 당일 주문서에 넣으려면 우측 버튼을 누르세요.
+                                                </div>
+                                                <div className="flex justify-end">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleAddCalculatorToOrders}
+                                                        className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-black py-3.5 px-8 rounded-xl shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm"
+                                                    >
+                                                        <span>📥 계산 결과를 주문서에 최종 등록</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                        </div>
+                                    )}
+                                </section>
+
+                            </div>
+
+                            {/* --- STREAMING_CHUNK: Rendering daily summation dashboard panels --- */}
+                            {/* 당일 누적 합산 요약 (우측) */}
                             <section className="lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex flex-col justify-between h-full">
                                 <div>
                                     <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
@@ -615,6 +1093,8 @@
                             </section>
                         </div>
 
+                        {/* --- STREAMING_CHUNK: Rendering automatic alert notifications block --- */}
+                        {/* 예측 알림 작동 현황 */}
                         <section className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex flex-col space-y-4">
                             <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-3 gap-2">
                                 <div className="flex items-center gap-2">
@@ -648,17 +1128,20 @@
 
                                         return (
                                             <div key={idx} className={`p-4 rounded-xl border flex flex-col gap-2.5 shadow-sm transition-all relative ${statusColor}`}>
-                                                <button onClick={() => handleDismissPrediction(pred.bin)} title="알림 삭제" className="absolute top-3 right-3 text-slate-300 hover:text-rose-500 transition-colors bg-white/50 rounded-md p-1">
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                                <div className="flex justify-between items-center mb-1 border-b border-slate-200/50 pb-2 pr-6">
+                                                <div className="flex justify-between items-center mb-1 border-b border-slate-200/50 pb-2">
                                                     <div className="flex items-center gap-1.5">
-                                                        <span className="text-[14px] font-black text-slate-800">벌크 {pred.bin}호</span>
+                                                        <span className="text-[14px] font-black text-slate-800">{pred.bin.startsWith('지대') ? pred.bin : `벌크 ${pred.bin}호`}</span>
                                                         <span className="text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">{pred.feedType}</span>
+                                                        <span className={`text-[11px] font-black px-2 py-0.5 rounded-md shadow-sm ${badgeColor}`}>
+                                                            {urgencyText}
+                                                        </span>
                                                     </div>
-                                                    <span className={`text-[11px] font-black px-2 py-1 rounded-md shadow-sm ${badgeColor}`}>
-                                                        {urgencyText}
-                                                    </span>
+                                                    <button 
+                                                        onClick={() => handleOrderComplete(pred.bin)} 
+                                                        className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2.5 py-1.5 rounded-lg shadow-sm transition-all active:scale-95"
+                                                    >
+                                                        주문완료
+                                                    </button>
                                                 </div>
                                                 <div className="flex justify-between items-center text-xs font-semibold">
                                                     <span className="text-slate-500">일평균 소모량:</span>
@@ -677,6 +1160,8 @@
                             )}
                         </section>
 
+                        {/* --- STREAMING_CHUNK: Rendering daily orders split tables --- */}
+                        {/* 당일 주문 리스트 (지대 사료 & 벌크통 사료 표 분리형) */}
                         <section className="w-full bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 space-y-4">
                             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                                 <div className="flex items-center gap-2">
@@ -692,50 +1177,101 @@
                                     >
                                         <MessageSquare className="w-3.5 h-3.5" /> 카톡 전송
                                     </button>
-                                    <button onClick={handleClearAllClick} className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors flex items-center gap-1">
-                                        <Trash2 className="w-3.5 h-3.5" /> 전체 삭제
-                                    </button>
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700 min-w-[500px]">
-                                    <thead>
-                                        <tr className="text-center font-bold">
-                                            <th className="p-2.5 w-16 bg-slate-100">No.</th>
-                                            <th className="p-2.5 w-32 bg-slate-100">사료 종류</th>
-                                            <th className="p-2.5 w-32 bg-slate-100">벌크통 번호</th>
-                                            <th className="p-2.5 w-32 bg-slate-100 text-right pr-4">주문량 (톤)</th>
-                                            <th className="p-2.5 w-24 bg-slate-100">관리</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {dailyOrders.length === 0 ? (
-                                            <tr><td colSpan="5" className="p-8 text-center text-slate-400 font-sans">오늘 접수된 사료 주문이 없습니다.</td></tr>
-                                        ) : (
-                                            dailyOrders.map((order, index) => {
-                                                const rowNo = index + 1; // 순차적 번호 부여
-                                                return (
-                                                    <tr key={order.id} className="hover:bg-slate-50 transition-all text-sm text-slate-800">
-                                                        <td className="p-3 text-center bg-slate-50/70 font-black border border-slate-300 text-slate-400">{rowNo}</td>
-                                                        <td className="p-3 text-center font-sans font-black border border-slate-300 text-slate-900">{order.feedType}</td>
-                                                        <td className="p-3 text-center font-sans font-black border border-slate-300 text-amber-700">벌크 {order.bulkBin}호</td>
-                                                        <td className="p-3 text-right pr-4 font-black border border-slate-300 text-slate-950">{parseFloat(order.quantity).toFixed(1)} 톤</td>
-                                                        <td className="p-2 text-center border border-slate-300">
-                                                            <div className="flex justify-center gap-1.5">
-                                                                <button onClick={() => handleEditClick(order)} title="수정" className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-300 rounded shadow-sm transition-all"><Edit3 className="w-4 h-4" /></button>
-                                                                <button onClick={() => handleDeleteClick(order.id)} title="삭제" className="p-1.5 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-300 rounded shadow-sm transition-all"><Trash2 className="w-4 h-4" /></button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })
-                                        )}
-                                    </tbody>
-                                </table>
+                            <div className="space-y-6 pt-2">
+                                {/* 지대 사료 당일 테이블 */}
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                        지대 사료 주문 ({bagOrders.length}건)
+                                    </h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700 min-w-[500px]">
+                                            <thead>
+                                                <tr className="text-center font-bold">
+                                                    <th className="p-2.5 w-16 bg-slate-100">No.</th>
+                                                    <th className="p-2.5 w-32 bg-slate-100">지대 번호</th>
+                                                    <th className="p-2.5 w-32 bg-slate-100 text-right pr-4">주문량 (포)</th>
+                                                    <th className="p-2.5 w-24 bg-slate-100">관리</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {bagOrders.length === 0 ? (
+                                                    <tr><td colSpan="4" className="p-6 text-center text-slate-400 font-sans bg-slate-50/50">오늘 접수된 지대 주문이 없습니다.</td></tr>
+                                                ) : (
+                                                    bagOrders.map((order, index) => {
+                                                        const rowNo = index + 1;
+                                                        // DB 톤수를 실제 규격(지대1: 10kg=0.01t, 지대2/3: 20kg=0.02t)에 비추어 포대수로 역산 출력
+                                                        const bagsValue = order.bulkBin === '지대 1' ? Math.round(parseFloat(order.quantity) * 100) : Math.round(parseFloat(order.quantity) * 50);
+                                                        return (
+                                                            <tr key={order.id} className="hover:bg-slate-50 transition-all text-sm text-slate-800">
+                                                                <td className="p-3 text-center bg-slate-50/70 font-black border border-slate-300 text-slate-400">{rowNo}</td>
+                                                                <td className="p-3 text-center font-sans font-black border border-slate-300 text-amber-700">{order.bulkBin}</td>
+                                                                <td className="p-3 text-right pr-4 font-black border border-slate-300 text-slate-950">{bagsValue} 포</td>
+                                                                <td className="p-2 text-center border border-slate-300">
+                                                                    <div className="flex justify-center gap-1.5">
+                                                                        <button onClick={() => handleDeleteClick(order.id)} title="삭제" className="p-1.5 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-300 rounded shadow-sm transition-all"><Trash2 className="w-4 h-4" /></button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* 벌크 사료 당일 테이블 */}
+                                <div>
+                                    <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-1.5">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                                        벌크통 사료 주문 ({bulkOrders.length}건)
+                                    </h3>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700 min-w-[500px]">
+                                            <thead>
+                                                <tr className="text-center font-bold">
+                                                    <th className="p-2.5 w-16 bg-slate-100">No.</th>
+                                                    <th className="p-2.5 w-32 bg-slate-100">사료 종류</th>
+                                                    <th className="p-2.5 w-32 bg-slate-100">벌크통 번호</th>
+                                                    <th className="p-2.5 w-32 bg-slate-100 text-right pr-4">주문량 (톤)</th>
+                                                    <th className="p-2.5 w-24 bg-slate-100">관리</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {bulkOrders.length === 0 ? (
+                                                    <tr><td colSpan="5" className="p-6 text-center text-slate-400 font-sans bg-slate-50/50">오늘 접수된 벌크통 주문이 없습니다.</td></tr>
+                                                ) : (
+                                                    bulkOrders.map((order, index) => {
+                                                        const rowNo = index + 1;
+                                                        return (
+                                                            <tr key={order.id} className="hover:bg-slate-50 transition-all text-sm text-slate-800">
+                                                                <td className="p-3 text-center bg-slate-50/70 font-black border border-slate-300 text-slate-400">{rowNo}</td>
+                                                                <td className="p-3 text-center font-sans font-black border border-slate-300 text-slate-900">{order.feedType}</td>
+                                                                <td className="p-3 text-center font-sans font-black border border-slate-300 text-blue-700">벌크 {order.bulkBin}호</td>
+                                                                <td className="p-3 text-right pr-4 font-black border border-slate-300 text-slate-950">{parseFloat(order.quantity).toFixed(1)} 톤</td>
+                                                                <td className="p-2 text-center border border-slate-300">
+                                                                    <div className="flex justify-center gap-1.5">
+                                                                        <button onClick={() => handleEditClick(order)} title="수정" className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-300 rounded shadow-sm transition-all"><Edit3 className="w-4 h-4" /></button>
+                                                                        <button onClick={() => handleDeleteClick(order.id)} title="삭제" className="p-1.5 bg-white hover:bg-rose-50 text-slate-600 hover:text-rose-600 border border-slate-300 rounded shadow-sm transition-all"><Trash2 className="w-4 h-4" /></button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
                             </div>
                         </section>
 
+                        {/* --- STREAMING_CHUNK: Rendering calendar launcher row --- */}
+                        {/* 달력 일정표 실행 버튼 */}
                         <div className="pb-10">
                             <section className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 flex items-center justify-center">
                                 <button onClick={() => {
@@ -753,6 +1289,7 @@
                         </div>
                     </div>
 
+                    {/* --- STREAMING_CHUNK: Generating dialog and alert modals code blocks --- */}
                     {/* --- Modals --- */}
                     {showShareModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -769,20 +1306,27 @@
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1.5">전달사항 추가</label>
+                                        <label class="block text-xs font-bold text-slate-700 mb-1.5">전달사항 추가</label>
                                         <div className="flex flex-col gap-2">
                                             <div className="relative">
                                                 <select onChange={e => { if (e.target.value !== 'direct') { setShareNote(e.target.value); e.target.value = 'direct'; } }}
                                                     defaultValue="direct" className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold appearance-none cursor-pointer">
                                                     <option value="direct">자주 쓰는 전달사항 선택 (클릭)</option>
+                                                    <option value="스페셜플러스">스페셜플러스</option>
                                                     <option value="내일 첫차 배송 부탁드립니다.">내일 첫차 배송 부탁드립니다.</option>
                                                     <option value="내일 막차 배송 부탁드립니다.">내일 막차 배송 부탁드립니다.</option>
                                                     <option value="오늘 막차 배송 부탁드립니다.">오늘 막차 배송 부탁드립니다.</option>
                                                     <option value="경사로 진입 시 주의 부탁드립니다.">경사로 진입 시 주의 부탁드립니다.</option>
                                                 </select>
-                                                <div className="absolute right-2.5 top-2 text-slate-400 pointer-events-none"><ChevronDown className="w-4 h-4" /></div>
+                                                <div className="absolute right-2.5 top-2 text-slate-400 pointer-events-none"><ChevronDown className="w-4.5 h-4.5" /></div>
                                             </div>
-                                            <input type="text" value={shareNote} onChange={e => setShareNote(e.target.value)} placeholder="직접 기입하거나 수정할 수 있습니다." className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold shadow-sm"/>
+                                            <textarea 
+                                                value={shareNote} 
+                                                onChange={e => setShareNote(e.target.value)} 
+                                                placeholder="직접 기입하거나 수정할 수 있습니다. (엔터를 눌러 여러 줄 입력 가능)" 
+                                                rows="3"
+                                                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold shadow-sm resize-none"
+                                            ></textarea>
                                         </div>
                                     </div>
                                 </div>
@@ -801,6 +1345,7 @@
                         </div>
                     )}
 
+                    {/* --- STREAMING_CHUNK: Generating scheduler calendar popups --- */}
                     {showCalendarModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                             <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-[slideUp_0.2s_ease-out] max-h-[90vh]">
@@ -840,13 +1385,29 @@
                                                         {cell.dayTotal > 0 && <span className="bg-slate-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded leading-none">{cell.dayTotal.toFixed(1)}t</span>}
                                                     </div>
                                                     <div className="space-y-1 mt-1 flex-1 flex flex-col justify-end">
-                                                        {cell.badges.map((badge, bIdx) => (
-                                                            <div key={bIdx} className={`px-1 py-0.5 rounded text-[8.5px] font-sans font-black flex justify-between items-center border ${badgeColors[badge.type] || 'bg-slate-100 text-slate-700'} tracking-tighter`}>
-                                                                <span className="truncate w-1/3">{badge.type}</span>
-                                                                <span className="text-center w-1/3 opacity-75">{badge.bin}</span>
-                                                                <span className="text-right w-1/3">{badge.qty.toFixed(1)}t</span>
-                                                            </div>
-                                                        ))}
+                                                        {cell.badges.map((badge, bIdx) => {
+                                                            const isBag = badge.bin && badge.bin.startsWith('지대');
+                                                            const bagsVal = isBag ? (badge.bin === '지대 1' ? Math.round(badge.qty * 100) : Math.round(badge.qty * 50)) : 0;
+                                                            // 지대 사료인 경우 젖돈 대신 지대1, 2, 3으로 표시하고 포대 수량과 톤수가 함께 노출되도록 스타일링
+                                                            const bgStyle = isBag ? 'bg-amber-50 text-amber-700 border-amber-200 font-bold' : (badgeColors[badge.type] || 'bg-slate-100 text-slate-700 border-slate-200');
+                                                            
+                                                            return (
+                                                                <div key={bIdx} className={`px-1 py-0.5 rounded text-[8.5px] font-sans font-black flex justify-between items-center border ${bgStyle} tracking-tighter`}>
+                                                                    {isBag ? (
+                                                                        <React.Fragment>
+                                                                            <span className="font-bold">{badge.bin.replace(' ', '')}</span>
+                                                                            <span className="text-right">{bagsVal}포({badge.qty.toFixed(2)}t)</span>
+                                                                        </React.Fragment>
+                                                                    ) : (
+                                                                        <React.Fragment>
+                                                                            <span className="truncate w-1/3">{badge.type}</span>
+                                                                            <span className="text-center w-1/3 opacity-75">{badge.bin}호</span>
+                                                                            <span className="text-right w-1/3">{badge.qty.toFixed(1)}t</span>
+                                                                        </React.Fragment>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
                                                 </div>
                                             );
@@ -864,7 +1425,7 @@
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        root.render(App ? <App /> : <div>Loading...</div>);
     </script>
 </body>
 </html>

@@ -8,7 +8,7 @@
     <title>성암농장 사육 현황 - 리포트 강화 버전</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Firebase SDK (호환 버전) -->
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -22,7 +22,6 @@
         @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         input, select, textarea { font-size: 16px !important; outline: none; } 
         
-        /* 돈방 그리드 설정 */
         .pen-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; flex: 1; }
         .pen-box { aspect-ratio: 1; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: white; transition: all 0.2s; border: 1px solid rgba(0,0,0,0.05); position: relative; overflow: hidden; }
         .pen-empty { background-color: #f1f5f9; color: #cbd5e1; border: 1px dashed #cbd5e1; } 
@@ -31,7 +30,6 @@
         .pen-residual { background-color: #f59e0b; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1); }
         .pen-pink { background-color: #ec4899; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1); }
         
-        /* 배치 입구(문) 스타일 */
         .batch-gate-container { display: flex; align-items: stretch; margin-top: 10px; }
         .batch-gate-bar { width: 5px; border-radius: 3px; margin-right: 8px; opacity: 0.6; }
         .gate-wean { background-color: #10b981; }
@@ -63,8 +61,6 @@
     </header>
 
     <main class="max-w-2xl mx-auto p-4 space-y-6">
-        
-        <!-- 외부 링크 네비게이션 버튼 -->
         <section class="flex gap-2">
             <a class='flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm' href='/env'>
                 <i data-lucide="thermometer" class="w-5 h-5 text-rose-500"></i> 환경모니터링
@@ -78,9 +74,8 @@
         </section>
 
         <!-- 상단 현황 그리드 영역 -->
-        <section id="status-grid" class="grid grid-cols-5 gap-1.5"></section>
+        <section id="status-grid" class="grid grid-cols-3 sm:grid-cols-6 gap-1.5"></section>
 
-        <!-- 번식돈 관리 그리드 -->
         <section class="grid grid-cols-3 gap-2">
             <div onclick="window.openModal('sow_list', '재발')" class="bg-white p-3 rounded-2xl border border-red-200 shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center gap-1 relative overflow-hidden h-24">
                 <span class="text-sm font-black text-red-600">재발</span>
@@ -96,7 +91,6 @@
             </div>
         </section>
 
-        <!-- 예정 분만 -->
         <section>
             <div class="flex justify-between items-end mb-3 px-1">
                 <h2 class="text-base font-black text-slate-800 flex items-center gap-2 w-full"><i data-lucide="calendar-heart" class="text-rose-500 w-5 h-5"></i> 주간 예상 분만 복수 <span class="text-[10px] text-rose-600 font-bold ml-1 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 hidden sm:inline">터치 시 번호 확인</span>
@@ -106,7 +100,6 @@
             <div id="expected-farrowing-list" class="flex overflow-x-auto gap-3 pb-2 no-scrollbar"></div>
         </section>
 
-        <!-- 20일령(이유) 도래 복수 -->
         <section>
             <div class="flex justify-between items-end mb-3 px-1">
                 <h2 class="text-base font-black text-slate-800 flex items-center gap-2"><i data-lucide="baby" class="text-emerald-500 w-5 h-5"></i> 20일령(이유) 도래 복수 <span class="text-[10px] text-emerald-600 font-bold ml-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">분만일+20일 기준 주차</span></h2>
@@ -114,7 +107,20 @@
             <div id="weekly-nursing-list" class="flex overflow-x-auto gap-3 pb-2 no-scrollbar"></div>
         </section>
 
-        <!-- 최근 출하기록 (과거 + 미래 예정) -->
+        <section>
+            <div class="flex justify-between items-end mb-3 px-1">
+                <h2 class="text-base font-black text-blue-800 flex items-center gap-2 w-full">
+                    <i data-lucide="clipboard-list" class="text-blue-500 w-5 h-5"></i> 주간 이유 성적 
+                    <span class="text-[10px] bg-white text-blue-500 px-1.5 py-0.5 rounded font-bold ml-1 border border-blue-100">수기 기록</span>
+                    <div class="ml-auto flex gap-1">
+                        <button onclick="window.openModal('weaning_record')" class="bg-blue-100 text-blue-700 px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-blue-200"><i data-lucide="plus" class="w-3.5 h-3.5"></i> 추가</button>
+                        <button onclick="window.exportWeaningToExcel()" class="bg-blue-600 text-white px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-blue-700"><i data-lucide="download" class="w-3.5 h-3.5"></i> 엑셀</button>
+                    </div>
+                </h2>
+            </div>
+            <div id="manual-weaning-list" class="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar"></div>
+        </section>
+
         <section>
             <div class="flex justify-between items-end mb-3 px-1">
                 <h2 class="text-base font-black text-slate-800 flex items-center gap-2 w-full"><i data-lucide="truck" class="text-blue-500 w-5 h-5"></i> 출하 기록 및 예정 <span class="text-[10px] text-blue-600 font-bold ml-1 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100 hidden sm:inline">터치 시 상세 확인</span>
@@ -127,7 +133,6 @@
             <div id="recent-shipment-list" class="flex overflow-x-auto gap-3 pb-2 no-scrollbar"></div>
         </section>
 
-        <!-- 이유사 -->
         <section>
             <div class="flex justify-between items-end mb-3 px-1" id="weaning-header">
                 <h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-emerald-500 rounded-sm"></div> 이유사 <span class="text-[10px] text-emerald-600 font-bold ml-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">칸 터치 시 기록/이동</span></h2>
@@ -135,7 +140,6 @@
             <div id="weaning-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
         </section>
 
-        <!-- 육성사 -->
         <section>
             <div class="flex justify-between items-end mb-3 px-1" id="grower-header">
                 <h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 및 후보사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span></h2>
@@ -143,7 +147,6 @@
             <div id="grower-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
         </section>
 
-        <!-- 날짜별 변경사항 및 일령별 두수 확인 -->
         <section class="pt-4 border-t border-slate-200 mt-8 grid grid-cols-2 gap-3">
             <button onclick="window.openModal('daily_history')" class="w-full bg-white border border-slate-200 text-slate-600 font-bold py-4 rounded-2xl shadow-sm flex flex-col justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-[13px]">
                 <i data-lucide="history" class="w-6 h-6 text-slate-400"></i> 재고 변경 내역
@@ -182,8 +185,15 @@
         const firebaseConfig = { apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0", authDomain: "sungamfarm.firebaseapp.com", projectId: "sungamfarm", storageBucket: "sungamfarm.firebasestorage.app", messagingSenderId: "811107235779", appId: "1:811107235779:web:ea65a74d09c37ba2136f76" };
         const WEANING_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-emerald-500 rounded-sm"></div> 이유사 <span class="text-[10px] text-emerald-600 font-bold ml-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">칸 터치 시 기록/이동</span></h2>`;
         const GROWER_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 및 후보사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span></h2>`;
-        let app, auth, db, isLocalEnv = false; let appId = 'sungamfarm'; 
-        const COLS = { STOCKS: `farms/${appId}/stocks`, WEANING: `farms/${appId}/weaning`, GROWER: `farms/${appId}/grower`, SOWS: `farms/${appId}/sows`, HISTORY: `farms/${appId}/history`, SHIPMENTS: `farms/${appId}/shipments`, SHIPMENT_SUMMARIES: `farms/${appId}/shipment_summaries`, ACCIDENTS: `farms/${appId}/accidents` };
+        
+        let app, auth, db, isLocalEnv = false; 
+        let appId = 'sungamfarm'; 
+        const COLS = { 
+            STOCKS: `farms/${appId}/stocks`, WEANING: `farms/${appId}/weaning`, GROWER: `farms/${appId}/grower`, 
+            SOWS: `farms/${appId}/sows`, HISTORY: `farms/${appId}/history`, SHIPMENTS: `farms/${appId}/shipments`, 
+            SHIPMENT_SUMMARIES: `farms/${appId}/shipment_summaries`, ACCIDENTS: `farms/${appId}/accidents`,
+            WEANING_RECORDS: `farms/${appId}/weaning_records` 
+        };
         const KOR_STATUS_MAP = { '이유': '이유', 'reason': '이유', 'wean': '이유', 'weaning': '이유', '재발': '재발', 'relapse': '재발', 'recurrence': '재발', 'return': '재발', '대기': '대기', 'waiting': '대기', 'standby': '대기', 'atmosphere': '대기', 'awaiting': '대기', '포유': '포유', 'mammal': '포유', 'suckling': '포유', 'lactation': '포유', 'nursing': '포유', '임신': '임신', 'pregnancy': '임신', 'pregnant': '임신' };
 
         try {
@@ -191,7 +201,14 @@
             db.enablePersistence({ synchronizeTabs: true }).catch(err => console.error("오프라인 지속성 에러:", err));
         } catch(e) { isLocalEnv = true; }
 
-        let state = { stocks: { boar: 5, piglet: 0, grower: 0, sow: 0, replacement: 0 }, wBatches: Array.from({length: 5}, (_, i) => getEmptyBatch(i+1)), gBatches: Array.from({length: 8}, (_, i) => getEmptyBatch(i+1, true)), sowList: [], shipments: [], shipmentSummaries: {}, accidents: [], historyList: [], transfer: { active: false, src: null }, sowCache: { returnCount: 0, awaitingCount: 0, nursingCount: 0, nursingSows: 0, sowCount: 0, sowPregnantCount: 0, sowWeaningCount: 0, replacementCount: 0, expectedFarrowingMap: {}, weeklyNursingMap: {} } };
+        let state = { 
+            stocks: { boar: 5, piglet: 0, grower: 0, giltHouse: 0, sow: 0, replacement: 0 }, 
+            wBatches: Array.from({length: 5}, (_, i) => getEmptyBatch(i+1)), 
+            gBatches: Array.from({length: 8}, (_, i) => getEmptyBatch(i+1, true)), 
+            sowList: [], shipments: [], shipmentSummaries: {}, accidents: [], historyList: [], weaningRecords: {},
+            transfer: { active: false, src: null }, 
+            sowCache: { returnCount: 0, awaitingCount: 0, nursingCount: 0, nursingSows: 0, sowCount: 0, sowPregnantCount: 0, sowWeaningCount: 0, replacementCount: 0, expectedFarrowingMap: {}, weeklyNursingMap: {} } 
+        };
 
         function getEmptyBatch(id, isGrower = false) {
             let pensCount = (isGrower && id === 8) ? 7 : 10;
@@ -241,7 +258,7 @@
 
         async function init() {
             document.getElementById('current-date').innerText = new Date().toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
-            lucide.createIcons();
+            if (typeof lucide !== 'undefined') lucide.createIcons();
             if (isLocalEnv) { 
                 state.sowList = [{ dbId: 'sow_122', sowNo: '122', parity: 1, currentStatus: '포유', matingDate: '2026-02-08', history: [{ parity: 1, date: '2026-06-03', born: 0, weaned: '이동', move: '이유' }] }];
                 renderAll(); return; 
@@ -258,13 +275,14 @@
         function setupDataSync() {
             const errLog = e => { if (e.code === 'permission-denied') { isLocalEnv = true; } };
             db.doc(`${COLS.STOCKS}/current`).onSnapshot(s => { if(s.exists) { state.stocks = s.data(); renderStocks(); } }, errLog);
-            db.collection(COLS.WEANING).onSnapshot(s => { state.wBatches = s.docs.map(d => utils.normalizeBatch(d.data(), 'weaning')).sort((a,b)=>String(a.id||'').localeCompare(String(b.id||''))); renderWeaning(); renderStocks(); }, errLog);
-            db.collection(COLS.GROWER).onSnapshot(s => { state.gBatches = s.docs.map(d => ({ ...utils.normalizeBatch(d.data(), 'grower') })).sort((a,b)=>String(a.id||'').localeCompare(String(b.id||''))); checkScheduledShipments(); renderGrower(); renderRecentShipments(); renderStocks(); }, errLog);
+            db.collection(COLS.WEANING).onSnapshot(s => { state.wBatches = s.docs.map(d => { const data = d.data(); data.id = data.id || parseInt(d.id.replace('batch_', ''), 10); return utils.normalizeBatch(data, 'weaning'); }).sort((a,b) => a.id - b.id); renderWeaning(); renderStocks(); }, errLog);
+            db.collection(COLS.GROWER).onSnapshot(s => { state.gBatches = s.docs.map(d => { const data = d.data(); data.id = data.id || parseInt(d.id.replace('batch_', ''), 10); return utils.normalizeBatch(data, 'grower'); }).sort((a,b) => a.id - b.id); checkScheduledShipments(); renderGrower(); renderRecentShipments(); renderStocks(); }, errLog);
             db.collection(COLS.SOWS).onSnapshot(s => { state.sowList = s.docs.map(d => { const data = d.data(); let st = data.currentStatus || '이유'; data.currentStatus = KOR_STATUS_MAP[String(st).toLowerCase().trim()] || st; data.parity = Number(data.parity) || 0; return { dbId: d.id, ...data }; }).sort((a,b) => String(a.sowNo||'').localeCompare(String(b.sowNo||''))); window.updateSowCache(); renderExpectedFarrowing(); renderWeeklyNursing(); renderAlertSows(); renderStocks(); }, errLog);
             db.collection(COLS.SHIPMENTS).onSnapshot(s => { state.shipments = s.docs.map(d => ({ dbId: d.id, ...d.data() })).sort((a,b) => String(b.date||'').localeCompare(String(a.date||''))); renderRecentShipments(); }, errLog);
             db.collection(COLS.SHIPMENT_SUMMARIES).onSnapshot(s => { const summaries = {}; s.docs.forEach(d => summaries[d.id] = d.data()); state.shipmentSummaries = summaries; }, errLog);
             db.collection(COLS.ACCIDENTS).onSnapshot(s => { state.accidents = s.docs.map(d => ({ dbId: d.id, ...d.data() })).sort((a,b) => String(b.date||'').localeCompare(String(a.date||''))); }, errLog);
             db.collection(COLS.HISTORY).onSnapshot(s => { state.historyList = s.docs.map(d => ({ date: d.id, ...d.data() })).sort((a,b) => String(b.date||'').localeCompare(String(a.date||''))); }, errLog);
+            db.collection(COLS.WEANING_RECORDS).onSnapshot(s => { const records = {}; s.docs.forEach(d => records[d.id] = d.data()); state.weaningRecords = records; renderManualWeaning(); }, errLog);
         }
 
         let syncHistoryTimeout = null;
@@ -273,29 +291,100 @@
             syncHistoryTimeout = setTimeout(async () => {
                 try {
                     const todayStr = utils.getTodayStr(), weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0), nursingSows = state.sowCache.nursingSows, avgPiglets = state.stocks.avgPiglets || 10, nursingPiglets = Math.floor(nursingSows * avgPiglets);
-                    const piglet = weaningTotal + nursingPiglets, grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0), sow = state.sowCache.sowCount, replacement = state.sowCache.replacementCount, boar = Number(state.stocks.boar) || 0;
+                    const piglet = weaningTotal + nursingPiglets;
+                    const grower = state.gBatches.filter(b => b.id !== 8).reduce((s, b) => s + (b.pigs || 0), 0);
+                    const giltHouse = state.gBatches.filter(b => b.id === 8).reduce((s, b) => s + (b.pigs || 0), 0);
+                    const sow = state.sowCache.sowCount;
+                    const replacement = state.sowCache.replacementCount;
+                    const boar = Number(state.stocks.boar) || 0;
+                    
                     const docSnap = await db.doc(`${COLS.STOCKS}/current`).get(); const saved = docSnap.exists ? docSnap.data() : {};
-                    if (saved.piglet !== piglet || saved.grower !== grower || saved.sow !== sow || saved.replacement !== replacement || saved.boar !== boar || saved.nursingPiglets !== nursingPiglets || saved.sow_pregnant !== state.sowCache.sowPregnantCount || saved.sow_nursing !== state.sowCache.nursingSows || saved.sow_weaning !== state.sowCache.sowWeaningCount || saved.sow_return !== state.sowCache.returnCount) {
-                        state.stocks.piglet = piglet; state.stocks.grower = grower; state.stocks.sow = sow; state.stocks.replacement = replacement; state.stocks.boar = boar; state.stocks.nursingPiglets = nursingPiglets; state.stocks.sow_pregnant = state.sowCache.sowPregnantCount; state.stocks.sow_nursing = state.sowCache.nursingSows; state.stocks.sow_weaning = state.sowCache.sowWeaningCount; state.stocks.sow_return = state.sowCache.returnCount;
+                    if (saved.piglet !== piglet || saved.grower !== grower || saved.giltHouse !== giltHouse || saved.sow !== sow || saved.replacement !== replacement || saved.boar !== boar || saved.nursingPiglets !== nursingPiglets || saved.sow_pregnant !== state.sowCache.sowPregnantCount || saved.sow_nursing !== state.sowCache.nursingSows || saved.sow_weaning !== state.sowCache.sowWeaningCount || saved.sow_return !== state.sowCache.returnCount) {
+                        state.stocks.piglet = piglet; state.stocks.grower = grower; state.stocks.giltHouse = giltHouse; state.stocks.sow = sow; state.stocks.replacement = replacement; state.stocks.boar = boar; state.stocks.nursingPiglets = nursingPiglets; state.stocks.sow_pregnant = state.sowCache.sowPregnantCount; state.stocks.sow_nursing = state.sowCache.nursingSows; state.stocks.sow_weaning = state.sowCache.sowWeaningCount; state.stocks.sow_return = state.sowCache.returnCount;
                         await db.doc(`${COLS.STOCKS}/current`).set(state.stocks, { merge: true }); await db.doc(`${COLS.HISTORY}/${todayStr}`).set({ stocks: state.stocks, updatedAt: new Date().toISOString() }, { merge: true });
                     }
                 } catch(e) {}
             }, 1500);
         }
 
-        function renderAll() { window.updateSowCache(); renderStocks(); renderWeaning(); renderGrower(); renderExpectedFarrowing(); renderWeeklyNursing(); renderAlertSows(); renderRecentShipments(); }
+        function renderAll() { window.updateSowCache(); renderStocks(); renderWeaning(); renderGrower(); renderExpectedFarrowing(); renderWeeklyNursing(); renderManualWeaning(); renderAlertSows(); renderRecentShipments(); }
+        
         function renderStocks() {
             const weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0), nursingSows = state.sowCache.nursingSows, avgPiglets = state.stocks.avgPiglets || 10, nursingPiglets = Math.floor(nursingSows * avgPiglets);
-            state.stocks.nursingPiglets = nursingPiglets; state.stocks.piglet = weaningTotal + nursingPiglets; state.stocks.grower = state.gBatches.reduce((s, b) => s + (b.pigs || 0), 0); state.stocks.sow = state.sowCache.sowCount; state.stocks.replacement = state.sowCache.replacementCount; state.stocks.boar = Number(state.stocks.boar) || 0;
-            document.getElementById('total-pigs-label').innerText = `총 재고: ${(state.stocks.sow + state.stocks.replacement + state.stocks.boar + state.stocks.piglet + state.stocks.grower).toLocaleString()}두`;
-            const cards = [ { id: 'sow', l: '모돈', v: state.stocks.sow, a: 'sow_list' }, { id: 'rep', l: '후보돈', v: state.stocks.replacement, a: 'sow_list' }, { id: 'boar', l: '웅돈', v: state.stocks.boar, a: 'manual_stock' }, { id: 'piglet', l: '자돈', v: state.stocks.piglet, a: 'piglet_calc' }, { id: 'grower', l: '육성돈', v: state.stocks.grower, a: '' } ];
-            document.getElementById('status-grid').innerHTML = cards.map(x => `<div onclick="window.openModal('${x.a}', '${x.id}')" class="bg-white p-2 rounded-xl shadow-sm border border-slate-100 cursor-pointer h-24 flex flex-col justify-center items-center active:scale-95 transition-transform relative"><span class="text-[15px] font-black text-blue-600 tracking-tighter mb-0.5">${x.l}</span><p class="text-2xl font-black text-slate-800 leading-none">${(x.v||0).toLocaleString()}</p>${x.id==='sow'?`<button onclick="event.stopPropagation(); window.openModal('parity_distribution')" class="mt-1 text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md hover:bg-blue-100 active:scale-95 transition-all">산차별</button>`:''}</div>`).join('');
-            lucide.createIcons(); saveDailyHistory();
+            state.stocks.nursingPiglets = nursingPiglets; 
+            state.stocks.piglet = weaningTotal + nursingPiglets; 
+            state.stocks.grower = state.gBatches.filter(b => b.id !== 8).reduce((s, b) => s + (b.pigs || 0), 0); 
+            state.stocks.giltHouse = state.gBatches.filter(b => b.id === 8).reduce((s, b) => s + (b.pigs || 0), 0);
+            state.stocks.sow = state.sowCache.sowCount; 
+            state.stocks.replacement = state.sowCache.replacementCount; 
+            state.stocks.boar = Number(state.stocks.boar) || 0;
+            
+            document.getElementById('total-pigs-label').innerText = `총 재고: ${(state.stocks.sow + state.stocks.replacement + state.stocks.boar + state.stocks.piglet + state.stocks.grower + state.stocks.giltHouse).toLocaleString()}두`;
+            const cards = [ 
+                { id: 'sow', l: '모돈', v: state.stocks.sow, a: 'sow_list' }, 
+                { id: 'rep', l: '후보돈', v: state.stocks.replacement, a: 'sow_list' }, 
+                { id: 'boar', l: '웅돈', v: state.stocks.boar, a: 'manual_stock' }, 
+                { id: 'piglet', l: '자돈', v: state.stocks.piglet, a: 'piglet_calc' }, 
+                { id: 'grower', l: '육성돈', v: state.stocks.grower, a: '' },
+                { id: 'gilt_house', l: '후보사', v: state.stocks.giltHouse, a: '' }
+            ];
+            
+            const gridEl = document.getElementById('status-grid');
+            gridEl.className = "grid grid-cols-3 sm:grid-cols-6 gap-1.5";
+            gridEl.innerHTML = cards.map(x => {
+                let extra = '';
+                if (x.id === 'sow') {
+                    extra = `<button onclick="event.stopPropagation(); window.openModal('parity_distribution')" class="mt-1 text-[10px] font-black bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md hover:bg-blue-100 active:scale-95 transition-all">산차별</button>`;
+                }
+                return `<div onclick="${x.a ? `window.openModal('${x.a}', '${x.id}')` : ''}" class="bg-white p-2 rounded-xl shadow-sm border border-slate-100 ${x.a ? 'cursor-pointer hover:shadow-md active:scale-95 transition-transform' : ''} h-24 flex flex-col justify-center items-center relative overflow-hidden"><span class="text-[15px] font-black text-blue-600 tracking-tighter mb-0.5">${x.l}</span><p class="text-2xl font-black text-slate-800 leading-none">${(x.v||0).toLocaleString()}</p>${extra}</div>`;
+            }).join('');
+            if (typeof lucide !== 'undefined') lucide.createIcons(); saveDailyHistory();
         }
+
         function renderAlertSows() { document.getElementById('return-sow-count').innerText = state.sowCache.returnCount; document.getElementById('awaiting-sow-count').innerText = state.sowCache.awaitingCount; document.getElementById('nursing-sow-count').innerText = state.sowCache.nursingCount; }
-        function renderExpectedFarrowing() { const map = state.sowCache.expectedFarrowingMap; document.getElementById('expected-farrowing-list').innerHTML = Object.keys(map).sort().map(w => `<div onclick="window.openModal('expected_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-rose-600">${map[w].length}<span class="text-sm font-bold text-rose-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-rose-200 mb-1"></i></div></div>`).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">예정된 분만 없음</div>`; lucide.createIcons(); }
-        function renderWeeklyNursing() { const map = state.sowCache.weeklyNursingMap; document.getElementById('weekly-nursing-list').innerHTML = Object.keys(map).sort().map(w => `<div onclick="window.openModal('nursing_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${w==='Unknown'?'slate':'emerald'}-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-${w==='Unknown'?'slate':'emerald'}-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${w==='Unknown'?'날짜 미상':utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-${w==='Unknown'?'slate':'emerald'}-600">${map[w].length}<span class="text-sm font-bold text-${w==='Unknown'?'slate':'emerald'}-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-${w==='Unknown'?'slate':'emerald'}-200 mb-1"></i></div></div>`).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">도래 예정인 개체 없음</div>`; lucide.createIcons(); }
-        function renderRecentShipments() { const dateGroups = {}; state.shipments.forEach(s => { if (!dateGroups[s.date]) { dateGroups[s.date] = { date: s.date, total: 0, status: 'confirmed' }; } dateGroups[s.date].total += (s.count || 0); }); state.gBatches.forEach(b => { if (b.pendingShipments) { b.pendingShipments.forEach(ps => { if (!dateGroups[ps.date]) { dateGroups[ps.date] = { date: ps.date, total: 0, status: 'pending' }; } dateGroups[ps.date].total += (ps.total || 0); }); } }); document.getElementById('recent-shipment-list').innerHTML = Object.values(dateGroups).sort((a, b) => String(b.date||'').localeCompare(String(a.date||''))).slice(0, 10).map(s => { const isConfirmed = s.status === 'confirmed', colorCls = isConfirmed ? 'blue' : 'amber', labelTxt = isConfirmed ? '완료' : '예정'; return `<div onclick="window.openModal('${isConfirmed ? 'shipment_detail_confirmed' : 'shipment_detail_pending'}', '${s.date}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${colorCls}-100 shadow-sm flex flex-col justify-between relative overflow-hidden shrink-0 cursor-pointer active:scale-95 transition-transform"><div class="absolute top-0 left-0 w-1 h-full bg-${colorCls}-500"></div><div class="flex justify-between items-start mb-2"><p class="text-[14px] font-black text-slate-500 whitespace-nowrap">${new Date(s.date).getMonth()+1}/${new Date(s.date).getDate()}</p><span class="text-[8px] font-black text-${colorCls}-600 px-1 bg-${colorCls}-50 rounded">${labelTxt}</span></div><p class="text-3xl font-black text-slate-800">${s.total}<span class="text-xs font-bold text-slate-500 ml-1">두</span></p></div>`; }).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">출하 기록 없음</div>`; lucide.createIcons(); }
+        function renderExpectedFarrowing() { const map = state.sowCache.expectedFarrowingMap; document.getElementById('expected-farrowing-list').innerHTML = Object.keys(map).sort().map(w => `<div onclick="window.openModal('expected_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-rose-600">${map[w].length}<span class="text-sm font-bold text-rose-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-rose-200 mb-1"></i></div></div>`).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">예정된 분만 없음</div>`; if (typeof lucide !== 'undefined') lucide.createIcons(); }
+        function renderWeeklyNursing() { const map = state.sowCache.weeklyNursingMap; document.getElementById('weekly-nursing-list').innerHTML = Object.keys(map).sort().map(w => `<div onclick="window.openModal('nursing_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${w==='Unknown'?'slate':'emerald'}-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-${w==='Unknown'?'slate':'emerald'}-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${w==='Unknown'?'날짜 미상':utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-${w==='Unknown'?'slate':'emerald'}-600">${map[w].length}<span class="text-sm font-bold text-${w==='Unknown'?'slate':'emerald'}-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-${w==='Unknown'?'slate':'emerald'}-200 mb-1"></i></div></div>`).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">도래 예정인 개체 없음</div>`; if (typeof lucide !== 'undefined') lucide.createIcons(); }
+        function renderManualWeaning() { const sortedRecords = Object.entries(state.weaningRecords).filter(([date, data]) => Boolean(data)).map(([date, data]) => ({ date, ...data })).sort((a, b) => String(b.date).localeCompare(String(a.date))); const container = document.getElementById('manual-weaning-list'); if (!container) return; if (sortedRecords.length === 0) { container.innerHTML = `<div class="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">직접 기록된 이유 성적이 없습니다.</div>`; } else { container.innerHTML = sortedRecords.map(st => `<div onclick="window.openModal('weaning_record', '${st.date}')" class="min-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all"><span class="text-[11px] font-black text-slate-500 mb-2">${(st.date || '').substring(5).replace('-', '/')} 이유</span><div class="flex flex-col gap-1.5"><div class="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded"><span class="text-[10px] font-bold text-slate-500">모돈</span><span class="text-[13px] font-black text-slate-800">${st.sowCount || 0}<span class="text-[9px] font-normal ml-0.5">복</span></span></div><div class="flex justify-between items-center bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100"><span class="text-[10px] font-bold text-blue-600">이유</span><span class="text-[14px] font-black text-blue-700">${st.totalWeaned || 0}<span class="text-[9px] font-normal ml-0.5">두</span></span></div></div></div>`).join(''); } if (typeof lucide !== 'undefined') lucide.createIcons(); }
+        
+        function renderRecentShipments() { 
+            try {
+                const dateGroups = {}; 
+                (state.shipments || []).forEach(s => { 
+                    if (!s || !s.date) return;
+                    if (!dateGroups[s.date]) { dateGroups[s.date] = { date: s.date, total: 0, status: 'confirmed' }; } 
+                    dateGroups[s.date].total += (Number(s.count) || 0); 
+                }); 
+                (state.gBatches || []).forEach(b => { 
+                    if (b && b.pendingShipments && Array.isArray(b.pendingShipments)) { 
+                        b.pendingShipments.forEach(ps => { 
+                            if (!ps || !ps.date) return;
+                            if (!dateGroups[ps.date]) { dateGroups[ps.date] = { date: ps.date, total: 0, status: 'pending' }; } 
+                            dateGroups[ps.date].total += (Number(ps.total) || 0); 
+                        }); 
+                    } 
+                }); 
+                
+                const sortedGroups = Object.values(dateGroups).sort((a, b) => String(b.date||'').localeCompare(String(a.date||''))).slice(0, 10);
+                const container = document.getElementById('recent-shipment-list');
+                if (!container) return;
+                
+                if (sortedGroups.length > 0) {
+                    container.innerHTML = sortedGroups.map(s => { 
+                        const isConfirmed = s.status === 'confirmed', colorCls = isConfirmed ? 'blue' : 'amber', labelTxt = isConfirmed ? '완료' : '예정'; 
+                        let mmdd = '-';
+                        if (s.date) {
+                            const d = utils.parseDate(s.date) || new Date(s.date);
+                            if (d && !isNaN(d.getTime())) { mmdd = `${d.getMonth()+1}/${d.getDate()}`; } 
+                            else { mmdd = s.date.substring(5).replace('-', '/'); }
+                        }
+                        return `<div onclick="window.openModal('${isConfirmed ? 'shipment_detail_confirmed' : 'shipment_detail_pending'}', '${s.date}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${colorCls}-100 shadow-sm flex flex-col justify-between relative overflow-hidden shrink-0 cursor-pointer active:scale-95 transition-transform"><div class="absolute top-0 left-0 w-1 h-full bg-${colorCls}-500"></div><div class="flex justify-between items-start mb-2"><p class="text-[14px] font-black text-slate-500 whitespace-nowrap">${mmdd}</p><span class="text-[8px] font-black text-${colorCls}-600 px-1 bg-${colorCls}-50 rounded">${labelTxt}</span></div><p class="text-3xl font-black text-slate-800">${s.total}<span class="text-xs font-bold text-slate-500 ml-1">두</span></p></div>`; 
+                    }).join('');
+                } else {
+                    container.innerHTML = `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">출하 기록 없음</div>`;
+                }
+                if (typeof lucide !== 'undefined') lucide.createIcons(); 
+            } catch(e) { console.error("renderRecentShipments error:", e); }
+        }
         
         async function checkScheduledShipments() {
             if (isLocalEnv) return; const todayStr = utils.getTodayStr();
@@ -313,6 +402,59 @@
             });
             await Promise.all(promises);
         }
+
+        window.updateExpectedShipment = () => {
+            const inputEl = document.getElementById('target-age-input');
+            const descEl = document.getElementById('expected-shipment-desc');
+            const resultsEl = document.getElementById('expected-shipment-results');
+            const annualSummaryEl = document.getElementById('expected-shipment-annual-summary');
+            if (!inputEl || !resultsEl) return;
+
+            const targetAge = parseInt(inputEl.value) || 170;
+            const daysToAdd = targetAge - 20;
+
+            if (descEl) descEl.innerText = `* 각 칸의 이유일로부터 ${targetAge}일령이 되는 달을 기준으로 합산합니다.`;
+
+            const monthlyCounts = {}; const yearlyCounts = {}; const batches = [...state.wBatches, ...state.gBatches];
+            
+            batches.forEach(b => {
+                if (b.status === 'empty' || b.pigs === 0) return;
+                for (let i = 0; i < b.penDetails.length; i++) {
+                    const count = b.penDetails[i];
+                    if (count > 0) {
+                        const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date;
+                        if (penDate) {
+                            const d = utils.parseDate(penDate);
+                            if (d) {
+                                d.setDate(d.getDate() + daysToAdd);
+                                const yyyy = d.getFullYear(); const yearMonth = `${yyyy}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                                if (!monthlyCounts[yearMonth]) monthlyCounts[yearMonth] = 0; monthlyCounts[yearMonth] += count;
+                                if (!yearlyCounts[yyyy]) yearlyCounts[yyyy] = 0; yearlyCounts[yyyy] += count;
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (annualSummaryEl) {
+                const sortedYears = Object.keys(yearlyCounts).sort();
+                const annualHtml = sortedYears.map(y => `<div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex-1 text-center min-w-[120px] shadow-sm"><p class="text-[11px] font-bold text-indigo-600 mb-1">${y}년 총 출하예측</p><p class="text-2xl font-black text-indigo-800">${yearlyCounts[y]}<span class="text-[11px] ml-1 font-bold text-indigo-500">두</span></p></div>`).join('');
+                annualSummaryEl.innerHTML = annualHtml || '<div class="text-xs text-slate-400 w-full text-center">예측 데이터 없음</div>';
+            }
+
+            const currentYearMonth = utils.getTodayStr().substring(0, 7);
+            const allSortedMonths = Object.keys(monthlyCounts).sort();
+
+            const html = allSortedMonths.map(ym => {
+                const [yyyy, mm] = ym.split('-'); const count = monthlyCounts[ym]; const isPast = ym < currentYearMonth; const isCurrent = ym === currentYearMonth;
+                let borderCls = 'border-slate-100', barCls = 'bg-slate-400', labelText = `${yyyy}년 ${parseInt(mm)}월`, textCls = 'text-slate-500';
+                if (isPast) { borderCls = 'border-rose-100'; barCls = 'bg-rose-400'; labelText += ' <span class="text-[9px] text-rose-500 font-bold ml-0.5">(지연)</span>'; textCls = 'text-rose-500'; }
+                else if (isCurrent) { borderCls = 'border-purple-200'; barCls = 'bg-purple-500'; labelText += ' <span class="text-[9px] text-purple-600 font-bold ml-0.5">(이번달)</span>'; textCls = 'text-purple-600'; }
+                else { borderCls = 'border-indigo-100'; barCls = 'bg-indigo-400'; textCls = 'text-indigo-600'; }
+                return `<div class="bg-white p-4 rounded-2xl border ${borderCls} shadow-sm flex flex-col justify-between relative overflow-hidden"><div class="absolute top-0 left-0 w-1.5 h-full ${barCls}"></div><p class="text-[13px] font-black ${textCls} mb-2 pl-2">${labelText}</p><p class="text-3xl font-black text-slate-800 pl-2 text-right">${count}<span class="text-xs font-bold text-slate-400 ml-1">두</span></p></div>`;
+            }).join('');
+            resultsEl.innerHTML = html || '<div class="col-span-2 p-6 text-center text-xs text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-2xl">데이터 없음</div>';
+        };
 
         window.exportToExcel = async () => {
             const btn = document.querySelector('[onclick="window.exportToExcel()"]');
@@ -358,7 +500,7 @@
                     dateGroups[r.date].totalCount += (r.count || 0);
                     let rDate = r.stockingDate || '';
                     if(!rDate && r.batchId) {
-                        const b = state.gBatches.find(x => x.id === r.batchId);
+                        const b = state.gBatches.find(x => String(x.id) === String(r.batchId));
                         if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date;
                     }
                     if (rDate) {
@@ -381,7 +523,7 @@
                 const detailData = filteredShipments.map(s => {
                     let rDate = s.stockingDate || '';
                     if(!rDate && s.batchId) {
-                        const b = state.gBatches.find(x => x.id === s.batchId);
+                        const b = state.gBatches.find(x => String(x.id) === String(s.batchId));
                         if(b) rDate = (b.penDates && b.penDates[s.penIndex]) || b.weaningDate || b.date;
                     }
                     const age = rDate ? utils.getDiffDays(rDate, s.date) + 20 : '-';
@@ -415,67 +557,6 @@
                 XLSX.writeFile(wb, `예상분만리스트_${utils.getTodayStr()}.xlsx`);
                 utils.showToast("예상 분만 리스트 엑셀이 생성되었습니다.");
             } catch (e) { console.error("Excel Export Error:", e); utils.showToast("엑셀 생성 중 오류가 발생했습니다."); }
-        };
-
-        window.updateExpectedShipment = () => {
-            const inputEl = document.getElementById('target-age-input');
-            const descEl = document.getElementById('expected-shipment-desc');
-            const resultsEl = document.getElementById('expected-shipment-results');
-            const annualSummaryEl = document.getElementById('expected-shipment-annual-summary');
-            if (!inputEl || !resultsEl) return;
-
-            const targetAge = parseInt(inputEl.value) || 170;
-            const daysToAdd = targetAge - 20;
-
-            if (descEl) descEl.innerText = `* 각 칸의 이유일로부터 ${targetAge}일령이 되는 달을 기준으로 합산합니다.`;
-
-            const monthlyCounts = {};
-            const yearlyCounts = {};
-            const batches = [...state.wBatches, ...state.gBatches];
-            
-            batches.forEach(b => {
-                if (b.status === 'empty' || b.pigs === 0) return;
-                for (let i = 0; i < b.penDetails.length; i++) {
-                    const count = b.penDetails[i];
-                    if (count > 0) {
-                        const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date;
-                        if (penDate) {
-                            const d = utils.parseDate(penDate);
-                            if (d) {
-                                d.setDate(d.getDate() + daysToAdd);
-                                const yyyy = d.getFullYear();
-                                const yearMonth = `${yyyy}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                                if (!monthlyCounts[yearMonth]) monthlyCounts[yearMonth] = 0;
-                                monthlyCounts[yearMonth] += count;
-                                if (!yearlyCounts[yyyy]) yearlyCounts[yyyy] = 0;
-                                yearlyCounts[yyyy] += count;
-                            }
-                        }
-                    }
-                }
-            });
-
-            if (annualSummaryEl) {
-                const sortedYears = Object.keys(yearlyCounts).sort();
-                const annualHtml = sortedYears.map(y => `<div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex-1 text-center min-w-[120px] shadow-sm"><p class="text-[11px] font-bold text-indigo-600 mb-1">${y}년 총 출하예측</p><p class="text-2xl font-black text-indigo-800">${yearlyCounts[y]}<span class="text-[11px] ml-1 font-bold text-indigo-500">두</span></p></div>`).join('');
-                annualSummaryEl.innerHTML = annualHtml || '<div class="text-xs text-slate-400 w-full text-center">예측 데이터 없음</div>';
-            }
-
-            const currentYearMonth = utils.getTodayStr().substring(0, 7);
-            const allSortedMonths = Object.keys(monthlyCounts).sort();
-
-            const html = allSortedMonths.map(ym => {
-                const [yyyy, mm] = ym.split('-');
-                const count = monthlyCounts[ym];
-                const isPast = ym < currentYearMonth;
-                const isCurrent = ym === currentYearMonth;
-                let borderCls = 'border-slate-100', barCls = 'bg-slate-400', labelText = `${yyyy}년 ${parseInt(mm)}월`, textCls = 'text-slate-500';
-                if (isPast) { borderCls = 'border-rose-100'; barCls = 'bg-rose-400'; labelText += ' <span class="text-[9px] text-rose-500 font-bold ml-0.5">(지연)</span>'; textCls = 'text-rose-500'; }
-                else if (isCurrent) { borderCls = 'border-purple-200'; barCls = 'bg-purple-500'; labelText += ' <span class="text-[9px] text-purple-600 font-bold ml-0.5">(이번달)</span>'; textCls = 'text-purple-600'; }
-                else { borderCls = 'border-indigo-100'; barCls = 'bg-indigo-400'; textCls = 'text-indigo-600'; }
-                return `<div class="bg-white p-4 rounded-2xl border ${borderCls} shadow-sm flex flex-col justify-between relative overflow-hidden"><div class="absolute top-0 left-0 w-1.5 h-full ${barCls}"></div><p class="text-[13px] font-black ${textCls} mb-2 pl-2">${labelText}</p><p class="text-3xl font-black text-slate-800 pl-2 text-right">${count}<span class="text-xs font-bold text-slate-400 ml-1">두</span></p></div>`;
-            }).join('');
-            resultsEl.innerHTML = html || '<div class="col-span-2 p-6 text-center text-xs text-slate-400 font-bold border-2 border-dashed border-slate-200 rounded-2xl">데이터 없음</div>';
         };
 
         function renderBatchList(targetId, batches, type, stage, typeCls, bgCls, txtCls) {
@@ -520,7 +601,7 @@
         window.addSowHistoryRow = (parity = '', matingDate = '', expDate = '', farrowDate = '', weaningDate = '', total = '', born = '', weaned = '', move = '') => {
             const container = document.getElementById('sow-history-container'); if (!container) return; const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
             const html = `<div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors"><input type="number" class="h-parity w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${parity}" placeholder="산차"><input type="text" class="h-mating w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${matingDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}"><input type="text" class="h-exp w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${expDate}" placeholder="MM/DD"><input type="text" class="h-farrow w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${farrowDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}"><input type="text" class="h-weaning-date w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${weaningDate}" placeholder="MM/DD"><input type="number" class="h-total w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${total}" placeholder="산자수"><input type="number" class="h-born w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${born}" placeholder="포유"><input type="text" class="h-weaned w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${weaned}" placeholder="이동"><input type="text" class="h-move w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${move}" placeholder="이유"><div class="w-8 flex justify-center shrink-0"><button onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="x-circle" class="w-4 h-4"></i></button></div></div>`;
-            container.insertAdjacentHTML('beforeend', html); lucide.createIcons();
+            container.insertAdjacentHTML('beforeend', html); if (typeof lucide !== 'undefined') lucide.createIcons();
         };
 
         window.renderSowNursingRowHTML = (s) => {
@@ -556,7 +637,7 @@
 
         window.completeSelectedSowsCycle = async () => {
             const checkedCheckboxes = document.querySelectorAll('.n-select-sow:checked'); if (checkedCheckboxes.length === 0) { utils.showToast("선택된 모돈이 없습니다."); return; }
-            const btn = document.querySelector('[onclick="window.completeSelectedSowsCycle()"]'); const originalText = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="w-4 h-4 animate-spin mr-1" data-lucide="loader-2"></i> 처리 중...'; lucide.createIcons();
+            const btn = document.querySelector('[onclick="window.completeSelectedSowsCycle()"]'); const originalText = btn.innerHTML; btn.disabled = true; btn.innerHTML = '<i class="w-4 h-4 animate-spin mr-1" data-lucide="loader-2"></i> 처리 중...'; if (typeof lucide !== 'undefined') lucide.createIcons();
             try {
                 const promises = []; const today = new Date(); const todayMMDD = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
                 checkedCheckboxes.forEach(cb => {
@@ -571,7 +652,7 @@
                 if (!isLocalEnv) await Promise.all(promises);
                 utils.showToast(`${checkedCheckboxes.length}두 완료! 산차 1 증가 및 이유 목록 이동`); window.closeModal();
                 if (isLocalEnv) renderAll(); else await saveDailyHistory();
-            } catch (e) { utils.showToast("실패: " + e.message); } finally { btn.disabled = false; btn.innerHTML = originalText; lucide.createIcons(); }
+            } catch (e) { utils.showToast("실패: " + e.message); } finally { btn.disabled = false; btn.innerHTML = originalText; if (typeof lucide !== 'undefined') lucide.createIcons(); }
         };
 
         window.saveWeanedSowRow = async (dbId) => {
@@ -590,31 +671,31 @@
             },
             age_distribution: () => {
                 const todayStr = utils.getTodayStr(); const ageGroups = {}; let total = 0, countUnder60 = 0, count61To120 = 0, countOver120 = 0;
-                const allBatches = [ ...state.wBatches.map(b => ({...b, _stage: 'weaning'})), ...state.gBatches.map(b => ({...b, _stage: 'grower'})) ];
+                const allBatches = [ ...state.wBatches.map(b => ({...b, _stage: 'weaning'})), ...state.gBatches.filter(b => b.id !== 8).map(b => ({...b, _stage: 'grower'})) ];
                 allBatches.forEach(b => { if (b.status === 'empty' || b.pigs === 0) return; for (let i = 0; i < b.penDetails.length; i++) { const count = b.penDetails[i]; if (count > 0) { const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date; if (penDate) { const age = utils.getDiffDays(penDate, todayStr) + 20; if (!ageGroups[age]) ageGroups[age] = { count: 0, pens: [] }; ageGroups[age].count += count; const stageName = b._stage === 'grower' ? (b.id === 8 ? '후보사' : `육성${b.id}`) : `이유${b.id}`; ageGroups[age].pens.push(`${stageName} ${i+1}칸`); total += count; if (age <= 60) countUnder60 += count; else if (age <= 120) count61To120 += count; else countOver120 += count; } } } });
                 const sortedAges = Object.keys(ageGroups).map(Number).sort((a,b) => a - b);
                 let listHtml = sortedAges.map(age => { const g = ageGroups[age]; return `<div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-1.5 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div><div class="flex justify-between items-center pl-2"><span class="text-[14px] font-black text-slate-700">${age}일령</span><span class="text-[18px] font-black text-blue-600">${g.count.toLocaleString()}<span class="text-xs font-bold text-slate-400 ml-0.5">두</span></span></div><div class="pl-2 text-[9px] font-bold text-slate-400 truncate" title="${g.pens.join(', ')}">${g.pens.join(', ')}</div></div>`; }).join('');
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
                 return { title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 일령별 두수 분포</div>`, html: `<div class="mb-2 bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center shadow-sm"><span class="text-xs font-black text-blue-600">이유/육성사 전체 집계</span><span class="text-xl font-black text-blue-800">${total.toLocaleString()}<span class="text-sm ml-1 font-bold">두</span></span></div><div class="grid grid-cols-3 gap-2 mb-4"><div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-100 shadow-sm"><p class="text-[10px] font-bold text-emerald-600 mb-1">~60일령</p><p class="text-[17px] font-black text-emerald-700">${countUnder60.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div><div class="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100 shadow-sm"><p class="text-[10px] font-bold text-indigo-600 mb-1">61~120일령</p><p class="text-[17px] font-black text-indigo-700">${count61To120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div><div class="bg-rose-50 p-3 rounded-xl text-center border border-rose-100 shadow-sm"><p class="text-[10px] font-bold text-rose-600 mb-1">121일령~</p><p class="text-[17px] font-black text-rose-700">${countOver120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div></div><div class="grid grid-cols-2 gap-2 max-h-[45vh] overflow-y-auto no-scrollbar pb-2 px-1">${listHtml || '<div class="col-span-2 text-center py-10 text-slate-400 font-bold text-xs">데이터가 없습니다.</div>'}</div>`, hideSave: true };
             },
             parity_distribution: () => {
                 const distribution = {}; state.sowList.forEach(s => { if (s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신')) { if (!distribution[s.parity]) distribution[s.parity] = []; distribution[s.parity].push(s); } });
                 const sortedParities = Object.keys(distribution).sort((a,b) => Number(a) - Number(b));
                 const html = sortedParities.map(p => { const sows = distribution[p]; sows.sort((a,b) => String(a.sowNo).localeCompare(String(b.sowNo))); return `<div class="bg-white rounded-xl p-3 border border-slate-100 shadow-sm"><div class="flex justify-between items-center mb-2 border-b border-slate-50 pb-2"><span class="font-black text-slate-700 text-sm">${p}산</span><span class="text-[11px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">${sows.length}두</span></div><div class="flex flex-wrap gap-1.5">${sows.map(s => `<span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="text-[11px] font-bold bg-slate-50 border border-slate-200 px-2 py-1 rounded-md cursor-pointer hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all text-slate-600">No.${s.sowNo}</span>`).join('')}</div></div>`; }).join('');
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
                 return { title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 산차별 모돈 현황</div>`, html: `<div class="flex flex-col gap-2.5 max-h-[65vh] overflow-y-auto no-scrollbar pb-2 px-1">${html || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">등록된 모돈이 없습니다.</div>'}</div>`, hideSave: true };
             },
             daily_history: () => {
                 const listHtml = state.historyList.map(h => {
-                    const s = h.stocks || {}, total = (s.sow||0) + (s.replacement||0) + (s.boar||0) + (s.piglet||0) + (s.grower||0), dateObj = utils.parseDate(h.date), days = ['일', '월', '화', '수', '목', '금', '토'], dayStr = !dateObj ? '' : ` (${days[dateObj.getDay()]})`;
+                    const s = h.stocks || {}, total = (s.sow||0) + (s.replacement||0) + (s.boar||0) + (s.piglet||0) + (s.grower||0) + (s.giltHouse||0), dateObj = utils.parseDate(h.date), days = ['일', '월', '화', '수', '목', '금', '토'], dayStr = !dateObj ? '' : ` (${days[dateObj.getDay()]})`;
                     const sowHtml = s.sow_pregnant !== undefined ? `<div class="grid grid-cols-4 gap-1 text-center mb-2"><div class="flex flex-col items-center justify-center p-1 bg-blue-50 rounded-lg"><p class="text-[10px] text-blue-600 font-bold mb-0.5">임신</p><p class="text-[14px] font-black text-blue-700">${s.sow_pregnant||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg"><p class="text-[10px] text-emerald-600 font-bold mb-0.5">포유</p><p class="text-[14px] font-black text-emerald-700">${s.sow_nursing||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-amber-50 rounded-lg"><p class="text-[10px] text-amber-600 font-bold mb-0.5">이유</p><p class="text-[14px] font-black text-slate-800">${s.sow_weaning||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-rose-50 rounded-lg"><p class="text-[10px] text-rose-600 font-bold mb-0.5">재발</p><p class="text-[14px] font-black text-rose-700">${s.sow_return||0}</p></div></div>` : `<div class="grid grid-cols-1 mb-2"><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg"><p class="text-[10px] text-slate-500 font-bold mb-0.5">모돈(세부미상)</p><p class="text-[14px] font-black text-slate-800">${s.sow||0}</p></div></div>`;
-                    return `<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-1"><div class="flex justify-between items-center border-b border-slate-50 pb-2 mb-1"><span class="text-[14px] font-black text-slate-700 tracking-tighter">${h.date}${dayStr}</span><span class="text-[11px] font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">총 ${total.toLocaleString()}두</span></div>${sowHtml}<div class="grid grid-cols-4 gap-1 text-center"><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[10px] text-slate-400 font-bold mb-0.5">후보</p><p class="text-[14px] font-black text-slate-700">${s.replacement||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[10px] text-slate-400 font-bold mb-0.5">웅돈</p><p class="text-[14px] font-black text-slate-700">${s.boar||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg border border-emerald-100"><p class="text-[10px] text-emerald-600 font-bold mb-0.5">자돈</p><p class="text-[14px] font-black text-emerald-700">${s.piglet||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-indigo-50 rounded-lg border border-indigo-100"><p class="text-[10px] text-indigo-600 font-bold mb-0.5">육성</p><p class="text-[14px] font-black text-indigo-700">${s.grower||0}</p></div></div></div>`;
+                    return `<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-1"><div class="flex justify-between items-center border-b border-slate-50 pb-2 mb-1"><span class="text-[14px] font-black text-slate-700 tracking-tighter">${h.date}${dayStr}</span><span class="text-[11px] font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">총 ${total.toLocaleString()}두</span></div>${sowHtml}<div class="grid grid-cols-5 gap-1 text-center"><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[10px] text-slate-400 font-bold mb-0.5">후보</p><p class="text-[14px] font-black text-slate-700">${s.replacement||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[10px] text-slate-400 font-bold mb-0.5">웅돈</p><p class="text-[14px] font-black text-slate-700">${s.boar||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg border border-emerald-100"><p class="text-[10px] text-emerald-600 font-bold mb-0.5">자돈</p><p class="text-[14px] font-black text-emerald-700">${s.piglet||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-indigo-50 rounded-lg border border-indigo-100"><p class="text-[10px] text-indigo-600 font-bold mb-0.5">육성</p><p class="text-[14px] font-black text-indigo-700">${s.grower||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-pink-50 rounded-lg border border-pink-100"><p class="text-[10px] text-pink-600 font-bold mb-0.5">후보사</p><p class="text-[14px] font-black text-pink-700">${s.giltHouse||0}</p></div></div></div>`;
                 }).join('');
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
                 return { title: `<div class="flex items-center gap-2"><i data-lucide="history" class="text-slate-500"></i> 날짜별 재고 변경사항</div>`, html: `<div class="flex flex-col gap-2.5 max-h-[65vh] overflow-y-auto no-scrollbar pb-2 px-1">${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs">기록이 없습니다.</div>'}</div>`, hideSave: true };
             },
             expected_shipment_monthly: () => {
-                setTimeout(() => { window.updateExpectedShipment(); if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50);
+                if (typeof lucide !== 'undefined') setTimeout(() => { window.updateExpectedShipment(); lucide.createIcons(); }, 50);
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="trending-up" class="text-purple-500"></i> 출하 예측 리포트</div>`, 
                     html: `<div class="mb-4 bg-purple-50 p-3 rounded-xl border border-purple-100 flex items-center justify-between shadow-sm"><label class="text-xs font-black text-purple-700">목표 출하 일령 설정</label><div class="flex items-center gap-1"><input type="number" id="target-age-input" value="170" class="w-20 bg-white border border-purple-200 rounded-lg text-center font-black text-purple-700 py-1.5 focus:border-purple-400 outline-none transition-colors" oninput="window.updateExpectedShipment()"><span class="text-xs font-bold text-purple-600">일령</span></div></div><div id="expected-shipment-annual-summary" class="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div><p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 이유일로부터 170일령이 되는 달을 기준으로 합산합니다.</p><div id="expected-shipment-results" class="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto no-scrollbar pb-2 px-1"></div>`, 
@@ -643,6 +724,56 @@
                 const today = utils.getTodayStr(), oneMonthAgo = new Date(); oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
                 return { title: '농장 기록 관리 (기간별 엑셀)', html: `<div class="space-y-5"><div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">출력 기간 설정</p><div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">시작일</label><input type="date" id="excel-start" value="${oneMonthAgo.toISOString().split('T')[0]}" class="bg-white"></div><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">종료일</label><input type="date" id="excel-end" value="${today}" class="bg-white"></div></div></div><button onclick="window.exportToExcel()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all"><i data-lucide="download" class="w-6 h-6"></i> 리포트 생성 및 다운로드</button></div>`, hideSave: true };
             },
+            weaning_record: (date) => {
+                const isEditing = !!(date && typeof date === 'string');
+                const record = isEditing ? state.weaningRecords[date] : {};
+                const rDate = date || utils.getTodayStr();
+                const sowCount = record ? (record.sowCount || '') : '';
+                const totalWeaned = record ? (record.totalWeaned || '') : '';
+                
+                const html = `
+                <input type="hidden" id="w-original-date" value="${isEditing ? date : ''}">
+                <div class="space-y-4 pt-2">
+                    <div>
+                        <label class="text-[11px] font-bold text-slate-500 block mb-1">이유일 (날짜)</label>
+                        <input type="date" id="w-date" value="${rDate}" ${isEditing ? 'disabled' : ''} class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed">
+                        ${isEditing ? '<p class="text-[9px] text-slate-400 mt-1">수정 시 날짜는 변경할 수 없습니다. 삭제 후 다시 등록해주세요.</p>' : ''}
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[11px] font-bold text-blue-600 block mb-1">이유 모돈수 (복)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="w-sow-count" value="${sowCount}" class="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-3 text-lg font-black text-blue-800 outline-none focus:border-blue-400" placeholder="0">
+                                <span class="text-sm font-bold text-slate-500">복</span>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[11px] font-bold text-blue-600 block mb-1">이유두수 (두)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="w-total-weaned" value="${totalWeaned}" class="flex-1 bg-blue-50 border border-blue-200 rounded-xl p-3 text-lg font-black text-blue-800 outline-none focus:border-blue-400" placeholder="0">
+                                <span class="text-sm font-bold text-slate-500">두</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                ${isEditing ? `
+                <div class="mt-4 pt-4 border-t border-slate-100">
+                    <div id="w-del-btn-detail" class="flex justify-center">
+                        <button type="button" onclick="window.toggleWeaningDeleteConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i> 이 기록 삭제하기
+                        </button>
+                    </div>
+                    <div id="w-confirm-btn-detail" class="hidden flex flex-col gap-2 items-center">
+                        <p class="text-[10px] font-black text-rose-500">정말로 삭제하시겠습니까? (영구삭제)</p>
+                        <div class="flex gap-2 w-full mt-2">
+                            <button type="button" onclick="window.toggleWeaningDeleteConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button>
+                            <button type="button" onclick="window.deleteWeaningRecord('${date}')" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">삭제 확인</button>
+                        </div>
+                    </div>
+                </div>` : ''}
+                `;
+                return { title: isEditing ? '이유 성적 기록 수정' : '이유 성적 새 기록 추가', html };
+            },
             expected_week: (weekKey) => {
                 const sows = state.sowList.filter(s => { if (!s.matingDate || s.farrowingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false; const expectedFarrowingDate = utils.getExpectedFarrow(s.matingDate); return utils.getWeekKey(expectedFarrowingDate) === weekKey; });
                 sows.sort((a,b) => String(a.matingDate||'').localeCompare(String(b.matingDate||'')));
@@ -665,23 +796,26 @@
                 };
             },
             shipment_detail_confirmed: (date) => {
-                const records = state.shipments.filter(s => s.date === date), summary = state.shipmentSummaries[date] || { avgWeight: '', memo: '' }, totalCount = records.reduce((a,c)=>a+(c.count||0), 0); let totalAgeSum = 0; let validRecordsCount = 0;
-                records.forEach(r => { let rDate = r.stockingDate || ''; if(!rDate && r.batchId) { const b = state.gBatches.find(x => x.id === r.batchId); if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date; } if (rDate) { const age = utils.getDiffDays(rDate, date) + 20; totalAgeSum += age * (r.count || 0); validRecordsCount += (r.count || 0); } });
+                const records = state.shipments.filter(s => s.date === date), summary = state.shipmentSummaries[date] || { avgWeight: '', memo: '' }, totalCount = records.reduce((a,c)=>a+(Number(c.count)||0), 0); let totalAgeSum = 0; let validRecordsCount = 0;
+                records.forEach(r => { let rDate = r.stockingDate || ''; if(!rDate && r.batchId) { const b = (state.gBatches||[]).find(x => String(x.id) === String(r.batchId)); if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date; } if (rDate) { const age = utils.getDiffDays(rDate, date) + 20; totalAgeSum += age * (Number(r.count) || 0); validRecordsCount += (Number(r.count) || 0); } });
                 const avgAge = validRecordsCount > 0 ? Math.round(totalAgeSum / validRecordsCount) : 0; const avgAgeDisplay = avgAge > 0 ? avgAge : '-';
-                const recordsWithDates = records.map(r => { let rDate = r.stockingDate || ''; if(!rDate && r.batchId) { const b = state.gBatches.find(x => x.id === r.batchId); if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date; } return { ...r, calculatedWeaningDate: rDate }; });
-                recordsWithDates.sort((a, b) => { if (!a.calculatedWeaningDate) return 1; if (!b.calculatedWeaningDate) return -1; return a.calculatedWeaningDate.localeCompare(b.calculatedWeaningDate); });
-                const html = `<input type="hidden" id="m-ship-date" value="${date}"><div class="flex flex-col gap-3 mb-5"><div class="flex justify-between items-center px-1"><p class="text-lg font-black text-blue-800">${new Date(date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</p><span class="text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 uppercase tracking-tighter">Confirmed</span></div><div class="grid grid-cols-3 gap-2"><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">총 두수</p><p class="text-2xl font-black text-blue-700">${totalCount}<span class="text-xs ml-0.5 font-bold">두</span></p></div><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 출하일령</p><p class="text-2xl font-black text-blue-700">${avgAgeDisplay}<span class="text-xs ml-0.5 font-bold">일</span></p></div><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 체중(kg)</p><input type="number" id="m-ship-avg-weight" value="${summary.avgWeight || ''}" placeholder="0" class="w-full bg-transparent text-center font-black text-blue-800 text-2xl p-0 m-0"></div></div></div><div class="space-y-2"><p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 내역 상세 (이유일 및 일령 확인)</p><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[40vh] relative shadow-sm"><table class="w-full text-center text-sm border-collapse bg-white"><thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 text-center sticky top-0 z-10 uppercase tracking-wider"><tr><th class="py-2.5 px-3">이유일</th><th class="py-2.5 px-3">일령</th><th class="py-2.5 px-3">두수</th><th class="py-2.5 px-3 w-16"></th></tr></thead><tbody class="divide-y divide-slate-50">${recordsWithDates.map(r => { const d_obj = utils.parseDate(r.calculatedWeaningDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (r.calculatedWeaningDate || '기록없음'); const age = r.calculatedWeaningDate ? utils.getDiffDays(r.calculatedWeaningDate, date) + 20 : '??'; return `<tr class="hover:bg-slate-50/50 transition-colors"><td class="py-3 px-3 font-bold text-slate-700">${mmdd}</td><td class="py-3 px-3 font-semibold text-slate-600">${age}일</td><td class="py-3 px-3 font-black text-blue-600">${r.count}두</td><td class="py-3 px-3 relative min-w-[70px]"><div class="flex justify-center items-center"><button id="del-btn-${r.dbId}" onclick="window.toggleDeleteConfirm('${r.dbId}')" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button><button id="confirm-btn-${r.dbId}" onclick="window.deleteShipment('${r.dbId}', '${date}')" class="hidden absolute inset-0 bg-rose-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button></div></td></tr>`; }).join('')}</tbody></table></div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">출하 비고 및 메모</label><textarea id="m-ship-memo" placeholder="비고 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50); return { title: '출하 기록 상세 (완료)', html };
+                const recordsWithDates = records.map(r => { let rDate = r.stockingDate || ''; if(!rDate && r.batchId) { const b = (state.gBatches||[]).find(x => String(x.id) === String(r.batchId)); if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date; } return { ...r, calculatedWeaningDate: rDate }; });
+                recordsWithDates.sort((a, b) => { if (!a.calculatedWeaningDate) return 1; if (!b.calculatedWeaningDate) return -1; return String(a.calculatedWeaningDate).localeCompare(String(b.calculatedWeaningDate)); });
+                const dObj = utils.parseDate(date) || new Date(date); const dateStr = !isNaN(dObj.getTime()) ? `${dObj.getMonth()+1}월 ${dObj.getDate()}일` : date;
+                const html = `<input type="hidden" id="m-ship-date" value="${date}"><div class="flex flex-col gap-3 mb-5"><div class="flex justify-between items-center px-1"><p class="text-lg font-black text-blue-800">${dateStr}</p><span class="text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 uppercase tracking-tighter">Confirmed</span></div><div class="grid grid-cols-3 gap-2"><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">총 두수</p><p class="text-2xl font-black text-blue-700">${totalCount}<span class="text-xs ml-0.5 font-bold">두</span></p></div><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 출하일령</p><p class="text-2xl font-black text-blue-700">${avgAgeDisplay}<span class="text-xs ml-0.5 font-bold">일</span></p></div><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 체중(kg)</p><input type="number" id="m-ship-avg-weight" value="${summary.avgWeight || ''}" placeholder="0" class="w-full bg-transparent text-center font-black text-blue-800 text-2xl p-0 m-0"></div></div></div><div class="space-y-2"><p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 내역 상세 (이유일 및 일령 확인)</p><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[40vh] relative shadow-sm"><table class="w-full text-center text-sm border-collapse bg-white"><thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 text-center sticky top-0 z-10 uppercase tracking-wider"><tr><th class="py-2.5 px-3">이유일</th><th class="py-2.5 px-3">일령</th><th class="py-2.5 px-3">두수</th><th class="py-2.5 px-3 w-16"></th></tr></thead><tbody class="divide-y divide-slate-50">${recordsWithDates.map(r => { const d_obj = utils.parseDate(r.calculatedWeaningDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (r.calculatedWeaningDate || '기록없음'); const age = r.calculatedWeaningDate ? utils.getDiffDays(r.calculatedWeaningDate, date) + 20 : '??'; return `<tr class="hover:bg-slate-50/50 transition-colors"><td class="py-3 px-3 font-bold text-slate-700">${mmdd}</td><td class="py-3 px-3 font-semibold text-slate-600">${age}일</td><td class="py-3 px-3 font-black text-blue-600">${r.count}두</td><td class="py-3 px-3 relative min-w-[70px]"><div class="flex justify-center items-center"><button id="del-btn-${r.dbId}" onclick="window.toggleDeleteConfirm('${r.dbId}')" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button><button id="confirm-btn-${r.dbId}" onclick="window.deleteShipment('${r.dbId}', '${date}')" class="hidden absolute inset-0 bg-rose-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button></div></td></tr>`; }).join('')}</tbody></table></div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">출하 비고 및 메모</label><textarea id="m-ship-memo" placeholder="비고 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: '출하 기록 상세 (완료)', html };
             },
             shipment_detail_pending: (date) => {
                 const flatPendings = [], summary = state.shipmentSummaries[date] || { avgWeight: '', memo: '' };
-                state.gBatches.forEach(b => { if (b.pendingShipments) { b.pendingShipments.filter(ps => ps.date === date).forEach(ps => { ps.items.forEach(item => { const pIdx = (item.pIdx !== undefined) ? item.pIdx : 0; const penDate = (b.penDates && b.penDates[pIdx]) || b.weaningDate || b.date; const age = penDate ? utils.getDiffDays(penDate, date) + 20 : 0; flatPendings.push({ batchId: b.id, penIndex: pIdx, count: item.count, originalObj: ps, age: age, penDate: penDate || '-' }); }); }); } });
+                (state.gBatches||[]).forEach(b => { if (b.pendingShipments && Array.isArray(b.pendingShipments)) { b.pendingShipments.filter(ps => ps && ps.date === date).forEach(ps => { if(ps.items && Array.isArray(ps.items)){ ps.items.forEach(item => { const pIdx = (item.pIdx !== undefined) ? item.pIdx : 0; const penDate = (b.penDates && b.penDates[pIdx]) || b.weaningDate || b.date; const age = penDate ? utils.getDiffDays(penDate, date) + 20 : 0; flatPendings.push({ batchId: b.id, penIndex: pIdx, count: Number(item.count)||0, originalObj: ps, age: age, penDate: penDate || '-' }); }); } }); } });
                 const totalCount = flatPendings.reduce((a,c)=>a+c.count, 0), avgAge = flatPendings.length > 0 ? Math.round(flatPendings.reduce((a,c)=>a+c.age,0) / flatPendings.length) : 0;
-                const html = `<input type="hidden" id="m-ship-date" value="${date}"><div class="flex flex-col gap-3 mb-5"><div class="flex justify-between items-center px-1"><p class="text-lg font-black text-amber-800">${new Date(date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'short' })}</p><span class="text-[10px] font-black text-amber-500 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 uppercase tracking-tighter">Scheduled</span></div><div class="grid grid-cols-2 gap-3"><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">총 예정 두수</p><p class="text-3xl font-black text-amber-700">${totalCount}<span class="text-sm ml-1 font-bold">두</span></p></div><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">평균 일령</p><p class="text-3xl font-black text-amber-700">${avgAge}<span class="text-sm ml-1 font-bold">일</span></p></div></div></div><div class="space-y-2"><p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 예정 상세</p><div class="grid grid-cols-3 gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar pb-2">${flatPendings.map(p => { const d_obj = utils.parseDate(p.penDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (p.penDate || '-'); return `<div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden"><div class="flex items-start justify-between mb-1.5"><div class="flex flex-col"><span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">이유일</span><span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span></div><div class="flex flex-col items-end gap-1"><button onclick="window.cancelPendingShipment(${p.batchId}, '${encodeURIComponent(JSON.stringify(p.originalObj))}')" class="text-slate-300 hover:text-rose-500 transition-colors"><i data-lucide="x-circle" class="w-3 h-3"></i></button><div class="bg-slate-50 px-1 rounded leading-none py-0.5 text-right"><span class="text-[8px] font-black text-slate-400 block mb-0.5">일령</span><span class="text-[10px] font-black text-slate-600">${p.age}일</span></div></div></div><div class="flex justify-between items-end border-t border-slate-50 pt-1.5"><span class="text-[8px] font-bold text-slate-400">예정량</span><div class="flex items-baseline gap-0.5"><span class="font-black text-amber-600 text-base leading-none">${p.count}</span><span class="text-[8px] font-bold text-amber-400 leading-none">두</span></div></div></div>`; }).join('')}</div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">예정 메모</label><textarea id="m-ship-memo" placeholder="메모 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50); return { title: '출하 예정 상세', html };
+                const dObj = utils.parseDate(date) || new Date(date); const dateStr = !isNaN(dObj.getTime()) ? `${dObj.getMonth()+1}월 ${dObj.getDate()}일` : date;
+                const html = `<input type="hidden" id="m-ship-date" value="${date}"><div class="flex flex-col gap-3 mb-5"><div class="flex justify-between items-center px-1"><p class="text-lg font-black text-amber-800">${dateStr}</p><span class="text-[10px] font-black text-amber-500 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 uppercase tracking-tighter">Scheduled</span></div><div class="grid grid-cols-2 gap-3"><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">총 예정 두수</p><p class="text-3xl font-black text-amber-700">${totalCount}<span class="text-sm ml-1 font-bold">두</span></p></div><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">평균 일령</p><p class="text-3xl font-black text-amber-700">${avgAge}<span class="text-sm ml-1 font-bold">일</span></p></div></div></div><div class="space-y-2"><p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 예정 상세</p><div class="grid grid-cols-3 gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar pb-2">${flatPendings.map(p => { const d_obj = utils.parseDate(p.penDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (p.penDate || '-'); return `<div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden"><div class="flex items-start justify-between mb-1.5"><div class="flex flex-col"><span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">이유일</span><span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span></div><div class="flex flex-col items-end gap-1"><button onclick="window.cancelPendingShipment(${p.batchId}, '${encodeURIComponent(JSON.stringify(p.originalObj))}')" class="text-slate-300 hover:text-rose-500 transition-colors"><i data-lucide="x-circle" class="w-3 h-3"></i></button><div class="bg-slate-50 px-1 rounded leading-none py-0.5 text-right"><span class="text-[8px] font-black text-slate-400 block mb-0.5">일령</span><span class="text-[10px] font-black text-slate-600">${p.age}일</span></div></div></div><div class="flex justify-between items-end border-t border-slate-50 pt-1.5"><span class="text-[8px] font-bold text-slate-400">예정량</span><div class="flex items-baseline gap-0.5"><span class="font-black text-amber-600 text-base leading-none">${p.count}</span><span class="text-[8px] font-bold text-amber-400 leading-none">두</span></div></div></div>`; }).join('')}</div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">예정 메모</label><textarea id="m-ship-memo" placeholder="메모 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: '출하 예정 상세', html };
             },
             pen_detail: (t) => {
-                const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => x.id === t.batchId);
+                const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(t.batchId));
+                if (!b) return { title: '오류', html: '<p>데이터를 찾을 수 없습니다.</p>', hideSave: true };
                 const count = b.penDetails[t.penIndex], pDate = count > 0 ? ((b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr()) : utils.getTodayStr(), isGrower = t.stage === 'grower', isResidual = b.penIsResidual ? b.penIsResidual[t.penIndex] : false;
                 const relevantAccidents = state.accidents.filter(a => a.stage === t.stage && a.batchId === t.batchId && a.penIndex === t.penIndex);
                 const accHistoryHtml = relevantAccidents.length > 0 ? `<div class="mt-2 space-y-1.5 border-t border-amber-100 pt-2 w-full">${relevantAccidents.slice(0, 3).map(a => `<div class="flex justify-between items-center bg-white/50 px-2 py-1 rounded-lg"><span class="text-[10px] font-bold text-amber-600">${a.date} <span class="text-[9px] text-amber-500 ml-1 font-black">${a.type === 'sick' ? '(환돈)' : '(폐사)'}</span></span><span class="text-[11px] font-black text-amber-700">-${a.count}두</span></div>`).join('')}${relevantAccidents.length > 3 ? '<p class="text-[8px] text-center text-amber-400 mt-1">최근 3건만 표시됨</p>' : ''}</div>` : '<p class="text-[9px] text-amber-300 mt-2 text-center w-full">기록된 폐사/환돈 내역 없음</p>';
@@ -700,10 +834,11 @@
                     html += `<div class="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex flex-col gap-2.5"><div class="flex justify-between items-center px-1"><label class="text-[11px] font-black text-indigo-700">이동할 두수</label><div class="flex items-baseline gap-1"><input type="number" id="m-transfer-count" inputmode="numeric" placeholder="0" class="w-20 bg-white border border-indigo-200 rounded-lg text-center text-base font-black text-indigo-700 py-1.5 shadow-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none transition-all"><span class="text-[11px] text-indigo-500 font-bold">두</span></div></div><button onclick="window.startTransfer('${t.stage}', ${t.batchId}, ${t.penIndex})" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg active:scale-95 transition-all text-sm shadow-sm flex justify-center items-center gap-2"><i data-lucide="move-right" class="w-4 h-4"></i> 이 칸의 돼지 이동하기</button></div>`;
                 }
 
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50); return { title: titleHtml, html };
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: titleHtml, html };
             },
             batch_settings: (t) => {
-                const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => x.id === t.batchId);
+                const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(t.batchId));
+                if (!b) return { title: '오류', html: '<p>데이터를 찾을 수 없습니다.</p>', hideSave: true };
                 return { title: `배치 설정 (${t.stage==='weaning'?'이유':'육성'})`, html: `<input type="hidden" id="m-stage" value="${t.stage}"><input type="hidden" id="m-batch" value="${t.batchId}"><div class="bg-slate-50 p-4 rounded-xl mb-3"><label class="text-[10px] font-black text-slate-500 block mb-2">메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none" placeholder="여기에 메모를 입력하세요...">${b.memo||''}</textarea></div><div class="pt-4 border-t border-slate-100 mt-4"><div id="batch-reset-btn-container" class="flex justify-center"><button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기</button></div><div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center"><p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화됩니다.</p><div class="flex gap-2 w-full mt-1"><button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button></div></div></div>` };
             },
             sow_list: (f) => {
@@ -721,7 +856,7 @@
                         return `<div class="${groupClass} bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3 relative overflow-hidden"><div class="flex justify-between items-center bg-slate-50/50 px-3 py-2 rounded-xl border border-slate-100"><h4 class="text-sm font-black text-slate-800 flex items-center gap-1.5"><i data-lucide="baby" class="w-4.5 h-4.5 text-emerald-500"></i>${weekTitle} <span class="text-emerald-600 ml-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-black text-xs">${sList.length}복</span></h4></div><div class="overflow-x-auto w-full no-scrollbar border border-slate-150 rounded-xl relative"><div class="min-w-max"><div class="bg-slate-100/80 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider"><span class="w-8 shrink-0 flex justify-center">선택</span><span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">종부일</span><span class="w-20 shrink-0">예상일</span><span class="w-20 shrink-0">분만일</span><span class="w-16 shrink-0">산자수</span><span class="w-14 shrink-0">포유</span><span class="w-16 shrink-0">이동</span><span class="w-16 shrink-0">이유</span></div><div class="bg-slate-50/40 flex flex-col divide-y divide-slate-100">${rowsHtml}</div></div></div></div>`;
                     }).join('');
                     const html = `<div class="flex gap-2 mb-3 shrink-0"><div class="relative flex-1"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div><input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all"></div><button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button></div><p class="text-[10px] font-bold text-slate-400 px-1 mb-2 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 일괄 완료 처리를 하세요.</p><div class="space-y-4 max-h-[45vh] overflow-y-auto no-scrollbar pb-4 px-1" id="sow-list-container">${tablesHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">포유 중인 모돈이 없습니다.</div>'}</div>${list.length > 0 ? `<div class="mt-2 pt-3 border-t border-slate-100 shrink-0"><button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all"><i data-lucide="check-circle" class="w-5 h-5"></i> 선택 모돈 분만/이유 완료 처리 (산차+1, 이유)</button></div>` : ''}`;
-                    setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
+                    if (typeof lucide !== 'undefined') setTimeout(() => { lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
                 }
 
                 if (f === '이유' || f === '재발') {
@@ -737,29 +872,72 @@
                         const sortedHistory = s.history && s.history.length > 0 ? [...s.history].sort((a,b) => b.parity - a.parity) : []; const prevWeaningDate = sortedHistory.length > 0 ? (sortedHistory[0].weaningDate || sortedHistory[0].date || '-') : '-';
                         return `<div class="bg-white px-3 py-2 flex items-center gap-1.5 hover:bg-slate-50 transition-colors sow-list-item" data-sow-no="${s.sowNo}"><span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span><span class="w-12 shrink-0 text-center font-black text-slate-700 text-[13px]">${s.parity}산</span><span class="w-20 shrink-0 text-center font-bold text-slate-500 text-[12px]">${prevWeaningDate}</span><div class="w-24 shrink-0 px-1"><input type="text" id="row-mating-${s.dbId}" placeholder="MM/DD" class="w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all" oninput="window.calculateExpectedFarrowInline('${s.dbId}', this.value)"></div><div class="w-24 shrink-0 px-1"><input type="text" id="row-farrow-${s.dbId}" placeholder="자동 계산" readonly class="w-full bg-slate-100/80 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none text-slate-500 cursor-not-allowed"></div><div class="w-16 shrink-0 text-center"><button onclick="window.saveWeanedSowRow('${s.dbId}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-[11px] px-2.5 py-1.5 rounded-lg border border-blue-100 active:scale-95 transition-all">저장</button></div></div>`;
                     }).join('') || `<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl">${f === '재발' ? '재발' : '이유'} 중인 모돈이 없습니다.</div>`}</div></div></div>`;
-                    setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
+                    if (typeof lucide !== 'undefined') setTimeout(() => { lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
                 }
 
                 const html = `<div class="flex gap-2 mb-4"><div class="relative flex-1"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div><input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all"></div><button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button></div><div class="grid grid-cols-4 gap-1.5 pb-4 max-h-[60vh] overflow-y-auto no-scrollbar" id="sow-list-container">${list.map(s => { const statusColor = s.currentStatus === '재발' ? 'text-rose-500' : (s.currentStatus === '임신' ? 'text-blue-600' : (s.currentStatus === '포유' ? 'text-emerald-600' : 'text-slate-500')); return `<div class="relative sow-card-item" data-sow-no="${s.sowNo}"><div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white p-1.5 rounded-2xl border border-slate-100 flex flex-col items-center justify-center h-28 shadow-sm active:scale-95 transition-all cursor-pointer overflow-hidden"><div class="flex flex-col items-center gap-0.5 mb-2"><span class="text-[20px] font-black text-slate-800 leading-none tracking-tighter">${s.sowNo}</span><span class="text-[14px] font-bold text-slate-400 leading-none">${s.parity}산</span></div><span class="text-[17px] font-black ${statusColor} uppercase tracking-tighter leading-none">${s.currentStatus || '이유'}</span></div><button id="sow-del-btn-${s.dbId}" onclick="event.stopPropagation(); window.toggleSowDeleteConfirm('${s.dbId}')" class="absolute top-1.5 right-1.5 p-1 text-slate-200 hover:text-rose-400 transition-colors"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i></button><button id="sow-confirm-btn-${s.dbId}" onclick="event.stopPropagation(); window.deleteSow('${s.dbId}')" class="hidden absolute inset-0 bg-rose-500/95 backdrop-blur-sm text-white text-[10px] font-black rounded-2xl flex items-center justify-center z-20 text-center px-1">삭제확인</button></div>`; }).join('')}</div>`;
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
+                if (typeof lucide !== 'undefined') setTimeout(() => { lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
             },
             sow_detail: (t) => {
                 const s = t==='new'?{sowNo:'',parity:0,currentStatus:'이유', matingDate: '', history: []}:state.sowList.find(x=>x.dbId===t);
                 if (!s) return { title: '오류', html: '<p class="text-center py-10 text-slate-500 font-bold">찾을 수 없음</p>', hideSave: true };
                 setTimeout(() => { (s.history || []).forEach(h => window.addSowHistoryRow(h.parity, h.matingDate || '', h.expDate || '', h.date, h.weaningDate || '', h.total || '', h.born, h.weaned, h.move)); }, 100);
                 let html = `<input type="hidden" id="s-dbid" value="${t}"><div class="space-y-4"><div class="grid grid-cols-3 gap-2"><div class="bg-slate-50 p-2 rounded-xl"><label class="text-[9px] font-bold text-slate-500 block mb-0.5">관리 번호</label><input type="text" id="s-no" value="${s.sowNo}" class="w-full bg-transparent font-black text-slate-800 text-sm"></div><div class="bg-slate-50 p-2 rounded-xl"><label class="text-[9px] font-bold text-slate-500 block mb-0.5">현재 산차</label><input type="number" id="s-parity" inputmode="numeric" value="${s.parity}" class="w-full bg-transparent font-black text-slate-800 text-sm"></div><div class="bg-slate-50 p-2 rounded-xl"><label class="text-[9px] font-bold text-slate-500 block mb-0.5">현재 상태</label><select id="s-status" class="w-full bg-transparent font-bold text-slate-800 text-sm"><option value="이유" ${s.currentStatus==='이유'?'selected':''}>이유</option><option value="임신" ${s.currentStatus==='임신'?'selected':''}>임신</option><option value="포유" ${s.currentStatus==='포유'?'selected':''}>포유</option><option value="재발" ${s.currentStatus==='재발'?'selected':''}>재발</option></select></div></div><div class="grid grid-cols-2 gap-2"><div class="bg-rose-50 p-3 rounded-xl border border-rose-100"><label class="text-[9px] font-bold text-rose-600 block mb-0.5">최근 종부일</label><input type="date" id="s-mating" value="${s.matingDate||''}" onchange="const v=this.value; const e=v?utils.getExpectedFarrow(v):''; document.getElementById('s-expected-val').innerText=e||'미입력'; const rs=document.querySelectorAll('.history-row'); if(rs.length>0){ const lr=rs[rs.length-1]; lr.querySelector('.h-mating').value=v?v.substring(5).replace('-','/'):''; lr.querySelector('.h-exp').value=e?e.substring(5).replace('-','/'):''; }" class="w-full bg-transparent font-black text-rose-700 text-[11px]"></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center"><label class="text-[9px] font-bold text-rose-600 block mb-0.5">분만 예정일</label><span id="s-expected-val" class="font-black text-rose-700 text-sm">${s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '미입력'}</span></div></div><div class="pt-2"><div class="flex justify-between items-center mb-2 px-1"><div class="flex flex-col"><h4 class="text-xs font-black text-slate-700 leading-none">생산 기록</h4><p class="text-[8px] font-bold text-slate-400 mt-1 uppercase">Production History</p></div><div class="flex gap-2"><button onclick="const mating = document.getElementById('s-mating').value; const mDateStr = mating ? mating.substring(5).replace('-', '/') : ''; const exp = mating ? utils.getExpectedFarrow(mating).substring(5).replace('-', '/') : ''; window.addSowHistoryRow(document.getElementById('s-parity').value, mDateStr, exp, '', '', '', '', '', '')" class="bg-slate-800 text-white p-1.5 rounded-lg hover:bg-slate-700 transition-colors active:scale-95"><i data-lucide="plus" class="w-4 h-4"></i></button></div></div><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg"><div class="min-w-max"><div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center"><span class="w-12 shrink-0">산차</span><span class="w-16 shrink-0">종부일</span><span class="w-16 shrink-0">예상일</span><span class="w-16 shrink-0">분만일</span><span class="w-16 shrink-0">이유일</span><span class="w-12 shrink-0">산자수</span><span class="w-12 shrink-0">포유</span><span class="w-12 shrink-0">이동</span><span class="w-12 shrink-0">이유</span><span class="w-8 shrink-0"></span></div><div id="sow-history-container" class="space-y-0 bg-slate-50"></div></div></div></div>${t !== 'new' ? `<div class="mt-6 pt-4 border-t border-slate-100"><div id="sow-del-btn-detail" class="flex justify-center"><button onclick="window.toggleSowDetailDeleteConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i> 이 모돈 정보 삭제하기</button></div><div id="sow-confirm-btn-detail" class="hidden flex flex-col gap-2 items-center"><p class="text-[10px] font-black text-rose-500">정말로 삭제하시겠습니까? 기록이 모두 사라집니다.</p><div class="flex gap-2 w-full"><button onclick="window.toggleSowDetailDeleteConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.deleteSow('${t}')" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">삭제 확인</button></div></div></div>` : ''}</div>`;
-                setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 50); return { title: `<div class="flex items-center gap-2">모돈 상세 정보</div>`, html };
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: `<div class="flex items-center gap-2">모돈 상세 정보</div>`, html };
             },
             transfer_pen: (t) => {
-                const src = (t.src.stage==='weaning'?state.wBatches:state.gBatches).find(b=>b.id===t.src.batchId), sC = src.penDetails[t.src.penIndex]; const defaultCount = t.src.count > 0 ? t.src.count : sC;
-                return { title: '칸 이동', html: `<input type="hidden" id="m-src-stage" value="${t.src.stage}"><input type="hidden" id="m-src-batch" value="${src.id}"><input type="hidden" id="m-src-pen" value="${t.src.penIndex}"><input type="hidden" id="m-dest-stage" value="${t.dest.stage}"><input type="hidden" id="m-dest-batch" value="${t.dest.batchId}"><input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}"><div class="p-6 bg-indigo-50 rounded-xl text-center"><label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC})</label><input id="m-count" type="number" inputmode="numeric" value="${defaultCount}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700"></div>` };
+                const src = (t.src.stage==='weaning'?state.wBatches:state.gBatches).find(b=>String(b.id)===String(t.src.batchId)), sC = src.penDetails[t.src.penIndex]; 
+                const defaultCount = t.src.count > 0 ? t.src.count : sC;
+                return { 
+                    title: '칸 이동', 
+                    html: `<input type="hidden" id="m-src-stage" value="${t.src.stage}">
+                           <input type="hidden" id="m-src-batch" value="${src.id}">
+                           <input type="hidden" id="m-src-pen" value="${t.src.penIndex}">
+                           <input type="hidden" id="m-dest-stage" value="${t.dest.stage}">
+                           <input type="hidden" id="m-dest-batch" value="${t.dest.batchId}">
+                           <input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}">
+                           <div class="p-6 bg-indigo-50 rounded-xl text-center">
+                               <label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC})</label>
+                               <input id="m-count" type="number" inputmode="numeric" value="${defaultCount}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700">
+                           </div>` 
+                };
             }
         };
 
         const saveActions = {
             piglet_calc: async () => { const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0; const nursingSows = state.sowCache.nursingSows; const nursingPiglets = Math.floor(nursingSows * avgPiglets); state.stocks.nursingPiglets = nursingPiglets; state.stocks.avgPiglets = avgPiglets; await db.doc(`${COLS.STOCKS}/current`).update({ nursingPiglets: nursingPiglets, avgPiglets: avgPiglets }); },
             manual_stock: async () => { const id = document.getElementById('m-stock-id').value, val = parseInt(document.getElementById('m-stock-val').value) || 0; state.stocks[id] = val; await db.doc(`${COLS.STOCKS}/current`).update({ [id]: val }); },
-            sow_detail: async () => { const id = document.getElementById('s-dbid').value; const history = Array.from(document.querySelectorAll('.history-row')).map(row => ({ parity: parseInt(row.querySelector('.h-parity').value) || 0, matingDate: row.querySelector('.h-mating').value, expDate: row.querySelector('.h-exp').value, date: row.querySelector('.h-farrow').value, weaningDate: row.querySelector('.h-weaning-date').value, total: parseInt(row.querySelector('.h-total').value) || 0, born: parseInt(row.querySelector('.h-born').value) || 0, weaned: row.querySelector('.h-weaned').value, move: row.querySelector('.h-move').value })).sort((a, b) => a.parity - b.parity); const data = { sowNo: document.getElementById('s-no').value, parity: parseInt(document.getElementById('s-parity').value)||0, currentStatus: document.getElementById('s-status').value, matingDate: document.getElementById('s-mating').value, history }; if (id === 'new') await db.collection(COLS.SOWS).add(data); else await db.doc(`${COLS.SOWS}/${id}`).update(data); },
+            sow_detail: async () => { 
+                const id = document.getElementById('s-dbid').value; 
+                const history = Array.from(document.querySelectorAll('.history-row')).map(row => ({ 
+                    parity: parseInt(row.querySelector('.h-parity').value) || 0, 
+                    matingDate: row.querySelector('.h-mating').value, 
+                    expDate: row.querySelector('.h-exp').value, 
+                    date: row.querySelector('.h-farrow').value, 
+                    weaningDate: row.querySelector('.h-weaning-date').value, 
+                    total: parseInt(row.querySelector('.h-total').value) || 0, 
+                    born: parseInt(row.querySelector('.h-born').value) || 0, 
+                    weaned: row.querySelector('.h-weaned').value, 
+                    move: row.querySelector('.h-move').value 
+                })).sort((a, b) => a.parity - b.parity); 
+                const data = { 
+                    sowNo: document.getElementById('s-no').value, 
+                    parity: parseInt(document.getElementById('s-parity').value)||0, 
+                    currentStatus: document.getElementById('s-status').value, 
+                    matingDate: document.getElementById('s-mating').value, 
+                    history 
+                }; 
+                if (id === 'new') await db.collection(COLS.SOWS).add(data); 
+                else await db.doc(`${COLS.SOWS}/${id}`).update(data); 
+            },
+            weaning_record: async () => {
+                const date = document.getElementById('w-date').value;
+                const sowCount = Number(document.getElementById('w-sow-count').value) || 0;
+                const totalWeaned = Number(document.getElementById('w-total-weaned').value) || 0;
+                if (!date) throw new Error("날짜를 입력해주세요.");
+                await db.collection(COLS.WEANING_RECORDS).doc(date).set({ sowCount, totalWeaned, updatedAt: new Date().toISOString() });
+                utils.showToast("이유 성적이 저장되었습니다.");
+            },
             nursing_week: async () => {
                 const rows = document.querySelectorAll('.nursing-row'); if (rows.length === 0) return; const updatePromises = [];
                 rows.forEach(row => {
@@ -779,7 +957,8 @@
                 const shipCount = parseInt(document.getElementById('m-ship-count')?.value)||0, shipDate = document.getElementById('m-ship-date')?.value || utils.getTomorrowStr();
                 const accCount = parseInt(document.getElementById('m-acc-count')?.value)||0, accDate = document.getElementById('m-acc-date')?.value || utils.getTodayStr();
                 const pDateInput = document.getElementById('m-pen-date'); const currentPenDate = pDateInput ? pDateInput.value : '';
-                const b = (stg === 'weaning' ? state.wBatches : state.gBatches).find(x => x.id === bId);
+                const b = (stg === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(bId));
+                if (!b) throw new Error("배치 데이터를 찾을 수 없습니다.");
                 if (!b.penIsResidual) b.penIsResidual = Array(b.penDetails.length).fill(false); b.penIsResidual[pIdx] = document.getElementById('m-pen-residual')?.checked || false;
                 if (!b.penIsSick) b.penIsSick = Array(b.penDetails.length).fill(false); b.penIsSick[pIdx] = false;
                 const cStockDate = currentPenDate || (b.penDates && b.penDates[pIdx]) || b.weaningDate || b.date;
@@ -792,7 +971,8 @@
             transfer_pen: async () => {
                 const srcStg = document.getElementById('m-src-stage').value, sbId = parseInt(document.getElementById('m-src-batch').value), spIdx = parseInt(document.getElementById('m-src-pen').value);
                 const destStg = document.getElementById('m-dest-stage').value, dbId = parseInt(document.getElementById('m-dest-batch').value), dpIdx = parseInt(document.getElementById('m-dest-pen').value), cnt = parseInt(document.getElementById('m-count').value)||0;
-                const src = (srcStg==='weaning'?state.wBatches:state.gBatches).find(b=>b.id===sbId), dest = (destStg==='weaning'?state.wBatches:state.gBatches).find(b=>b.id===dbId);
+                const src = (srcStg==='weaning'?state.wBatches:state.gBatches).find(b=>String(b.id)===String(sbId)), dest = (destStg==='weaning'?state.wBatches:state.gBatches).find(b=>String(b.id)===String(dbId));
+                if (!src || !dest) throw new Error("출발 또는 도착 배치 데이터를 찾을 수 없습니다.");
                 let srcDate = src.penDates[spIdx] || (srcStg === 'weaning' ? src.date : src.weaningDate || src.date), destDate = dest.penDates[dpIdx], finalDate = '';
                 if (!destDate) { finalDate = srcDate; } else if (!srcDate) { finalDate = destDate; } else { finalDate = srcDate < destDate ? srcDate : destDate; }
                 src.penDetails[spIdx] -= cnt; if(src.penDetails[spIdx]===0) { src.penDates[spIdx]=''; if(src.penIsResidual) src.penIsResidual[spIdx] = false; if(src.penIsSick) src.penIsSick[spIdx] = false; }
@@ -806,7 +986,61 @@
             shipment_detail_pending: async () => { const date = document.getElementById('m-ship-date').value, memo = document.getElementById('m-ship-memo').value; await db.doc(`${COLS.SHIPMENT_SUMMARIES}/${date}`).set({ memo, updatedAt: new Date().toISOString() }, { merge: true }); }
         };
 
-        window.openModal = (type, target) => { const renderer = modalRenderers[type]; if (!renderer) return; const { title, html, hideSave } = renderer(target); document.getElementById('modal-title').innerHTML = title; document.getElementById('modal-content').innerHTML = html; document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex'; document.getElementById('save-btn').onclick = () => processSave(type); document.getElementById('modal-overlay').classList.remove('hidden'); setTimeout(() => { if (typeof lucide !== 'undefined') lucide.createIcons(); }, 20); };
+        window.toggleWeaningDeleteConfirm = () => {
+            const btn = document.getElementById('w-del-btn-detail');
+            const confirmBtn = document.getElementById('w-confirm-btn-detail');
+            if (btn && confirmBtn) {
+                if (!btn.classList.contains('hidden')) { btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } 
+                else { btn.classList.remove('hidden'); confirmBtn.classList.add('hidden'); }
+            }
+        };
+
+        window.deleteWeaningRecord = async (date) => {
+            try {
+                await db.collection(COLS.WEANING_RECORDS).doc(date).delete();
+                utils.showToast("이유 성적 삭제 완료");
+                window.closeModal();
+            } catch(e) { utils.showToast("삭제 실패: " + e.message); }
+        };
+
+        window.exportWeaningToExcel = () => {
+            const sortedRecords = Object.entries(state.weaningRecords)
+                .filter(([date, data]) => Boolean(data))
+                .map(([date, data]) => ({ date, ...data }))
+                .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+            
+            if (sortedRecords.length === 0) {
+                utils.showToast("다운로드할 데이터가 없습니다.");
+                return;
+            }
+            const excelData = sortedRecords.map(st => ({
+                '이유일': st.date || '-',
+                '이유 모돈수 (복)': st.sowCount || 0,
+                '총 이유두수 (두)': st.totalWeaned || 0,
+                '복당 평균 이유두수': st.sowCount > 0 ? (Number(st.totalWeaned) / Number(st.sowCount)).toFixed(1) : 0
+            }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(excelData), "수동기록_이유성적");
+            XLSX.writeFile(wb, `성암농장_이유성적_${utils.getTodayStr()}.xlsx`);
+            utils.showToast("이유 성적 엑셀이 생성되었습니다.");
+        };
+
+        window.openModal = (type, target) => { 
+            try {
+                const renderer = modalRenderers[type]; 
+                if (!renderer) return; 
+                const { title, html, hideSave } = renderer(target); 
+                document.getElementById('modal-title').innerHTML = title; 
+                document.getElementById('modal-content').innerHTML = html; 
+                document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex'; 
+                document.getElementById('save-btn').onclick = () => processSave(type); 
+                document.getElementById('modal-overlay').classList.remove('hidden'); 
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20); 
+            } catch (error) {
+                console.error("팝업 렌더링 에러:", error);
+                utils.showToast("오류가 발생했습니다: " + error.message);
+            }
+        };
         window.closeModal = () => { document.getElementById('modal-overlay').classList.add('hidden'); };
         
         window.deleteShipment = async (docId, date) => { try { await db.collection(COLS.SHIPMENTS).doc(docId).delete(); utils.showToast("기록 삭제 완료"); const remaining = state.shipments.filter(s => s.date === date && s.dbId !== docId); if (remaining.length > 0) window.openModal('shipment_detail_confirmed', date); else window.closeModal(); } catch (e) { utils.showToast("삭제 실패: " + e.message); } };

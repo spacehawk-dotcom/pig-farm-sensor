@@ -12,13 +12,13 @@
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   
-  <!-- Babel (브라우저에서 JSX 문법 실시간 해석, 버전 고정 및 React 프리셋 명시) -->
+  <!-- Babel (브라우저에서 JSX 문법 실시간 해석) -->
   <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
 
-  <!-- SheetJS (엑셀 다운로드 라이브러리 추가) -->
+  <!-- SheetJS (엑셀 다운로드 라이브러리) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-  <!-- Firebase SDK (호환 버전: 단일 HTML 환경용) -->
+  <!-- Firebase SDK Compat 버전 (단일 HTML 호환용) -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -33,17 +33,24 @@
     /* input number 스피너 숨기기 */
     input[type=number]::-webkit-inner-spin-button, 
     input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    
+    /* Excel Table borders styling */
+    .excel-table th, .excel-table td {
+        border: 1px solid #cbd5e1; /* slate-300 */
+    }
+    .excel-table th {
+        background-color: #f1f5f9; /* slate-100 */
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
 
   <div id="root"></div>
 
-  <!-- 여기서부터 React 코드를 브라우저가 실시간으로 해석합니다 -->
+  <!-- React 코드 작성 영역 -->
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useMemo, useRef } = React;
 
-    // --- 내장 SVG 아이콘 컴포넌트 ---
     const Search = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>;
     const Plus = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M5 12h14"/><path d="M12 5v14"/></svg>;
     const ArrowLeft = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>;
@@ -55,6 +62,7 @@
     const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
     const Download = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
     const Bell = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
+    const TableIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>;
 
     // --- 실시간 DB 연동 온도 표 컴포넌트 ---
     const TempTable = ({ shipment, onAvgCalculated }) => {
@@ -90,7 +98,6 @@
             }
 
             const dailyStats = {};
-            // 사육현황 앱 기준: 육성_1배치 등. 출하는 주로 육성사이므로 '육성' 위주로 필터링
             const zones = batchIds.map(id => id === 8 ? '육성_후보사' : `육성_${id}배치`);
 
             let totalSum = 0;
@@ -224,6 +231,7 @@
     const SHIPMENTS_COLLECTION_PATH = 'farms/sungamfarm/shipments';
     const SHIPMENT_SUMMARIES_PATH = 'farms/sungamfarm/shipment_summaries';
     const GROWER_PATH = 'farms/sungamfarm/grower';
+    const FEEDS_COLLECTION_PATH = 'farms/sungamfarm/feed_orders'; // 실제 사료 주문 연동 테이블로 통합
 
     // 알림창 컴포넌트
     const CustomAlert = ({ message, onClose }) => (
@@ -274,14 +282,16 @@
       const [sows, setSows] = useState([]);
       const [weaningRecords, setWeaningRecords] = useState({}); 
       const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0 }); 
-      const [shipments, setShipments] = useState([]); // 사육현황 출하 기록
-      const [shipmentSummaries, setShipmentSummaries] = useState({}); // 사육현황 체중정보
-      const [gBatches, setGBatches] = useState([]); // 사육현황 육성사 (일령 계산용)
+      const [shipments, setShipments] = useState([]); 
+      const [shipmentSummaries, setShipmentSummaries] = useState({}); 
+      const [gBatches, setGBatches] = useState([]); 
+      const [feedRecords, setFeedRecords] = useState([]); 
       const [loading, setLoading] = useState(true);
       
-      // 알림 상태 관리
+      // 알림 및 토스트 상태 관리
       const [alertMsg, setAlertMsg] = useState(null);
       const [confirmConfig, setConfirmConfig] = useState(null);
+      const [toastMsg, setToastMsg] = useState(null);
 
       const showAlert = (message) => setAlertMsg(message);
       const showConfirm = (message, onConfirm) => {
@@ -290,6 +300,11 @@
           onConfirm: () => { onConfirm(); setConfirmConfig(null); },
           onCancel: () => setConfirmConfig(null)
         });
+      };
+      
+      const showToast = (message) => {
+        setToastMsg(message);
+        setTimeout(() => setToastMsg(null), 3000);
       };
 
       // UI 상태 관리
@@ -300,7 +315,7 @@
       const [showSowListModal, setShowSowListModal] = useState(false);
       const [listFilter, setListFilter] = useState(null);
       
-      // 직접 기록용 주간 이유 팝업 상태
+      // 주간 이유 팝업 상태
       const [showWeaningModal, setShowWeaningModal] = useState(false);
       const [isEditingWeaning, setIsEditingWeaning] = useState(false);
       const [confirmWeaningDelete, setConfirmWeaningDelete] = useState(false); 
@@ -311,24 +326,22 @@
       const [showParityModal, setShowParityModal] = useState(false);
       const [showMonthlySowModal, setShowMonthlySowModal] = useState(false);
       const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-      const [selectedShipment, setSelectedShipment] = useState(null); // 출하 상세 팝업 상태 추가
-      const [modalAvgTemp, setModalAvgTemp] = useState('-'); // 모달에 표시될 동기화 평균 온도
+      const [selectedShipment, setSelectedShipment] = useState(null); 
+      const [modalAvgTemp, setModalAvgTemp] = useState('-'); 
+      const [selectedFeedMonth, setSelectedFeedMonth] = useState(null); // 월별 엑셀 확인용 모달 상태
 
       // 폼 상태
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
       const [newRecord, setNewRecord] = useState({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
 
-      // 가로 스크롤 포커스를 위한 Ref
       const farrowingScrollRef = useRef(null);
 
       // --- Auth & Data Fetching ---
       useEffect(() => {
-        // 1. 익명 로그인 시도
         auth.signInAnonymously().catch(err => {
-          console.warn("익명 로그인 실패 (무시하고 데이터 호출 시도):", err);
+          console.warn("익명 로그인 실패:", err);
         });
         
-        // 2. 인증 상태 변경 감지
         const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
           setUser(currentUser);
           if (!currentUser) setLoading(false);
@@ -338,10 +351,9 @@
       }, []);
 
       useEffect(() => {
-        // 인증(로그인)이 완료되지 않으면 데이터베이스 접근 시도 금지
         if (!user) return;
 
-        // 1. 모돈 정보 가져오기
+        // 1. 모돈 정보
         const unsubSows = db.collection(SOWS_COLLECTION_PATH).onSnapshot(
           (snapshot) => {
             const sowsData = snapshot.docs
@@ -361,7 +373,7 @@
           }
         );
 
-        // 2. 직접 기록한 주간 이유 기록 정보 가져오기
+        // 2. 주간 이유 기록 정보
         const unsubWeaning = db.collection(WEANING_RECORDS_PATH).onSnapshot(
           (snapshot) => {
             const records = {};
@@ -373,7 +385,7 @@
           (error) => console.error("Error fetching weaning records:", error)
         );
 
-        // 3. 농장 설정(평균 상시 모돈수 등) 가져오기
+        // 3. 농장 설정
         const unsubSettings = db.collection(SETTINGS_PATH).doc('main').onSnapshot(
           (doc) => {
             if (doc.exists && doc.data()) {
@@ -383,7 +395,7 @@
           (error) => console.error("Error fetching settings:", error)
         );
 
-        // 4. 사육현황 출하 기록, 체중정보, 육성사 데이터 가져오기 (자동 연동)
+        // 4. 사육현황 출하, 체중, 육성사 데이터 연동
         const unsubShipments = db.collection(SHIPMENTS_COLLECTION_PATH).onSnapshot(
           (snapshot) => {
             const records = snapshot.docs.map(doc => doc.data());
@@ -413,10 +425,21 @@
           (error) => console.error("Error fetching grower batches:", error)
         );
 
-        return () => { unsubSows(); unsubWeaning(); unsubSettings(); unsubShipments(); unsubShipmentSummaries(); unsubGrower(); };
+        const unsubFeeds = db.collection(FEEDS_COLLECTION_PATH).onSnapshot(
+          (snapshot) => {
+            const records = snapshot.docs.map(doc => doc.data());
+            setFeedRecords(records);
+          },
+          (error) => console.error("Error fetching feeds:", error)
+        );
+
+        return () => { 
+          unsubSows(); unsubWeaning(); unsubSettings(); 
+          unsubShipments(); unsubShipmentSummaries(); unsubGrower(); unsubFeeds(); 
+        };
       }, [user]);
 
-      // 헬퍼: 두 날짜 간 일수 차이 계산
+      // 헬퍼: 날짜 계산
       const getDiffDays = (d1, d2) => { 
         if(!d1||!d2) return 0; 
         const t1=new Date(d1).getTime(), t2=new Date(d2).getTime(); 
@@ -424,7 +447,6 @@
         return Math.floor((t2-t1)/(1000*60*60*24)); 
       };
 
-      // 헬퍼: 범용 날짜 파싱 (사용자가 "4/9" 처럼 쳐도 올해 날짜로 자동 인식하여 오류 방지)
       const parseValidDate = (dateStr) => {
         if (!dateStr) return null;
         const str = String(dateStr).trim();
@@ -437,7 +459,7 @@
           let d = parseInt(parts[2], 10);
           return new Date(y, m, d);
         } else if (parts.length === 2) {
-          let y = new Date().getFullYear(); // 연도 생략 시 올해 자동 추가
+          let y = new Date().getFullYear(); 
           let m = parseInt(parts[0], 10) - 1;
           let d = parseInt(parts[1], 10);
           return new Date(y, m, d);
@@ -447,7 +469,6 @@
         return isNaN(parsed.getTime()) ? null : parsed;
       };
 
-      // 헬퍼: 표준 형식으로 재변환
       const formatDate = (dateObj) => {
         if (!dateObj) return '';
         const yy = dateObj.getFullYear();
@@ -456,7 +477,6 @@
         return `${yy}-${mm}-${dd}`;
       };
 
-      // 헬퍼: 분만 예정일 계산 (+115일)
       const getExpectedFarrow = (matingDate) => {
         const d = parseValidDate(matingDate);
         if (!d) return '';
@@ -464,7 +484,6 @@
         return formatDate(d);
       };
 
-      // 헬퍼: 분만일 기준 이유하는 목요일 계산
       const getWeaningThursday = (farrowDateStr) => {
         const d = parseValidDate(farrowDateStr);
         if (!d) return null;
@@ -474,7 +493,6 @@
         return formatDate(d);
       };
 
-      // 헬퍼: 날짜 덧셈 (일반적인 n일 이후 계산)
       const addDays = (dateStr, days) => {
         const d = parseValidDate(dateStr);
         if (!d) return '';
@@ -482,7 +500,6 @@
         return formatDate(d);
       };
 
-      // 헬퍼: 날짜 뺄셈 (일반적인 n일 이전 계산)
       const subtractDays = (dateStr, days) => {
         const d = parseValidDate(dateStr);
         if (!d) return '';
@@ -490,7 +507,6 @@
         return formatDate(d);
       };
 
-      // 헬퍼: 해당 주차의 월요일 구하기 (분만 주차용)
       const getMonday = (dateStr) => {
         const d = parseValidDate(dateStr);
         if (!d) return null;
@@ -500,7 +516,7 @@
         return formatDate(d);
       };
 
-      // --- Data Processing ---
+      // --- 데이터 가공 로직 ---
       const filteredSows = useMemo(() => {
         let result = sows.filter(Boolean);
 
@@ -522,12 +538,9 @@
               const s = sow || {};
               const currentMonday = getMonday(new Date().toISOString().split('T')[0]);
 
-              // 1. 실제 분만 완료 매칭 (history 기록)
               const matchActual = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === filterObj.value);
-              // 2. 분만 예정 매칭 (교배일 기준) - 포유 상태인 경우도 일단 교배일이 있으면 예정주차로 매칭됨
               const expDateStr = s.matingDate && s.currentStatus !== '재발' ? getExpectedFarrow(s.matingDate) : null;
               const matchExpected = expDateStr && getMonday(expDateStr) === filterObj.value;
-              // 3. 교배일조차 없고 상태만 '포유'인 경우 (이번 주차로 편입)
               const matchFallback = !s.matingDate && s.currentStatus === '포유' && filterObj.value === currentMonday;
               
               return matchActual || matchExpected || matchFallback;
@@ -535,13 +548,11 @@
           } else if (filterObj.type === 'activityMonth') {
             result = result.filter(sow => {
               const s = sow || {};
-              // 1. 해당 월 교배 (matingDate 기준)
               let matedThisMonth = false;
               if (s.matingDate) {
                 const parsed = parseValidDate(s.matingDate);
                 if (parsed && formatDate(parsed).substring(0, 7) === filterObj.value) matedThisMonth = true;
               }
-              // 2. 해당 월 분만 (history 기준)
               let farrowedThisMonth = false;
               if (s.history && Array.isArray(s.history)) {
                 farrowedThisMonth = s.history.some(r => {
@@ -570,7 +581,6 @@
         return sows.find(s => s && (s || {}).id === selectedSowId) || null;
       }, [sows, selectedSowId]);
 
-      // 대시보드 통계 계산 (수기 기록, 설정 모돈수, 사육현황 자동 연동 적용)
       const dashboardStats = useMemo(() => {
         const stats = {
           total: sows.filter(Boolean).length,
@@ -601,7 +611,6 @@
           }
         });
 
-        // 분자 계산: [직접 기록]된 이유 성적 중 최근 1년 치 합산
         let manualYearlyWeaned = 0;
         Object.entries(weaningRecords).forEach(([date, data]) => {
           if (date >= oneYearAgoStr && data) {
@@ -609,19 +618,51 @@
           }
         });
 
-        // 사육현황 DB에서 최근 1년 출하두수 합산
         let dbYearlyShipped = 0;
+        let yearlyWeightGainKg = 0; // FCR용 연간 총 증체량
+        let yearlyTotalShippedWeight = 0; // FCR용 연간 출하 총체중
+
         shipments.forEach(record => {
           if (record && record.date && record.date >= oneYearAgoStr) {
-            dbYearlyShipped += Number(record.count || 0);
+            const count = Number(record.count || 0);
+            dbYearlyShipped += count;
+
+            // 출하체중 계산 (기록이 없을 시 표준 출하체중 115kg 적용)
+            const summary = shipmentSummaries[record.date];
+            const avgWeight = summary && summary.avgWeight && !isNaN(Number(summary.avgWeight)) ? Number(summary.avgWeight) : 115;
+            
+            const totalWeight = avgWeight * count;
+            yearlyTotalShippedWeight += totalWeight;
+
+            // 증체량 = (출하평균체중 - 자돈 전입체중 6kg) * 출하두수
+            const gain = Math.max(0, avgWeight - 6);
+            yearlyWeightGainKg += (gain * count);
           }
         });
 
-        // 분모 계산: 사용자가 입력한 평균 상시 모돈수가 있으면 사용, 없으면 현재 총 두수
+        // FCR용 연간 총 사료 섭취량 계산 (사료 주문 앱 기반)
+        let yearlyTotalFeedKg = 0;   // 임신, 포유, 후보돈, 젖돈, 육성 전체 포함
+        let yearlyMarketFeedKg = 0;  // 젖돈 및 육성 사료만 포함
+        
+        feedRecords.forEach(record => {
+          if (record && record.date && record.date >= oneYearAgoStr) {
+            const qtyTons = Number(record.quantity) || Number(record.amount) || Number(record.weight) || 0;
+            const weightKg = qtyTons * 1000; // 톤 -> kg 환산
+            
+            // 전체 사료 누적
+            yearlyTotalFeedKg += weightKg;
+            
+            // 비육돈 전용 사료 누적 (젖돈, 육성)
+            const type = record.feedType || record.type || record.feedName || '기타';
+            if (type === '젖돈' || type === '육성') {
+              yearlyMarketFeedKg += weightKg;
+            }
+          }
+        });
+
         const fSettings = farmSettings || {};
         const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
         
-        // 출하두수 결정 (사육현황 연동 DB 우선 적용, 없으면 이유두수*95% 가계산)
         const autoShipped = Math.floor(manualYearlyWeaned * 0.95);
         const yearlyShipped = dbYearlyShipped > 0 ? dbYearlyShipped : autoShipped;
 
@@ -631,12 +672,22 @@
         stats.manualYearlyWeaned = manualYearlyWeaned;
         stats.yearlyShipped = yearlyShipped;
         stats.autoShipped = autoShipped;
-        stats.dbYearlyShipped = dbYearlyShipped; // UI 표시용
+        stats.dbYearlyShipped = dbYearlyShipped;
+
+        // FCR 연산 결과 추가 (자돈 전입 6kg -> 출하 기준)
+        stats.yearlyTotalFeedKg = yearlyTotalFeedKg;
+        stats.yearlyMarketFeedKg = yearlyMarketFeedKg;
+        stats.yearlyWeightGainKg = yearlyWeightGainKg;
+        stats.yearlyTotalShippedWeight = yearlyTotalShippedWeight;
+        
+        // 전체 FCR 및 비육돈 FCR 독립 산출
+        stats.totalFcr = yearlyWeightGainKg > 0 ? (yearlyTotalFeedKg / yearlyWeightGainKg).toFixed(2) : "0.00";
+        stats.marketFcr = yearlyWeightGainKg > 0 ? (yearlyMarketFeedKg / yearlyWeightGainKg).toFixed(2) : "0.00";
 
         return stats;
-      }, [sows, weaningRecords, farmSettings, shipments]);
+      }, [sows, weaningRecords, farmSettings, shipments, shipmentSummaries, feedRecords]);
 
-      // 모돈별 통계
+      // 모돈별 성적
       const sowStats = useMemo(() => {
         const s = currentSow || {};
         if (!s.history || !Array.isArray(s.history)) {
@@ -655,17 +706,15 @@
         };
       }, [currentSow]);
 
-      // 주간별 분만 현황 산출 (실제 완료 + 상태가 포유인 경우 + 예정 포함)
+      // 주간 분만 현황
       const weeklyFarrowingStats = useMemo(() => {
         const statsMap = {};
-        
         const todayStr = formatDate(new Date());
         const currentMonday = getMonday(todayStr);
 
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
           
-          // 1. 실제 분만 (history 기록이 있는 경우)
           if (s.history && Array.isArray(s.history)) {
             s.history.filter(Boolean).forEach(record => {
               const r = record || {};
@@ -679,12 +728,10 @@
               }
               statsMap[monday].actual += 1;
               
-              // 포유두수 계산: 산자수(born) - 이동/도태(move)
               const born = Number(r.born || 0);
               const move = Number(r.move || 0);
               statsMap[monday].nursingPiglets += (born >= move ? born - move : 0);
               
-              // 6산 도태는 이유를 완료한 시점(DB 상 산차가 6산 이상)으로 계산
               if (Number(s.parity || 0) >= 6) {
                 statsMap[monday].parity6Plus += 1;
               }
@@ -695,13 +742,11 @@
             });
           }
 
-          // 2. 예정 분만 (matingDate 기준) 및 상태만 '포유'로 변경된 모돈 처리
           if (s.matingDate && s.currentStatus !== '재발') {
             const expDateStr = getExpectedFarrow(s.matingDate);
             if (expDateStr) {
               const expMonday = getMonday(expDateStr);
               if (expMonday) {
-                // 이미 해당 주차에 분만 기록(history)이 있는지 확인
                 const hasActualThisWeek = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === expMonday);
                 
                 if (!hasActualThisWeek) {
@@ -710,13 +755,11 @@
                   }
                   
                   if (s.currentStatus === '포유') {
-                    // 상태가 '포유'로 되어있으면 분만 완료(포유)로 카운트 (기록이 없어 두수는 0)
                     statsMap[expMonday].actual += 1;
                     if (Number(s.parity || 0) >= 6) {
                       statsMap[expMonday].parity6Plus += 1;
                     }
                   } else {
-                    // 일반적인 분만 예정
                     statsMap[expMonday].expected += 1;
                     if ((Number(s.parity || 0) + 1) >= 6) {
                       statsMap[expMonday].parity6Plus += 1;
@@ -730,7 +773,6 @@
               }
             }
           } else if (!s.matingDate && s.currentStatus === '포유' && currentMonday) {
-             // 3. 교배일(matingDate)도 없는데 상태만 포유인 극단적인 경우 -> 이번 주차에 강제 편입
              const hasActualThisWeek = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === currentMonday);
              if (!hasActualThisWeek) {
                 if (!statsMap[currentMonday]) {
@@ -747,93 +789,10 @@
           }
         });
 
-        // 빠른 날짜 순서대로 정렬 (오름차순)
         return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
       }, [sows]);
 
-      // 월별 후보돈 예상 입수 두수 계산 (목표 11복 대비 미달분 - 6산 도태 반영)
-      const monthlyGiltIntroStats = useMemo(() => {
-        const statsMap = {};
-        
-        weeklyFarrowingStats.forEach(stat => {
-          // 유효 모돈 수 = 전체(실제+예정) - 도태예정(6산 이상)
-          const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
-          const missingCount = 11 - validSowsCount;
-
-          if (missingCount >= 2) {
-            const weaningThursday = getWeaningThursday(stat.date);
-            if (weaningThursday) {
-              const estMatingDate = addDays(weaningThursday, 4); // 종부 예정일 (이유일 + 4일)
-              const giltIntroDate = subtractDays(estMatingDate, 60); // 종부 2달 전
-              const ym = giltIntroDate.substring(0, 7); // YYYY-MM
-              
-              if (!statsMap[ym]) {
-                statsMap[ym] = 0;
-              }
-              statsMap[ym] += missingCount;
-            }
-          }
-        });
-
-        const today = new Date();
-        const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-        // 빠른 연월(과거->미래) 순으로 정렬하되, 지난 달(과거) 데이터는 제외
-        return Object.keys(statsMap)
-          .filter(ym => ym >= currentYM)
-          .sort()
-          .map(ym => ({
-            month: ym,
-            count: statsMap[ym]
-          }));
-      }, [weeklyFarrowingStats]);
-
-      // 예정된 후보돈 약제 투여 알림 (최대 2주 분량 추출)
-      const upcomingMedications = useMemo(() => {
-        const today = new Date();
-        const yy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${yy}-${mm}-${dd}`;
-        
-        const upcoming = [];
-        
-        weeklyFarrowingStats.forEach(stat => {
-          const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
-          const missingCount = 11 - validSowsCount;
-
-          // 부족분이 2 이상일 때만 보충을 고려
-          if (missingCount >= 2) {
-            const weaningThursday = getWeaningThursday(stat.date);
-            if (weaningThursday) {
-              const estMatingDate = addDays(weaningThursday, 4); // 종부 예정일 (이유일 + 4일)
-              
-              const medEndDate = subtractDays(estMatingDate, 4); // 투약 종료일 (종부 4일 전)
-              const medStartDate = subtractDays(medEndDate, 17); // 투약 시작일 (종료일 17일 전)
-              
-              const medWeekMonday = getMonday(medStartDate); // 수동 입력 키(Key) 생성을 위한 기준 주간
-              const matingWeekMonday = getMonday(estMatingDate);
-              
-              // 종부 예정일이 오늘 이후인 경우만 포함 (종부일이 지나면 사라짐)
-              if (estMatingDate >= todayStr) {
-                upcoming.push({
-                  medWeekMonday,
-                  medStartDate,
-                  medEndDate,
-                  matingWeekMonday,
-                  estMatingDate,
-                  autoCount: missingCount
-                });
-              }
-            }
-          }
-        });
-
-        // 날짜순 정렬 후 가장 가까운 2개(다음 주, 다다음 주 개념)만 추출
-        return upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 2);
-      }, [weeklyFarrowingStats]);
-
-      // 매주 목요일 기준 주간 이유 자동 계산
+      // 주간 이유 성적 (기준 날짜 정렬)
       const weaningStats = useMemo(() => {
         const statsMap = {};
         
@@ -869,7 +828,6 @@
         return weaningStats.find(s => s && (s || {}).date === (weaningForm || {}).date) || null;
       }, [weaningStats, weaningForm]);
 
-      // 수동으로 입력한 주간 이유 성적 배열
       const sortedWeaningRecords = useMemo(() => {
         return Object.entries(weaningRecords)
           .filter(([date, data]) => Boolean(data))
@@ -877,11 +835,10 @@
           .sort((a, b) => String((b || {}).date || '').localeCompare(String((a || {}).date || '')));
       }, [weaningRecords]);
 
-      // 출하 기록 날짜별 그룹화 (사육현황 앱 로직 완벽 연동)
+      // 출하 기록 가공
       const groupedShipments = useMemo(() => {
         const groups = {};
 
-        // 1. 완료된 출하 기록 (shipments)
         shipments.forEach(s => {
           if (!s || !s.date) return;
           const date = s.date;
@@ -910,7 +867,6 @@
           }
         });
 
-        // 2. 출하 예정 기록 (gBatches의 pendingShipments)
         gBatches.forEach(b => {
           if (b.pendingShipments && Array.isArray(b.pendingShipments)) {
             b.pendingShipments.forEach(ps => {
@@ -967,14 +923,13 @@
         }).sort((a, b) => String(b.date).localeCompare(String(a.date)));
       }, [shipments, gBatches, shipmentSummaries]);
 
-      // 월별 교배(임신) 및 분만(포유) 실적 통계 (강화된 날짜 파싱 적용)
+      // 월별 실적
       const monthlyActivityStats = useMemo(() => {
         const statsMap = {};
         
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
           
-          // 1. 교배(임신) 기록 (matingDate 기준)
           if (s.matingDate) {
             const parsed = parseValidDate(s.matingDate);
             if (parsed) {
@@ -984,7 +939,6 @@
             }
           }
           
-          // 2. 분만(포유) 기록 (history.date 기준)
           if (s.history && Array.isArray(s.history)) {
             s.history.filter(Boolean).forEach(r => {
               if (r && r.date) {
@@ -999,31 +953,62 @@
           }
         });
 
-        // 최신 월이 먼저 오도록 내림차순 정렬
         return Object.values(statsMap).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
       }, [sows]);
 
-      // 앱 실행 및 데이터 갱신 시 주간별 분만 복수 리스트를 '이번 주' 부근으로 자동 스크롤
+      // 월별 사료량 통계 (사료 주문 내역으로 데이터 고도화 및 엑셀 확인 지원)
+      const monthlyFeedStats = useMemo(() => {
+        const currentYear = new Date().getFullYear().toString();
+        const stats = {};
+        
+        const currentMonth = new Date().getMonth() + 1;
+        for (let i = 1; i <= currentMonth; i++) {
+          const mm = String(i).padStart(2, '0');
+          stats[`${currentYear}-${mm}`] = { total: 0, types: {}, orders: [] };
+        }
+
+        feedRecords.forEach(record => {
+          if (!record.date || !record.date.startsWith(currentYear)) return;
+          const ym = record.date.substring(0, 7);
+          const type = record.feedType || record.type || record.feedName || '기타 사료';
+          const amount = Number(record.quantity) || Number(record.amount) || Number(record.weight) || Number(record.kg) || 0;
+
+          if (!stats[ym]) {
+            stats[ym] = { total: 0, types: {}, orders: [] };
+          }
+          
+          stats[ym].total += amount;
+          stats[ym].types[type] = (stats[ym].types[type] || 0) + amount;
+          stats[ym].orders.push(record);
+        });
+
+        // 각 월의 주문서 정렬 (최신 날짜순)
+        Object.keys(stats).forEach(ym => {
+          stats[ym].orders.sort((a, b) => b.date.localeCompare(a.date));
+        });
+
+        return Object.entries(stats)
+          .map(([ym, data]) => ({ ym, ...data }))
+          .sort((a, b) => String((b || {}).ym || '').localeCompare(String((a || {}).ym || '')));
+      }, [feedRecords]);
+
+      // 주간 분만 현황 슬라이드 자동 위치 조정
       useEffect(() => {
         if (farrowingScrollRef.current && weeklyFarrowingStats.length > 0) {
           const todayStr = formatDate(new Date());
           const currentMonday = getMonday(todayStr);
           
-          // 이번 주와 일치하거나 미래인 첫 번째 주차 인덱스 찾기
           let targetIndex = weeklyFarrowingStats.findIndex(stat => stat.date >= currentMonday);
-          
-          // 미래 일정이 전혀 없으면 리스트의 맨 끝(가장 최근 과거)으로 설정
           if (targetIndex === -1) {
             targetIndex = weeklyFarrowingStats.length - 1;
           }
 
-          // 렌더링 완료 후 부드럽게 스크롤 되도록 지연 실행
           setTimeout(() => {
             const container = farrowingScrollRef.current;
             if (container && container.children && container.children[targetIndex]) {
               const card = container.children[targetIndex];
               container.scrollTo({
-                left: card.offsetLeft - container.offsetLeft - 16, // 약간의 좌측 여백 포함
+                left: card.offsetLeft - container.offsetLeft - 16,
                 behavior: 'smooth'
               });
             }
@@ -1031,12 +1016,12 @@
         }
       }, [weeklyFarrowingStats]);
 
-      // --- 매월 현재 모돈수 자동 기록 (당월 실시간 동기화 -> 말일 데이터로 고정) ---
+      // 현재 상시 모돈수 자동 월말 연동 기록
       useEffect(() => {
         if (!user || loading) return;
         
         const currentSowsCount = sows.filter(Boolean).length;
-        if (currentSowsCount === 0) return; // 데이터가 아직 불러와지지 않은 경우 무시
+        if (currentSowsCount === 0) return;
 
         const today = new Date();
         const yyyy = today.getFullYear();
@@ -1045,7 +1030,6 @@
 
         const savedCounts = (farmSettings || {}).monthlySowCounts || {};
         
-        // 현재 달의 저장된 모돈수가 현재 실제 사육두수와 다르면 자동으로 최신화
         if (savedCounts[currentYM] !== currentSowsCount) {
           const newCounts = { ...savedCounts, [currentYM]: currentSowsCount };
           db.collection(SETTINGS_PATH).doc('main').set({ monthlySowCounts: newCounts }, { merge: true })
@@ -1053,7 +1037,7 @@
         }
       }, [sows, farmSettings, user, loading]);
 
-      // --- Handlers ---
+      // --- 이벤트 핸들러 ---
       const handleSaveSetting = (field, val) => {
         const numberVal = Number(val);
         db.collection(SETTINGS_PATH).doc('main').set({ [field]: numberVal }, { merge: true }).catch(err => {
@@ -1071,18 +1055,6 @@
         }
         db.collection(SETTINGS_PATH).doc('main').set({ monthlySowCounts: newCounts }, { merge: true }).catch(err => {
           console.error("월말 모돈수 저장 실패:", err);
-        });
-      };
-
-      const handleSaveMedicationOverride = (week, val) => {
-        const field = `medOverride_${week}`;
-        // 수동 입력값이 비어있으면(지우면) null로 처리하여 자동 계산값이 보이도록 함
-        const updateData = val === '' 
-          ? { [field]: null }
-          : { [field]: Number(val) };
-          
-        db.collection(SETTINGS_PATH).doc('main').set(updateData, { merge: true }).catch(err => {
-          console.error("약제 투여 두수 저장 실패:", err);
         });
       };
 
@@ -1242,7 +1214,6 @@
         }
       };
 
-      // 엑셀 다운로드
       const downloadWeaningExcel = () => {
         if (sortedWeaningRecords.length === 0) {
           showAlert("다운로드할 주간 이유 성적 데이터가 없습니다.");
@@ -1268,12 +1239,54 @@
         XLSX.writeFile(workbook, `성암농장_이유성적_${formatDate(new Date())}.xlsx`);
       };
 
-      // --- Renderers ---
+      // --- 월별 사료 발주 내역 스프레드시트 XLSX 내보내기 ---
+      const downloadMonthlyFeedExcel = (monthStat) => {
+        if (!monthStat || !monthStat.orders || monthStat.orders.length === 0) {
+          showAlert("다운로드할 사료 주문 데이터가 없습니다.");
+          return;
+        }
+        
+        const excelData = monthStat.orders.map((order, idx) => {
+          return {
+            'No.': idx + 1,
+            '주문 일시': order.date || '-',
+            '사료 종류': order.feedType || '-',
+            '벌크통 번호': `벌크 ${order.bulkBin}호`,
+            '주문량 (톤)': parseFloat(order.quantity || 0).toFixed(1),
+            '단위': order.unit || '톤'
+          };
+        });
+
+        // 합계 행 추가
+        excelData.push({
+          'No.': '합계',
+          '주문 일시': '',
+          '사료 종류': '',
+          '벌크통 번호': '',
+          '주문량 (톤)': parseFloat(monthStat.total || 0).toFixed(1),
+          '단위': '톤'
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const wscols = [{wch:10}, {wch:22}, {wch:15}, {wch:15}, {wch:15}, {wch:10}];
+        worksheet['!cols'] = wscols;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${monthStat.ym}_사료주문내역`);
+        XLSX.writeFile(workbook, `성암농장_사료주문내역_${monthStat.ym}.xlsx`);
+        showToast(`📊 ${monthStat.ym} 사료 주문 엑셀 다운로드 완료!`);
+      };
+
+      // --- 화면 렌더링 시작 ---
       if (loading) {
-        return <div className="flex items-center justify-center h-screen bg-slate-50"><p className="text-lg font-bold text-slate-500 animate-pulse">농장 데이터베이스 연결 중...</p></div>;
+        return (
+          <div className="flex items-center justify-center h-screen bg-slate-50">
+            <p className="text-lg font-bold text-slate-500 animate-pulse">농장 데이터베이스 연결 중...</p>
+          </div>
+        );
       }
 
-      // --- View 2: 모돈 상세 및 성적 뷰 ---
+      // --- View 2: 모돈 개별 상세 및 이력 추가 화면 ---
       if (currentSow) {
         const s = currentSow || {};
         const historyList = (s.history || []).filter(Boolean); 
@@ -1443,12 +1456,20 @@
         );
       }
 
-      // --- View 1: 메인 대시보드 뷰 ---
+      // --- View 1: 메인 종합 성적 분석 대시보드 화면 ---
       return (
         <div className="min-h-screen bg-slate-50 pb-24 font-sans">
           {alertMsg && <CustomAlert message={alertMsg} onClose={() => setAlertMsg(null)} />}
           {confirmConfig && <CustomConfirm message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} />}
           
+          {/* 토스트 메세지 공지 */}
+          {toastMsg && (
+            <div className="fixed bottom-6 left-6 z-[100] bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2.5 animate-[slideUp_0.2s_ease-out]">
+              <span>✔️</span>
+              <span className="text-xs font-bold">{toastMsg}</span>
+            </div>
+          )}
+
           <header className="bg-white border-b border-slate-200 sticky top-0 z-10 p-4 shadow-sm">
             <div className="max-w-3xl mx-auto flex justify-between items-center">
               <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center">
@@ -1469,8 +1490,8 @@
             {sows.length > 0 ? (
               <div className="mb-6 space-y-5 animate-[slideUp_0.3s_ease-out]">
                 
-                {/* 핵심 생산 지표 (연평균 상시 모돈수 및 연간 총 출하두수 입력 지원) */}
-                <div className="grid grid-cols-2 gap-2">
+                {/* 생산성 주요 연산 카드 그리드 */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div 
                     onClick={() => setShowMonthlySowModal(true)}
                     className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md cursor-pointer hover:shadow-lg active:scale-95 transition-all relative overflow-hidden"
@@ -1536,9 +1557,45 @@
                       <span className="text-sm font-bold ml-1 text-violet-100">두</span>
                     </div>
                   </div>
+
+                  {/* FCR (사료요구율 - 비육돈 전용) 핵심 카드 */}
+                  <div 
+                    onClick={() => setShowFormulaModal(true)} 
+                    className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-emerald-100">비육돈 전용 FCR</span>
+                        <span className="text-[9px] text-emerald-200 mt-0.5">자돈(6kg)~출하 사료 효율</span>
+                      </div>
+                      <Activity className="w-4 h-4 text-emerald-200 opacity-50" />
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).marketFcr || '0.00'}</span>
+                      <span className="text-xs font-bold ml-1 text-emerald-100">(젖돈/육성)</span>
+                    </div>
+                  </div>
+
+                  {/* FCR (사료요구율 - 농장 전체) 핵심 카드 */}
+                  <div 
+                    onClick={() => setShowFormulaModal(true)} 
+                    className="bg-gradient-to-br from-slate-600 to-slate-700 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-slate-200">농장 전체 FCR</span>
+                        <span className="text-[9px] text-slate-300 mt-0.5">번식우 사료 등 전체 포함</span>
+                      </div>
+                      <Activity className="w-4 h-4 text-slate-400 opacity-50" />
+                    </div>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).totalFcr || '0.00'}</span>
+                      <span className="text-xs font-bold ml-1 text-slate-400">(종합 효율)</span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* 목록 조회 버튼 그룹 */}
+                {/* 통계 열람 보조 버튼 */}
                 <div className="grid grid-cols-1 gap-2 mt-2">
                   <button onClick={() => setShowParityModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
                     <div className="bg-indigo-50 p-2 rounded-full">
@@ -1548,7 +1605,7 @@
                   </button>
                 </div>
 
-                {/* --- 주간 이유 성적 (직접 기록 방식) --- */}
+                {/* --- 주간 이유 성적 (수동 직접 입력 관리) --- */}
                 <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-sm relative overflow-hidden">
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-black text-blue-800">
@@ -1602,7 +1659,7 @@
                   </div>
                 </div>
 
-                {/* --- 월별 교배 및 분만 실적 --- */}
+                {/* --- 월별 번식 종합 실적 카드 --- */}
                 <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-black text-slate-800">
@@ -1641,7 +1698,59 @@
                   </div>
                 </div>
 
-                {/* --- 출하 기록 및 예정 (사육현황 연동) --- */}
+                {/* --- 사료량 연동 대시보드 --- */}
+                <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-1">
+                    <h3 className="text-sm font-black text-slate-800 flex flex-wrap items-center gap-1.5">
+                      올해 월별 사료 주문 요약
+                      <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-bold">사료 발주 연동</span>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold animate-pulse">💡 카드 클릭 시 엑셀 보기</span>
+                    </h3>
+                  </div>
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                    {monthlyFeedStats.length === 0 ? (
+                      <div className="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">
+                        올해 기록된 사료 데이터가 없습니다.
+                      </div>
+                    ) : (
+                      monthlyFeedStats.map(stat => {
+                        const [yyyy, mm] = stat.ym.split('-');
+                        const typesArr = Object.entries(stat.types).sort((a, b) => b[1] - a[1]);
+                        
+                        return (
+                          <div 
+                            key={stat.ym} 
+                            onClick={() => setSelectedFeedMonth(stat)}
+                            className="min-w-[145px] bg-slate-50 border border-slate-200 hover:border-amber-400 hover:bg-amber-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group"
+                          >
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-[11px] font-black text-slate-500 group-hover:text-amber-700">{yyyy}년 {parseInt(mm)}월</span>
+                              <TableIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-500" />
+                            </div>
+                            <div className="flex flex-col gap-1.5 flex-1">
+                              {typesArr.length === 0 ? (
+                                <span className="text-[10px] text-slate-400 text-center py-2 flex-1">주문내역 없음</span>
+                              ) : (
+                                typesArr.map(([type, amount]) => (
+                                  <div key={type} className="flex justify-between items-center bg-white px-1.5 py-1 rounded border border-slate-100">
+                                    <span className="text-[10px] font-bold text-slate-600 truncate mr-2">{type}</span>
+                                    <span className="text-[11px] font-black text-slate-800 whitespace-nowrap">{amount.toFixed(1)} <span className="text-[9px] font-normal text-slate-400">톤</span></span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center">
+                              <span className="text-[10px] font-black text-amber-600">총합계</span>
+                              <span className="text-[13px] font-black text-amber-700">{stat.total.toFixed(1)} <span className="text-[9px] font-normal text-amber-500">톤</span></span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+
+                {/* --- 출하 정보 연동 카드 --- */}
                 <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-black text-slate-800">
@@ -1655,25 +1764,24 @@
                       </div>
                     ) : (
                       groupedShipments.map((record, idx) => {
-                          const isExpected = record.isExpected;
-                          
-                          return (
-                            <div 
-                              key={idx} 
-                              onClick={() => { setSelectedShipment(record); setModalAvgTemp('-'); }}
-                              className={`bg-white p-1 rounded-xl border ${isExpected ? 'border-rose-100 hover:border-rose-300' : 'border-emerald-100 hover:border-emerald-300'} shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden`}
-                            >
-                              <div className={`w-full flex flex-col items-center py-2 rounded-lg border ${isExpected ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                                <span className={`text-[10px] font-black leading-none mb-1.5 ${isExpected ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                  {isExpected ? '예정' : '완료'}
-                                </span>
-                                <span className="text-[11px] font-black text-slate-800 leading-none tracking-tighter">
-                                  {record.date ? record.date.substring(5).replace('-', '/') : '-'}
-                                </span>
-                              </div>
+                        const isExpected = record.isExpected;
+                        return (
+                          <div 
+                            key={idx} 
+                            onClick={() => { setSelectedShipment(record); setModalAvgTemp('-'); }}
+                            className={`bg-white p-1 rounded-xl border ${isExpected ? 'border-rose-100 hover:border-rose-300' : 'border-emerald-100 hover:border-emerald-300'} shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden`}
+                          >
+                            <div className={`w-full flex flex-col items-center py-2 rounded-lg border ${isExpected ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                              <span className={`text-[10px] font-black leading-none mb-1.5 ${isExpected ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                {isExpected ? '예정' : '완료'}
+                              </span>
+                              <span className="text-[11px] font-black text-slate-800 leading-none tracking-tighter">
+                                {record.date ? record.date.substring(5).replace('-', '/') : '-'}
+                              </span>
                             </div>
-                          );
-                        })
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -1690,7 +1798,7 @@
             )}
           </main>
 
-          {/* --- 전체/필터 개체 리스트 팝업 (모달) --- */}
+          {/* --- 검색 및 조건 분류 모돈 목록 보기 팝업 --- */}
           {showSowListModal && (
             <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col animate-[slideUp_0.2s_ease-out]">
               <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm flex items-center gap-3">
@@ -1722,7 +1830,7 @@
                         {(listFilter || {}).type === 'status' ? `${(listFilter || {}).value} 상태` : 
                          (listFilter || {}).type === 'parity' ? `${(listFilter || {}).value}산` :
                          (listFilter || {}).type === 'farrowingWeek' ? `${(listFilter || {}).value} 분만 및 예정` :
-                         (listFilter || {}).type === 'activityMonth' ? `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 교배 및 분만` :
+                         (listFilter || {}).type === 'activityMonth' ? `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 활동` :
                          `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 분만 예정`}
                         <button onClick={(e) => { e.stopPropagation(); setListFilter(null); }} className="hover:text-rose-500 transition-colors bg-blue-100 rounded-full p-0.5 ml-1">
                           <X className="w-3 h-3" />
@@ -1742,7 +1850,7 @@
                   </div>
                 ) : (listFilter && listFilter.type === 'farrowingWeek') ? (
                   <div className="flex flex-col gap-3">
-                    {/* 주간 일정 요약 헤더 (팝업 상단) */}
+                    {/* 주간 요약 대시보드 헤더 */}
                     <div className="grid grid-cols-3 gap-2 bg-slate-800 p-3 rounded-xl shadow-md mb-1">
                       <div className="flex flex-col items-center">
                         <span className="text-[10px] font-bold text-slate-400 mb-0.5">분만 주간 (월)</span>
@@ -1758,11 +1866,9 @@
                       </div>
                     </div>
 
-                    {/* 목표 분만 복수(11복) 미달 시 후보돈 추가 경고 알림 (6산 도태 반영) */}
+                    {/* 목표 미달시 약제 알림 정보 */}
                     {(() => {
                       const farrowMonday = listFilter.value;
-                      
-                      // 도태 예정(6산 이상) 모돈 수 계산
                       let cullCount = 0;
                       filteredSows.forEach(sow => {
                         const s = sow || {};
@@ -1771,7 +1877,6 @@
                         if (actualRecord) {
                           if (Number(actualRecord.parity || 0) >= 6) cullCount++;
                         } else {
-                          // 6산 도태는 이유를 완료한 시점(DB 상 산차가 6산)으로 계산
                           if (Number(s.parity || 0) >= 6) cullCount++;
                         }
                       });
@@ -1779,20 +1884,16 @@
                       const validSowsCount = filteredSows.length - cullCount;
                       const missingCount = 11 - validSowsCount;
 
-                      // 11두보다 2두 이상 적을 때(즉, 부족분이 2 이상일 때)만 경고 표시
                       if (missingCount < 2) return null; 
 
                       const weaningThursday = getWeaningThursday(farrowMonday);
-                      const estMatingDate = addDays(weaningThursday, 4); // 다음 종부 예정일 (이유일 + 4일)
-                      
-                      const giltIntroDate = subtractDays(estMatingDate, 60); // 종부 2달 전
-                      
-                      // 변경된 약제 투여 계산
-                      const medEndDate = subtractDays(estMatingDate, 4); // 투약 종료일
-                      const medStartDate = subtractDays(medEndDate, 17); // 투약 시작일
+                      const estMatingDate = addDays(weaningThursday, 4); 
+                      const giltIntroDate = subtractDays(estMatingDate, 60); 
+                      const medEndDate = subtractDays(estMatingDate, 4); 
+                      const medStartDate = subtractDays(medEndDate, 17); 
                       
                       return (
-                        <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex flex-col gap-2 mb-2 shadow-sm">
+                        <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex flex-col gap-2 mb-2 shadow-sm animate-pulse">
                           <div className="flex items-center justify-between">
                             <span className="text-[12px] font-black text-amber-800">⚠️ 다음 종부 목표(11복) 미달 예상</span>
                             <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
@@ -1801,29 +1902,20 @@
                           </div>
                           <div className="flex flex-col gap-1.5 mt-1 border-t border-amber-200/50 pt-2">
                             <p className="text-[10px] font-bold text-amber-700 mb-0.5">
-                              해당 주차 6산(이유 완료) 도태 예정(<span className="text-rose-600 font-black">{cullCount}두</span>) 제외 시, 유효 모돈은 <span className="font-black">{validSowsCount}두</span>입니다.<br/>
-                              다음 종부 일정({estMatingDate.replace(/-/g, '/')})에 맞춰 부족한 <span className="text-rose-600">{missingCount}두</span>의 후보돈 편입을 준비하세요.
+                              해당 주차 6산(이유 완료) 도태 예정(<span className="text-rose-600 font-black">{cullCount}두</span>) 제외 시, 실제 종부 복수는 <span className="font-black">{validSowsCount}복</span>이 예상됩니다.<br/>
+                              다음 종부 목표에 맞춰 부족한 <span className="text-rose-600">{missingCount}두</span>의 후보돈 동기화를 준비하세요.
                             </p>
                             <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 bg-white/60 p-1.5 rounded">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
-                                <span>후보돈 도입 (종부 2달 전)</span>
-                              </div>
-                              <span className="text-indigo-600">{giltIntroDate.replace(/-/g, '/')}</span>
+                              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>후보돈 도입</span>
+                              <span className="text-indigo-600 font-black">{giltIntroDate.replace(/-/g, '/')}</span>
                             </div>
                             <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 bg-white/60 p-1.5 rounded">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
-                                <span>약제 투여 시작 (17일간)</span>
-                              </div>
-                              <span className="text-rose-600">{medStartDate.replace(/-/g, '/')}</span>
+                              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>약제 투여 시작 (17일간)</span>
+                              <span className="text-rose-600 font-black">{medStartDate.replace(/-/g, '/')}</span>
                             </div>
                             <div className="flex justify-between items-center text-[10px] font-bold text-slate-600 bg-white/60 p-1.5 rounded">
-                              <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-                                <span>약제 투여 종료 (종부 4일 전)</span>
-                              </div>
-                              <span className="text-amber-600">{medEndDate.replace(/-/g, '/')}</span>
+                              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>약제 투여 종료 (종부 4일전)</span>
+                              <span className="text-amber-600 font-black">{medEndDate.replace(/-/g, '/')}</span>
                             </div>
                           </div>
                         </div>
@@ -1833,7 +1925,6 @@
                     <div className="grid grid-cols-6 gap-1.5 mt-1">
                       {filteredSows.map(sow => {
                         const s = sow || {};
-                        
                         let farrowDate = '';
                         let isExpected = false;
                         const actualRecord = s.history && Array.isArray(s.history) ? s.history.find(r => r && r.date && getMonday(r.date) === listFilter.value) : null;
@@ -2004,12 +2095,12 @@
             </div>
           )}
 
-          {/* --- PSY / MSY 계산식 팝업 --- */}
+          {/* --- PSY / MSY / FCR 설명 및 계산식 팝업 --- */}
           {showFormulaModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
-                <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-lg font-black text-slate-800">PSY / MSY 계산식</h3>
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center p-4">
+              <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out] max-h-[85vh] overflow-y-auto no-scrollbar">
+                <div className="flex justify-between items-center mb-5 sticky top-0 bg-white pb-3 border-b border-slate-100">
+                  <h3 className="text-lg font-black text-slate-800">농장 핵심 지표 계산식</h3>
                   <button onClick={() => setShowFormulaModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
                 </div>
                 
@@ -2020,7 +2111,7 @@
                     <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
                       {(dashboardStats || {}).manualYearlyWeaned || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-indigo-600">{(dashboardStats || {}).psy || '0.0'}</span>
                     </div>
-                    <p className="text-[9px] text-slate-500 mt-2">* 수기 기록된 최근 365일간의 이유 성적 합산 기준</p>
+                    <p className="text-[9px] text-slate-500 mt-2">* 직접 기록된 최근 365일간의 실시간 성적 기준</p>
                   </div>
 
                   <div className="bg-violet-50 p-4 rounded-xl border border-violet-100">
@@ -2029,11 +2120,63 @@
                     <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
                       {(dashboardStats || {}).yearlyShipped || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-violet-600">{(dashboardStats || {}).msy || '0.0'}</span>
                     </div>
-                    <p className="text-[9px] text-slate-500 mt-2">* 수기 입력이 없으면 파이어베이스 이유 기록(이유두수×95%)으로 자동 계산됩니다.</p>
+                    <p className="text-[9px] text-slate-500 mt-2">* 출하기록 연동이 비어있을 경우 이유량의 95%로 자동 대체 연산됩니다.</p>
+                  </div>
+
+                  {/* FCR 설명 세션 추가 */}
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                    <h4 className="text-xs font-black text-emerald-700 mb-2">비육돈 전용 FCR (사료요구율)</h4>
+                    <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 육성사 사료섭취량(kg) ÷ 최근 1년 총 증체량(kg)</p>
+                    
+                    <div className="bg-white p-3 rounded-lg text-xs font-bold text-slate-700 shadow-sm space-y-2 mb-2 font-mono">
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span>1. 육성사 사료량 (젖돈+육성)</span>
+                        <span className="font-black text-emerald-600">{((dashboardStats || {}).yearlyMarketFeedKg || 0).toLocaleString()} kg ({(((dashboardStats || {}).yearlyMarketFeedKg || 0)/1000).toFixed(1)}t)</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span>2. 연간 총 출하중량</span>
+                        <span className="font-black text-slate-800">{((dashboardStats || {}).yearlyTotalShippedWeight || 0).toLocaleString()} kg</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span>3. 전입 자돈 총체중 (두당 6kg)</span>
+                        <span className="font-black text-rose-500">-{(((dashboardStats || {}).dbYearlyShipped || 0) * 6).toLocaleString()} kg</span>
+                      </div>
+                      <div className="flex justify-between text-slate-900 bg-slate-50 p-1.5 rounded">
+                        <span>4. 연간 알짜 증체량 (Gain)</span>
+                        <span className="font-black text-blue-600">{((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()} kg</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
+                      {((dashboardStats || {}).yearlyMarketFeedKg || 0).toLocaleString()}kg ÷ {((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()}kg = <span className="text-emerald-600">{(dashboardStats || {}).marketFcr || '0.00'}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-500 mt-2">* 시장돈 전용 사료(임신, 포유, 후보돈 제외)와 전입시 체중인 6kg를 기반으로 산출된 실무 사양관리 평가용 효율 지표입니다.</p>
+                  </div>
+
+                  {/* 전체 FCR 설명 세션 추가 */}
+                  <div className="bg-slate-100 p-4 rounded-xl border border-slate-200">
+                    <h4 className="text-xs font-black text-slate-700 mb-2">농장 전체 FCR</h4>
+                    <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 농장 내 모든 사료섭취량(kg) ÷ 최근 1년 총 증체량(kg)</p>
+                    
+                    <div className="bg-white p-3 rounded-lg text-xs font-bold text-slate-700 shadow-sm space-y-2 mb-2 font-mono">
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span>1. 연간 전체 사료량 (임신+포유+후보+젖돈+육성)</span>
+                        <span className="font-black text-slate-700">{((dashboardStats || {}).yearlyTotalFeedKg || 0).toLocaleString()} kg ({(((dashboardStats || {}).yearlyTotalFeedKg || 0)/1000).toFixed(1)}t)</span>
+                      </div>
+                      <div className="flex justify-between border-b border-slate-100 pb-1.5">
+                        <span>2. 연간 알짜 증체량 (Gain)</span>
+                        <span className="font-black text-blue-600">{((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()} kg</span>
+                      </div>
+                    </div>
+
+                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
+                      {((dashboardStats || {}).yearlyTotalFeedKg || 0).toLocaleString()}kg ÷ {((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()}kg = <span className="text-slate-700">{(dashboardStats || {}).totalFcr || '0.00'}</span>
+                    </div>
+                    <p className="text-[9px] text-slate-500 mt-2">* 모돈이 먹은 사료 및 번식 성적이 통합 반영된 농장 전체의 총 경제적 사료 요구율 지표입니다.</p>
                   </div>
                 </div>
                 
-                <button onClick={() => setShowFormulaModal(false)} className="w-full mt-6 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
+                <button onClick={() => setShowFormulaModal(false)} className="w-full mt-5 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
               </div>
             </div>
           )}
@@ -2062,26 +2205,24 @@
             </div>
           )}
 
-          {/* --- 월말 모돈수 기록 및 연평균 계산 팝업 --- */}
+          {/* --- 월말 모돈수 및 연평균 상시 계산 모달 --- */}
           {showMonthlySowModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6">
                   <div className="flex flex-col">
                     <h3 className="text-lg font-black text-slate-800">월말 상시 모돈수 기록</h3>
-                    <span className="text-xs font-bold text-blue-600">현재 달은 자동으로 동기화됩니다</span>
+                    <span className="text-xs font-bold text-blue-600">현재 달은 실시간 연동되어 고정됩니다</span>
                   </div>
                   <button onClick={() => setShowMonthlySowModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X className="w-5 h-5" /></button>
                 </div>
 
-                {/* 연도 선택기 */}
                 <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-2 rounded-xl mb-4">
                   <button onClick={() => setSelectedYear(y => y - 1)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors"><ArrowLeft className="w-4 h-4 text-slate-600"/></button>
                   <span className="font-black text-slate-800">{selectedYear}년</span>
                   <button onClick={() => setSelectedYear(y => y + 1)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors"><ChevronRight className="w-4 h-4 text-slate-600"/></button>
                 </div>
 
-                {/* 월별 입력 그리드 */}
                 <div className="grid grid-cols-3 gap-2 mb-4 max-h-[45vh] overflow-y-auto no-scrollbar pb-2">
                   {Array.from({length: 12}, (_, i) => {
                     const month = String(i + 1).padStart(2, '0');
@@ -2109,7 +2250,6 @@
                   })}
                 </div>
 
-                {/* 요약 및 적용 */}
                 <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl flex flex-col gap-3">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-blue-600">{selectedYear}년 입력 월 평균</span>
@@ -2149,7 +2289,7 @@
             </div>
           )}
 
-          {/* 새 모돈 등록 플로팅 버튼 */}
+          {/* 모돈 추가 플로팅 버튼 */}
           <button 
             onClick={() => { setShowSowListModal(false); setShowAddSow(true); }}
             className="fixed bottom-6 right-6 bg-slate-800 text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-transform z-[60]"
@@ -2157,7 +2297,7 @@
             <Plus className="w-6 h-6" />
           </button>
 
-          {/* 새 모돈 등록 모달 */}
+          {/* 모돈 신규 추가 모달 */}
           {showAddSow && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -2207,7 +2347,7 @@
             </div>
           )}
 
-          {/* --- 출하 상세 팝업 --- */}
+          {/* --- 출하 상세 및 실시간 온도 동기화 조회 모달 --- */}
           {selectedShipment && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -2249,6 +2389,91 @@
                 </div>
                 
                 <button onClick={() => setSelectedShipment(null)} className="w-full mt-2 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
+              </div>
+            </div>
+          )}
+
+          {/* --- 월별 사료 발주 상세조회 및 엑셀 스프레드시트 모달 --- */}
+          {selectedFeedMonth && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-[slideUp_0.2s_ease-out] max-h-[85vh]">
+                <div className="bg-slate-800 p-4 text-white flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <TableIcon className="w-5 h-5 text-amber-400" />
+                    <span className="font-black text-base">{selectedFeedMonth.ym.split('-')[0]}년 {parseInt(selectedFeedMonth.ym.split('-')[1])}월 사료 주문 내역 (Excel 스프레드시트)</span>
+                  </div>
+                  <button onClick={() => setSelectedFeedMonth(null)} className="text-slate-300 hover:text-white p-1 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+                
+                <div className="p-5 flex-1 overflow-y-auto space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                    <div className="text-xs text-slate-600 font-bold">
+                      * 이 리스트는 사료 주문 관리 전용 프로그램과 실시간 동기화된 결과입니다.
+                    </div>
+                    <button 
+                      onClick={() => downloadMonthlyFeedExcel(selectedFeedMonth)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform shrink-0 self-start sm:self-auto"
+                    >
+                      <Download className="w-4.5 h-4.5" /> 엑셀 파일 다운로드 (.xlsx)
+                    </button>
+                  </div>
+
+                  {/* Excel Sheet Visual Grid Layout */}
+                  <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-inner max-h-[380px] no-scrollbar">
+                    <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-500 font-bold text-center select-none">
+                          <th className="p-1 bg-slate-200 border border-slate-300 w-10"></th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">A</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">B</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">C</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">D</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">E</th>
+                        </tr>
+                        <tr className="bg-slate-50 text-slate-700 font-black text-center">
+                          <th className="p-2 bg-slate-100 border border-slate-300 text-slate-400">1</th>
+                          <th className="p-2 border border-slate-300">주문 일시 (Date)</th>
+                          <th className="p-2 border border-slate-300">사료 종류 (Type)</th>
+                          <th className="p-2 border border-slate-300">벌크통 (Bin)</th>
+                          <th className="p-2 border border-slate-300 text-right">주문량 (Qty)</th>
+                          <th className="p-2 border border-slate-300">단위 (Unit)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedFeedMonth.orders.length === 0 ? (
+                          <tr>
+                            <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">2</td>
+                            <td colSpan="5" className="p-6 text-center text-slate-400 font-sans">이 달에 등록된 사료 발주 기록이 없습니다.</td>
+                          </tr>
+                        ) : (
+                          selectedFeedMonth.orders.map((order, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">{idx + 2}</td>
+                              <td className="p-2 border border-slate-300 text-center font-sans">{order.date || '-'}</td>
+                              <td className="p-2 border border-slate-300 text-center font-sans font-black text-slate-900">{order.feedType || '-'}</td>
+                              <td className="p-2 border border-slate-300 text-center text-amber-700 font-black">벌크 {order.bulkBin || '-'}호</td>
+                              <td className="p-2 border border-slate-300 text-right font-black font-sans text-slate-950">{parseFloat(order.quantity || 0).toFixed(1)}</td>
+                              <td className="p-2 border border-slate-300 text-center text-slate-500 font-sans">{order.unit || '톤'}</td>
+                            </tr>
+                          ))
+                        )}
+                        {/* Total Row */}
+                        <tr className="bg-amber-50/50 font-black text-slate-900">
+                          <td className="p-2.5 bg-slate-200 border border-slate-300 text-center text-slate-500">{selectedFeedMonth.orders.length + 2}</td>
+                          <td className="p-2.5 border border-slate-300 text-center font-sans">합계 (Total)</td>
+                          <td className="p-2.5 border border-slate-300 text-center"></td>
+                          <td className="p-2.5 border border-slate-300 text-center"></td>
+                          <td className="p-2.5 border border-slate-300 text-right text-amber-700 text-sm font-black font-sans">{parseFloat(selectedFeedMonth.total || 0).toFixed(1)}</td>
+                          <td className="p-2.5 border border-slate-300 text-center text-amber-700 font-sans">톤 (t)</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end gap-2">
+                  <button onClick={() => setSelectedFeedMonth(null)} className="bg-slate-800 hover:bg-slate-900 text-white font-black py-2.5 px-6 rounded-xl text-xs active:scale-95 transition-all">닫기</button>
+                </div>
               </div>
             </div>
           )}
