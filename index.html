@@ -817,7 +817,7 @@
                 const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(t.batchId));
                 if (!b) return { title: '오류', html: '<p>데이터를 찾을 수 없습니다.</p>', hideSave: true };
                 const count = b.penDetails[t.penIndex], pDate = count > 0 ? ((b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr()) : utils.getTodayStr(), isGrower = t.stage === 'grower', isResidual = b.penIsResidual ? b.penIsResidual[t.penIndex] : false;
-                const relevantAccidents = state.accidents.filter(a => a.stage === t.stage && a.batchId === t.batchId && a.penIndex === t.penIndex);
+                const relevantAccidents = state.accidents.filter(a => a.stage === t.stage && a.batchId === t.batchId && a.penIndex === t.penIndex && !a.archived);
                 const accHistoryHtml = relevantAccidents.length > 0 ? `<div class="mt-2 space-y-1.5 border-t border-amber-100 pt-2 w-full">${relevantAccidents.slice(0, 3).map(a => `<div class="flex justify-between items-center bg-white/50 px-2 py-1 rounded-lg"><span class="text-[10px] font-bold text-amber-600">${a.date} <span class="text-[9px] text-amber-500 ml-1 font-black">${a.type === 'sick' ? '(환돈)' : '(폐사)'}</span></span><span class="text-[11px] font-black text-amber-700">-${a.count}두</span></div>`).join('')}${relevantAccidents.length > 3 ? '<p class="text-[8px] text-center text-amber-400 mt-1">최근 3건만 표시됨</p>' : ''}</div>` : '<p class="text-[9px] text-amber-300 mt-2 text-center w-full">기록된 폐사/환돈 내역 없음</p>';
                 let titleHtml = `${t.stage==='weaning'?'이유사':'육성사'} ${b.id===8?'후보사':b.id+'배치'} - ${t.penIndex+1}번`;
                 if (isGrower) titleHtml = `<div class="flex items-center justify-between w-full pr-2"><span>${titleHtml}</span><div class="flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 mr-2 shrink-0"><label class="text-[11px] font-black text-rose-600 cursor-pointer" for="m-pen-residual">잔류</label><input id="m-pen-residual" type="checkbox" ${isResidual ? 'checked' : ''} class="w-4 h-4 rounded text-rose-600 accent-rose-600 cursor-pointer"></div></div>`;
@@ -839,7 +839,7 @@
             batch_settings: (t) => {
                 const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(t.batchId));
                 if (!b) return { title: '오류', html: '<p>데이터를 찾을 수 없습니다.</p>', hideSave: true };
-                return { title: `배치 설정 (${t.stage==='weaning'?'이유':'육성'})`, html: `<input type="hidden" id="m-stage" value="${t.stage}"><input type="hidden" id="m-batch" value="${t.batchId}"><div class="bg-slate-50 p-4 rounded-xl mb-3"><label class="text-[10px] font-black text-slate-500 block mb-2">메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none" placeholder="여기에 메모를 입력하세요...">${b.memo||''}</textarea></div><div class="pt-4 border-t border-slate-100 mt-4"><div id="batch-reset-btn-container" class="flex justify-center"><button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기</button></div><div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center"><p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화됩니다.</p><div class="flex gap-2 w-full mt-1"><button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button></div></div></div>` };
+                return { title: `배치 설정 (${t.stage==='weaning'?'이유':'육성'})`, html: `<input type="hidden" id="m-stage" value="${t.stage}"><input type="hidden" id="m-batch" value="${t.batchId}"><div class="bg-slate-50 p-4 rounded-xl mb-3"><label class="text-[10px] font-black text-slate-500 block mb-2">메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none" placeholder="여기에 메모를 입력하세요...">${b.memo||''}</textarea></div><div class="pt-4 border-t border-slate-100 mt-4"><div id="batch-reset-btn-container" class="flex justify-center"><button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기</button></div><div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center"><p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화되며,<br>관련된 <strong>폐사/도태 기록은 화면에서 숨김(엑셀 보존)</strong> 처리됩니다.</p><div class="flex gap-2 w-full mt-1"><button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button></div></div></div>` };
             },
             sow_list: (f) => {
                 let list = state.sowList, title = '모돈 목록'; const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
@@ -1051,7 +1051,32 @@
         window.toggleSowDeleteConfirm = (dbId) => { const btn = document.getElementById(`sow-del-btn-${dbId}`); const confirmBtn = document.getElementById(`sow-confirm-btn-${dbId}`); if (confirmBtn) { if (btn) btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } };
         window.toggleSowDetailDeleteConfirm = () => { const btn = document.getElementById('sow-del-btn-detail'); const confirmBtn = document.getElementById('sow-confirm-btn-detail'); if (btn && confirmBtn) { if (!btn.classList.contains('hidden')) { btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } else { btn.classList.remove('hidden'); confirmBtn.classList.add('hidden'); } } };
         window.toggleBatchResetConfirm = () => { const btn = document.getElementById('batch-reset-btn-container'); const confirmBtn = document.getElementById('batch-reset-confirm-container'); if (btn && confirmBtn) { if (!btn.classList.contains('hidden')) { btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } else { btn.classList.remove('hidden'); confirmBtn.classList.add('hidden'); } } };
-        window.resetBatch = async (stg, bId) => { try { const isGrower = stg === 'grower'; const emptyBatch = getEmptyBatch(bId, isGrower); const col = isGrower ? COLS.GROWER : COLS.WEANING; let updateData = { status: emptyBatch.status, date: emptyBatch.date, pens: emptyBatch.pens, pigs: emptyBatch.pigs, memo: emptyBatch.memo, penDetails: emptyBatch.penDetails, penDates: emptyBatch.penDates, penIsResidual: emptyBatch.penIsResidual, penIsSick: emptyBatch.penIsSick }; if (isGrower) { updateData.sourceId = null; updateData.weaningDate = ''; updateData.pendingShipments = []; } await db.doc(`${col}/batch_${bId}`).update(updateData); utils.showToast("배치 기록이 성공적으로 리셋되었습니다."); window.closeModal(); if (isLocalEnv) renderAll(); } catch (e) { utils.showToast("리셋 실패: " + e.message); } };
+        
+        window.resetBatch = async (stg, bId) => { 
+            try { 
+                const isGrower = stg === 'grower'; 
+                const emptyBatch = getEmptyBatch(bId, isGrower); 
+                const col = isGrower ? COLS.GROWER : COLS.WEANING; 
+                let updateData = { status: emptyBatch.status, date: emptyBatch.date, pens: emptyBatch.pens, pigs: emptyBatch.pigs, memo: emptyBatch.memo, penDetails: emptyBatch.penDetails, penDates: emptyBatch.penDates, penIsResidual: emptyBatch.penIsResidual, penIsSick: emptyBatch.penIsSick }; 
+                if (isGrower) { updateData.sourceId = null; updateData.weaningDate = ''; updateData.pendingShipments = []; } 
+                
+                await db.doc(`${col}/batch_${bId}`).update(updateData); 
+                
+                if (!isLocalEnv) {
+                    const accToArchive = state.accidents.filter(a => a.stage === stg && String(a.batchId) === String(bId) && !a.archived);
+                    const updatePromises = accToArchive.map(a => db.collection(COLS.ACCIDENTS).doc(a.dbId).update({ archived: true }));
+                    await Promise.all(updatePromises);
+                } else {
+                    state.accidents = state.accidents.map(a => (a.stage === stg && String(a.batchId) === String(bId)) ? { ...a, archived: true } : a);
+                }
+
+                utils.showToast("배치 기록이 초기화되고 과거 폐사 기록이 보관되었습니다."); 
+                window.closeModal(); 
+                if (isLocalEnv) renderAll(); 
+            } catch (e) { 
+                utils.showToast("리셋 실패: " + e.message); 
+            } 
+        };
         
         window.startTransfer = (stg, bId, pIdx) => { 
             const transferCountInput = document.getElementById('m-transfer-count');

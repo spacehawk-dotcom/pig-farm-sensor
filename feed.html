@@ -74,7 +74,6 @@
         const Send = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
         const Share2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>;
         const Copy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
-        const Timer = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>;
 
         const firebaseConfig = {
             apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
@@ -96,7 +95,7 @@
         const WEANING_BATCHES_COLLECTION_PATH = 'farms/sungamfarm/weaning';
         const GROWER_BATCHES_COLLECTION_PATH = 'farms/sungamfarm/grower';
 
-        // --- STREAMING_CHUNK: Defining popup modals helper components ---
+        // --- 모달 헬퍼 컴포넌트 ---
         const CustomAlert = ({ message, onClose }) => (
             <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                 <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
@@ -127,7 +126,6 @@
         );
 
         function App() {
-            // --- STREAMING_CHUNK: Declaring core state variables within App ---
             const [user, setUser] = useState(null);
             const [orders, setOrders] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -152,9 +150,6 @@
             
             const [calendarYear, setCalendarYear] = useState(new Date().getFullYear());
             const [calendarMonth, setCalendarMonth] = useState(new Date().getMonth());
-
-            // 수동 알림 예측 숨김(Dismiss) 처리 목록
-            const [dismissedPredictions, setDismissedPredictions] = useState([]);
 
             // 계산기 접기/펴기
             const [showCalculator, setShowCalculator] = useState(false);
@@ -204,7 +199,7 @@
                 setTimeout(() => setToastConfig({ show: false, message: '', bgColor: 'bg-slate-900' }), 3000);
             };
 
-            // --- STREAMING_CHUNK: Formatting current day and week title memo ---
+            // Formatting current day and week title memo
             const todayDateString = useMemo(() => {
                 const today = new Date();
                 const year = today.getFullYear();
@@ -213,14 +208,6 @@
                 const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
                 return `${year}년 ${month}월 ${day}일 (${weekDays[today.getDay()]})`;
             }, []);
-
-            // 수동 알림 제외 함수 (주문완료 버튼 클릭 시 숨김)
-            const handleOrderComplete = (bin) => {
-                showConfirm(`[${bin.startsWith('지대') ? bin : `벌크 ${bin}호`}] 주문을 완료하셨습니까?\n확인을 누르면 대시보드 예측 목록에서 제외되어 완료 처리됩니다.`, () => {
-                    setDismissedPredictions(prev => [...prev, bin]);
-                    showToast(`✨ [${bin.startsWith('지대') ? bin : `벌크 ${bin}호`}] 알림 카드가 완료 상태로 숨김 처리되었습니다.`, "bg-emerald-600");
-                });
-            };
 
             useEffect(() => {
                 const initAuth = async () => {
@@ -240,7 +227,7 @@
                 initAuth();
             }, []);
 
-            // --- STREAMING_CHUNK: Binding real-time observers to database tables ---
+            // Binding real-time observers to database tables
             useEffect(() => {
                 auth.signInAnonymously().catch(err => console.warn("익명 로그인 실패:", err));
                 const unsubscribeAuth = auth.onAuthStateChanged((currentUser) => {
@@ -291,9 +278,9 @@
                 };
             }, [user]);
 
-            // --- STREAMING_CHUNK: Processing active wean and grow batch sizes memo ---
             const computedWeanCounts = useMemo(() => {
-                const getCountForDate = (dateStr) => {
+                // 금주(w0) 주차 전용 계산기: 수기 성적 기록 연동을 최우선 적용
+                const getW0CountForDate = (dateStr) => {
                     if (weaningRecords[dateStr] && weaningRecords[dateStr].totalWeaned > 0) {
                         return { count: weaningRecords[dateStr].totalWeaned, source: 'record' };
                     }
@@ -316,10 +303,34 @@
                     return { count: 0, source: 'none' };
                 };
 
-                const w3Data = getCountForDate(targetThursdays[0].dbKey);
-                const w2Data = getCountForDate(targetThursdays[1].dbKey);
-                const w1Data = getCountForDate(targetThursdays[2].dbKey);
-                const w0Data = getCountForDate(targetThursdays[3].dbKey);
+                // 지난 주차(w1, w2, w3) 전용 계산기: 돈방 배치 마릿수 연동을 최우선 적용
+                const getW123CountForDate = (dateStr) => {
+                    let sum = 0;
+                    batchList.forEach(b => {
+                        if (b.penDates && b.penDetails) {
+                            b.penDates.forEach((pd, idx) => {
+                                if (pd === dateStr) {
+                                    sum += (b.penDetails[idx] || 0);
+                                }
+                            });
+                        }
+                    });
+
+                    if (sum > 0) {
+                        return { count: sum, source: 'batch' };
+                    }
+
+                    if (weaningRecords[dateStr] && weaningRecords[dateStr].totalWeaned > 0) {
+                        return { count: weaningRecords[dateStr].totalWeaned, source: 'record' };
+                    }
+
+                    return { count: 0, source: 'none' };
+                };
+
+                const w3Data = getW123CountForDate(targetThursdays[0].dbKey);
+                const w2Data = getW123CountForDate(targetThursdays[1].dbKey);
+                const w1Data = getW123CountForDate(targetThursdays[2].dbKey);
+                const w0Data = getW0CountForDate(targetThursdays[3].dbKey);
                 
                 return {
                     w3: w3Data,
@@ -344,7 +355,6 @@
                 };
             }, [computedWeanCounts, manualW0]);
 
-            // --- STREAMING_CHUNK: Fetching real-time pen locations matching target dates ---
             const getActiveBarnsForDate = (dateStr) => {
                 const activeBarns = [];
                 batchList.forEach(b => {
@@ -380,7 +390,6 @@
                 return dailyOrders.filter(o => !o.bulkBin || !o.bulkBin.startsWith('지대'));
             }, [dailyOrders]);
 
-            // --- STREAMING_CHUNK: Computing sum statistics for today ---
             const dailySummaryStats = useMemo(() => {
                 const stats = { '젖돈': 0, '육성': 0, '임신': 0, '포유': 0, '후보돈': 0, 'total': 0 };
                 dailyOrders.forEach(order => {
@@ -409,7 +418,7 @@
                 const w3_f3 = n3 * 5 * 1.3;
                 const w2_f3 = n2 * 8;
                 const w1_f2 = n1 * 8 * 0.8;
-                const w0_f1 = n0 > 0 ? (n0 * 3) + 10 : 0;
+                const w0_f1 = n0 > 0 ? (n0 * 3) + 10 : 0; // 가산 공식 상향 적용 (기존 +5포에서 +10포)
                 const w0_f2 = n0 * 1.5;
 
                 const totalF1 = parseFloat(w0_f1.toFixed(1));
@@ -423,7 +432,6 @@
                 };
             }, [weanCountsForCalc]);
 
-            // --- STREAMING_CHUNK: Computing stock and net order values memo ---
             const { netF1, netF2, netF3 } = useMemo(() => {
                 const s1 = parseFloat(stockF1) || 0;
                 const s2 = parseFloat(stockF2) || 0;
@@ -568,7 +576,6 @@
                 });
             };
 
-            // --- STREAMING_CHUNK: Formatting Kakao text for copy and share memo ---
             const generatedKakaoText = useMemo(() => {
                 if (dailyOrders.length === 0) return "당일 등록된 사료 주문 내역이 없습니다.";
 
@@ -681,65 +688,6 @@
                 else setCalendarMonth(m => m + 1);
             };
 
-            // --- STREAMING_CHUNK: Processing feed bin predictions based on usage logs ---
-            const binPredictions = useMemo(() => {
-                if (orders.length === 0) return [];
-
-                // 당일 주문 완료된 벌크통 및 지대 번호 수집 (알림 자동 삭제 대상)
-                const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-                const orderedBinsToday = orders
-                    .filter(o => o.date.startsWith(todayStr))
-                    .map(o => o.bulkBin);
-
-                const grouped = {};
-                orders.forEach(o => {
-                    if (!grouped[o.bulkBin]) grouped[o.bulkBin] = [];
-                    grouped[o.bulkBin].push(o);
-                });
-
-                const predictions = [];
-                const today = new Date();
-                today.setHours(0,0,0,0);
-
-                Object.keys(grouped).forEach(bin => {
-                    const binOrders = grouped[bin].sort((a, b) => {
-                        const da = new Date(a.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        const db = new Date(b.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        return da - db;
-                    });
-
-                    if (binOrders.length >= 2) {
-                        const lastOrder = binOrders[binOrders.length - 1];
-                        const prevOrder = binOrders[binOrders.length - 2];
-
-                        const t1 = new Date(prevOrder.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        const t2 = new Date(lastOrder.date.replace(' (수정됨)', '').replace(/-/g, '/'));
-                        t1.setHours(0,0,0,0);
-                        t2.setHours(0,0,0,0);
-
-                        let diffDays = Math.ceil((t2.getTime() - t1.getTime()) / (1000 * 60 * 60 * 24));
-                        if (diffDays <= 0) diffDays = 1; 
-
-                        const prevQty = parseFloat(prevOrder.quantity);
-                        const lastQty = parseFloat(lastOrder.quantity);
-                        
-                        const dailyUsage = prevQty / diffDays;
-                        const expectedDays = Math.ceil(lastQty / dailyUsage);
-
-                        const nextDate = new Date(t2);
-                        nextDate.setDate(nextDate.getDate() + expectedDays);
-
-                        const remainDays = Math.ceil((nextDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-
-                        predictions.push({ bin, feedType: lastOrder.feedType, dailyUsage, nextDate, remainDays, expectedDays });
-                    }
-                });
-
-                return predictions
-                    .filter(p => !orderedBinsToday.includes(p.bin) && !dismissedPredictions.includes(p.bin))
-                    .sort((a, b) => a.remainDays - b.remainDays);
-            }, [orders, dismissedPredictions]);
-
             return (
                 <div className="max-w-6xl mx-auto px-4 py-6 md:py-10">
                     
@@ -767,7 +715,7 @@
                         </div>
                     </header>
 
-                    {/* --- STREAMING_CHUNK: Rendering primary interface layout grid --- */}
+                    {/* --- Rendering primary interface layout grid --- */}
                     <div className="grid grid-cols-1 gap-8">
                         
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
@@ -846,7 +794,6 @@
                                     </form>
                                 </section>
 
-                                {/* --- STREAMING_CHUNK: Rendering weaned piglets starter program section --- */}
                                 {/* 2. 📋 이유자돈 사료 프로그램 자동 계산기 */}
                                 <section className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60">
                                     <button 
@@ -892,7 +839,7 @@
                                                 </div>
                                             </div>
 
-                                            {/* 엑셀 스타일 테이블 */}
+                                            {/* 엑셀 스타일 테이블 (20260619_201610.jpg 참고하여 중복 행 제거 및 최적화) */}
                                             <div className="overflow-x-auto rounded-xl border border-slate-200">
                                                 <table className="w-full text-xs font-mono text-center text-slate-700 excel-table border-collapse min-w-[650px]">
                                                     <thead>
@@ -906,14 +853,15 @@
                                                             <th className="p-2.5 w-24">돈사</th>
                                                         </tr>
                                                     </thead>
-                                                    <tbody class="divide-y divide-slate-200">
-                                                        {/* 3주 전 이유 (3호 사료 급여 - 사육현황 자동 로드) */}
+                                                    <tbody className="divide-y divide-slate-200">
+                                                        {/* 3주 전 이유 (3호 사료 급여 - 배치 데이터 최우선 연동) */}
+                                                        {}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[0].display}</td>
                                                             <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     <span className="text-[13px]">{weanCountsForCalc.w3} 두</span>
-                                                                    {computedWeanCounts.w3.source === 'batch' && <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-600 px-1.5 py-0.5 rounded-md font-bold">배치 연동</span>}
+                                                                    {computedWeanCounts.w3.source === 'record' && <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-600 px-1.5 py-0.5 rounded-md font-bold">기록 연동</span>}
                                                                     {computedWeanCounts.w3.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
                                                                 </div>
                                                             </td>
@@ -923,13 +871,15 @@
                                                             <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w3_f3.toFixed(1)} 포</td>
                                                             <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[0].dbKey)}</td>
                                                         </tr>
-                                                        {/* 2주 전 이유 (3호 사료 급여 - 사육현황 자동 로드) */}
+
+                                                        {/* 2주 전 이유 (3호 사료 급여 - 배치 데이터 최우선 연동) */}
+                                                        {}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[1].display}</td>
                                                             <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     <span className="text-[13px]">{weanCountsForCalc.w2} 두</span>
-                                                                    {computedWeanCounts.w2.source === 'batch' && <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-600 px-1.5 py-0.5 rounded-md font-bold">배치 연동</span>}
+                                                                    {computedWeanCounts.w2.source === 'record' && <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-600 px-1.5 py-0.5 rounded-md font-bold">기록 연동</span>}
                                                                     {computedWeanCounts.w2.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
                                                                 </div>
                                                             </td>
@@ -939,13 +889,15 @@
                                                             <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w2_f3.toFixed(1)} 포</td>
                                                             <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[1].dbKey)}</td>
                                                         </tr>
-                                                        {/* 1주 전 이유 (2호 사료 급여 - 사육현황 자동 로드) */}
+
+                                                        {/* 1주 전 이유 (2호 사료 급여 - 배치 데이터 최우선 연동) */}
+                                                        {}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[2].display}</td>
                                                             <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     <span className="text-[13px]">{weanCountsForCalc.w1} 두</span>
-                                                                    {computedWeanCounts.w1.source === 'batch' && <span className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-600 px-1.5 py-0.5 rounded-md font-bold">배치 연동</span>}
+                                                                    {computedWeanCounts.w1.source === 'record' && <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-600 px-1.5 py-0.5 rounded-md font-bold">기록 연동</span>}
                                                                     {computedWeanCounts.w1.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
                                                                 </div>
                                                             </td>
@@ -955,7 +907,9 @@
                                                             <td className="p-2.5 text-slate-400">-</td>
                                                             <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[2].dbKey)}</td>
                                                         </tr>
-                                                        {/* 금주 이유 (1호 사료 급여 - 직접 기입 우선 및 연동 폴백 지원) */}
+
+                                                        {/* 금주 이유 (1호 사료 급여 - 수기 이유 성적 기록 최우선 연동 및 직접입력 덮어쓰기 지원) */}
+                                                        {}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[3].display}</td>
                                                             <td className="p-1.5 bg-amber-50/10">
@@ -967,9 +921,9 @@
                                                                         placeholder="직접 입력"
                                                                         className="w-full text-center py-1 bg-white border border-slate-200 focus:border-amber-500 focus:outline-none font-black text-slate-900 rounded shadow-inner" 
                                                                     />
-                                                                    {computedWeanCounts.w0.source === 'batch' && (
+                                                                    {manualW0 === '' && computedWeanCounts.w0.source === 'record' && (
                                                                         <span className="absolute right-1 text-[8px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1 rounded scale-90 pointer-events-none">
-                                                                            배치완료
+                                                                            기록 연동
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -1060,8 +1014,8 @@
 
                             </div>
 
-                            {/* --- STREAMING_CHUNK: Rendering daily summation dashboard panels --- */}
                             {/* 당일 누적 합산 요약 (우측) */}
+                            {}
                             <section className="lg:col-span-4 bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex flex-col justify-between h-full">
                                 <div>
                                     <div className="flex items-center gap-2 border-b border-slate-100 pb-3 mb-4">
@@ -1093,75 +1047,8 @@
                             </section>
                         </div>
 
-                        {/* --- STREAMING_CHUNK: Rendering automatic alert notifications block --- */}
-                        {/* 예측 알림 작동 현황 */}
-                        <section className="bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 flex flex-col space-y-4">
-                            <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-100 pb-3 gap-2">
-                                <div className="flex items-center gap-2">
-                                    <Timer className="text-rose-500 w-5 h-5" />
-                                    <h2 className="text-lg font-bold text-slate-800">예측 알림 작동 현황</h2>
-                                </div>
-                                <span className="text-[11px] font-semibold text-slate-400 bg-slate-50 px-2 py-1 rounded">※ 과거 패턴 기반 자동 연산</span>
-                            </div>
-
-                            {binPredictions.length === 0 ? (
-                                <div className="text-center py-8 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
-                                    <Timer className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-                                    <p className="text-xs font-bold text-slate-400">사료 소진일 예측 알림이 없습니다.</p>
-                                </div>
-                            ) : (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                                    {binPredictions.map((pred, idx) => {
-                                        let statusColor = 'border-slate-200 bg-white';
-                                        let badgeColor = 'bg-blue-100 text-blue-700';
-                                        let urgencyText = `D-${pred.remainDays}`;
-                                        
-                                        if (pred.remainDays < 0) {
-                                            statusColor = 'border-rose-300 bg-rose-50'; badgeColor = 'bg-rose-200 text-rose-800 animate-pulse'; urgencyText = `소진 경과 (D+${Math.abs(pred.remainDays)})`;
-                                        } else if (pred.remainDays === 0) {
-                                            statusColor = 'border-rose-300 bg-rose-50'; badgeColor = 'bg-rose-200 text-rose-800 animate-pulse'; urgencyText = `오늘 소진 예상`;
-                                        } else if (pred.remainDays <= 3) {
-                                            statusColor = 'border-rose-300 bg-rose-50'; badgeColor = 'bg-rose-200 text-rose-800 animate-pulse'; urgencyText = `임박 (D-${pred.remainDays})`;
-                                        } else if (pred.remainDays <= 7) {
-                                            statusColor = 'border-amber-300 bg-amber-50'; badgeColor = 'bg-amber-200 text-amber-800';
-                                        }
-
-                                        return (
-                                            <div key={idx} className={`p-4 rounded-xl border flex flex-col gap-2.5 shadow-sm transition-all relative ${statusColor}`}>
-                                                <div className="flex justify-between items-center mb-1 border-b border-slate-200/50 pb-2">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[14px] font-black text-slate-800">{pred.bin.startsWith('지대') ? pred.bin : `벌크 ${pred.bin}호`}</span>
-                                                        <span className="text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">{pred.feedType}</span>
-                                                        <span className={`text-[11px] font-black px-2 py-0.5 rounded-md shadow-sm ${badgeColor}`}>
-                                                            {urgencyText}
-                                                        </span>
-                                                    </div>
-                                                    <button 
-                                                        onClick={() => handleOrderComplete(pred.bin)} 
-                                                        className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-black px-2.5 py-1.5 rounded-lg shadow-sm transition-all active:scale-95"
-                                                    >
-                                                        주문완료
-                                                    </button>
-                                                </div>
-                                                <div className="flex justify-between items-center text-xs font-semibold">
-                                                    <span className="text-slate-500">일평균 소모량:</span>
-                                                    <span className="text-slate-700 font-mono text-[13px]">{pred.dailyUsage.toFixed(2)} 톤/일</span>
-                                                </div>
-                                                <div className="flex justify-between items-center text-xs font-semibold">
-                                                    <span className="text-slate-500">주문 필요일:</span>
-                                                    <span className="text-slate-900 font-black tracking-tight bg-white px-2 py-0.5 rounded border border-slate-200">
-                                                        {pred.nextDate.getFullYear()}년 {pred.nextDate.getMonth()+1}월 {pred.nextDate.getDate()}일경
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </section>
-
-                        {/* --- STREAMING_CHUNK: Rendering daily orders split tables --- */}
                         {/* 당일 주문 리스트 (지대 사료 & 벌크통 사료 표 분리형) */}
+                        {}
                         <section className="w-full bg-white rounded-2xl p-6 shadow-sm border border-stone-200/60 space-y-4">
                             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                                 <div className="flex items-center gap-2">
@@ -1270,7 +1157,6 @@
                             </div>
                         </section>
 
-                        {/* --- STREAMING_CHUNK: Rendering calendar launcher row --- */}
                         {/* 달력 일정표 실행 버튼 */}
                         <div className="pb-10">
                             <section className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 flex items-center justify-center">
@@ -1289,8 +1175,8 @@
                         </div>
                     </div>
 
-                    {/* --- STREAMING_CHUNK: Generating dialog and alert modals code blocks --- */}
                     {/* --- Modals --- */}
+                    {}
                     {showShareModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                             <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-[slideUp_0.2s_ease-out]">
@@ -1345,7 +1231,6 @@
                         </div>
                     )}
 
-                    {/* --- STREAMING_CHUNK: Generating scheduler calendar popups --- */}
                     {showCalendarModal && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                             <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-[slideUp_0.2s_ease-out] max-h-[90vh]">
@@ -1401,7 +1286,7 @@
                                                                     ) : (
                                                                         <React.Fragment>
                                                                             <span className="truncate w-1/3">{badge.type}</span>
-                                                                            <span className="text-center w-1/3 opacity-75">{badge.bin}호</span>
+                                                                            <span className="text-center w-1/3 opacity-75">{badge.bin}번</span>
                                                                             <span className="text-right w-1/3">{badge.qty.toFixed(1)}t</span>
                                                                         </React.Fragment>
                                                                     )}
