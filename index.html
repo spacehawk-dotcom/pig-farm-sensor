@@ -8,9 +8,11 @@
     <title>성암농장 사육 현황 - 리포트 강화 버전</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <!-- SheetJS for XLSX -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
@@ -141,12 +143,6 @@
 
         let state = { stocks: { boar: 5, piglet: 0, grower: 0, sow: 0, replacement: 0, gilt_batch: 0 }, wBatches: Array.from({length: 5}, (_, i) => getEmptyBatch(i+1)), gBatches: Array.from({length: 8}, (_, i) => getEmptyBatch(i+1, true)), sowList: [], shipments: [], shipmentSummaries: {}, accidents: [], historyList: [], weaningRecords: {}, transfer: { active: false, src: null }, sowCache: { returnCount: 0, awaitingCount: 0, nursingCount: 0, nursingSows: 0, sowCount: 0, sowPregnantCount: 0, sowWeaningCount: 0, replacementCount: 0, expectedFarrowingMap: {}, weeklyNursingMap: {} } };
 
-        function getEmptyBatch(id, isGrower = false) {
-            let pensCount = (isGrower && id === 8) ? 7 : 10;
-            let b = { id, status: 'empty', date: '', pens: 0, pigs: 0, memo: '', penDetails: Array(pensCount).fill(0), penDates: Array(pensCount).fill(''), penIsResidual: Array(pensCount).fill(false), penIsSick: Array(pensCount).fill(false) };
-            if (isGrower) { b.sourceId = null; b.weaningDate = ''; b.pendingShipments = []; } return b;
-        }
-
         const utils = {
             getTodayStr: () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; },
             getTomorrowStr: () => { const d = new Date(); d.setDate(d.getDate() + 1); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; },
@@ -158,6 +154,34 @@
             normalizeBatch: (b, collectionName) => { let pensCount = (collectionName.includes('grower') && b.id === 8) ? 7 : 10; if(!b.penDetails || b.penDetails.length !== pensCount) { let oldDetails = b.penDetails || []; b.penDetails = Array(pensCount).fill(0).map((v, i) => oldDetails[i] || 0); b.penDates = Array(pensCount).fill('').map((v, i) => (b.penDates && b.penDates[i]) || ''); b.penIsResidual = Array(pensCount).fill(false).map((v, i) => (b.penIsResidual && b.penIsResidual[i]) || false); b.penIsSick = Array(pensCount).fill(false).map((v, i) => (b.penIsSick && b.penIsSick[i]) || false); } if(!b.penIsResidual) b.penIsResidual = Array(pensCount).fill(false); if(!b.penIsSick) b.penIsSick = Array(pensCount).fill(false); if(b.pendingShipments===undefined) b.pendingShipments=[]; if(b.weaningDate===undefined) b.weaningDate=''; return b; },
             showToast: (msg, dur=3000) => { const t=document.getElementById('toast'), tm=document.getElementById('toast-msg'); if(t&&tm){ tm.innerText=msg; t.classList.remove('opacity-0','pointer-events-none'); t.classList.add('opacity-100'); setTimeout(()=>{ t.classList.remove('opacity-100'); t.classList.add('opacity-0','pointer-events-none'); }, dur); } }
         };
+
+        // --- 전역 모달 열기/닫기 처리기 ---
+        window.openModal = function(type, target) { 
+            try {
+                const renderer = window.modalRenderers[type]; 
+                if (!renderer) { console.error("Renderer not found for type:", type); return; }
+                const { title, html, hideSave } = renderer(target); 
+                document.getElementById('modal-title').innerHTML = title; 
+                document.getElementById('modal-content').innerHTML = html; 
+                document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex'; 
+                document.getElementById('save-btn').onclick = () => window.processSave(type); 
+                document.getElementById('modal-overlay').classList.remove('hidden'); 
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20); 
+            } catch (error) {
+                console.error("팝업 렌더링 에러:", error);
+                utils.showToast("오류가 발생했습니다: " + error.message);
+            }
+        };
+
+        window.closeModal = function() { 
+            document.getElementById('modal-overlay').classList.add('hidden'); 
+        };
+
+        function getEmptyBatch(id, isGrower = false) {
+            let pensCount = (isGrower && id === 8) ? 7 : 10;
+            let b = { id, status: 'empty', date: '', pens: 0, pigs: 0, memo: '', penDetails: Array(pensCount).fill(0), penDates: Array(pensCount).fill(''), penIsResidual: Array(pensCount).fill(false), penIsSick: Array(pensCount).fill(false) };
+            if (isGrower) { b.sourceId = null; b.weaningDate = ''; b.pendingShipments = []; } return b;
+        }
 
         window.updateSowCache = () => {
             const cache = { returnCount: 0, awaitingCount: 0, nursingCount: 0, nursingSows: 0, sowCount: 0, sowPregnantCount: 0, sowWeaningCount: 0, replacementCount: 0, expectedFarrowingMap: {}, weeklyNursingMap: {} };
@@ -254,9 +278,36 @@
         }
 
         function renderAlertSows() { document.getElementById('return-sow-count').innerText = state.sowCache.returnCount; document.getElementById('awaiting-sow-count').innerText = state.sowCache.awaitingCount; document.getElementById('nursing-sow-count').innerText = state.sowCache.nursingCount; }
-        function renderExpectedFarrowing() { const map = state.sowCache.expectedFarrowingMap; document.getElementById('expected-farrowing-list').innerHTML = Object.keys(map).sort().map(w => `<div onclick="window.openModal('expected_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-rose-600">${map[w].length}<span class="text-sm font-bold text-rose-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-rose-200 mb-1"></i></div></div>`).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">예정된 분만 없음</div>`; if (typeof lucide !== 'undefined') lucide.createIcons(); }
-        function renderWeeklyNursing() { const map = state.sowCache.weeklyNursingMap; document.getElementById('weekly-nursing-list').innerHTML = Object.keys(map).sort().map(w => `<div onclick="window.openModal('nursing_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${w==='Unknown'?'slate':'emerald'}-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-${w==='Unknown'?'slate':'emerald'}-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${w==='Unknown'?'날짜 미상':utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-${w==='Unknown'?'slate':'emerald'}-600">${map[w].length}<span class="text-sm font-bold text-${w==='Unknown'?'slate':'emerald'}-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-${w==='Unknown'?'slate':'emerald'}-200 mb-1"></i></div></div>`).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">도래 예정인 개체 없음</div>`; if (typeof lucide !== 'undefined') lucide.createIcons(); }
-        function renderManualWeaning() { const sortedRecords = Object.entries(state.weaningRecords).filter(([date, data]) => Boolean(data)).map(([date, data]) => ({ date, ...data })).sort((a, b) => String(b.date).localeCompare(String(a.date))); const container = document.getElementById('manual-weaning-list'); if (!container) return; if (sortedRecords.length === 0) { container.innerHTML = `<div class="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">직접 기록된 이유 성적이 없습니다.</div>`; } else { container.innerHTML = sortedRecords.map(st => `<div onclick="window.openModal('weaning_record', '${st.date}')" class="min-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all"><span class="text-[11px] font-black text-slate-500 mb-2">${(st.date || '').substring(5).replace('-', '/')} 이유</span><div class="flex flex-col gap-1.5"><div class="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded"><span class="text-[10px] font-bold text-slate-500">모돈</span><span class="text-[13px] font-black text-slate-800">${st.sowCount || 0}<span class="text-[9px] font-normal ml-0.5">복</span></span></div><div class="flex justify-between items-center bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100"><span class="text-[10px] font-bold text-blue-600">이유</span><span class="text-[14px] font-black text-blue-700">${st.totalWeaned || 0}<span class="text-[9px] font-normal ml-0.5">두</span></span></div></div></div>`).join(''); } if (typeof lucide !== 'undefined') lucide.createIcons(); }
+        
+        function renderExpectedFarrowing() { 
+            const map = state.sowCache.expectedFarrowingMap; 
+            document.getElementById('expected-farrowing-list').innerHTML = Object.keys(map).sort().map(w => 
+                `<div onclick="window.openModal('expected_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-rose-600">${map[w].length}<span class="text-sm font-bold text-rose-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-rose-200 mb-1"></i></div></div>`
+            ).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">예정된 분만 없음</div>`; 
+            if (typeof lucide !== 'undefined') lucide.createIcons(); 
+        }
+
+        function renderWeeklyNursing() { 
+            const map = state.sowCache.weeklyNursingMap; 
+            document.getElementById('weekly-nursing-list').innerHTML = Object.keys(map).sort().map(w => 
+                `<div onclick="window.openModal('nursing_week', '${w}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${w==='Unknown'?'slate':'emerald'}-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"><div class="absolute top-0 left-0 w-1.5 h-full bg-${w==='Unknown'?'slate':'emerald'}-400"></div><p class="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">${w==='Unknown'?'날짜 미상':utils.getWeekOfMonth(w)}</p><div class="flex items-end justify-between pl-1"><p class="text-3xl font-black text-${w==='Unknown'?'slate':'emerald'}-600">${map[w].length}<span class="text-sm font-bold text-${w==='Unknown'?'slate':'emerald'}-400 ml-1">복</span></p><i data-lucide="chevron-right" class="w-4 h-4 text-${w==='Unknown'?'slate':'emerald'}-200 mb-1"></i></div></div>`
+            ).join('') || `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">도래 예정인 개체 없음</div>`; 
+            if (typeof lucide !== 'undefined') lucide.createIcons(); 
+        }
+
+        function renderManualWeaning() { 
+            const sortedRecords = Object.entries(state.weaningRecords).filter(([date, data]) => Boolean(data)).map(([date, data]) => ({ date, ...data })).sort((a, b) => String(b.date).localeCompare(String(a.date))); 
+            const container = document.getElementById('manual-weaning-list'); 
+            if (!container) return; 
+            if (sortedRecords.length === 0) { 
+                container.innerHTML = `<div class="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">직접 기록된 이유 성적이 없습니다.</div>`; 
+            } else { 
+                container.innerHTML = sortedRecords.map(st => 
+                    `<div onclick="window.openModal('weaning_record', '${st.date}')" class="min-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all"><span class="text-[11px] font-black text-slate-500 mb-2">${(st.date || '').substring(5).replace('-', '/')} 이유</span><div class="flex flex-col gap-1.5"><div class="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded"><span class="text-[10px] font-bold text-slate-500">모돈</span><span class="text-[13px] font-black text-slate-800">${st.sowCount || 0}<span class="text-[9px] font-normal ml-0.5">복</span></span></div><div class="flex justify-between items-center bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100"><span class="text-[10px] font-bold text-blue-600">이유</span><span class="text-[14px] font-black text-blue-700">${st.totalWeaned || 0}<span class="text-[9px] font-normal ml-0.5">두</span></span></div></div></div>`
+                ).join(''); 
+            } 
+            if (typeof lucide !== 'undefined') lucide.createIcons(); 
+        }
         
         function renderRecentShipments() { 
             try {
@@ -278,6 +329,7 @@
                 const sortedGroups = Object.values(dateGroups).sort((a, b) => String(b.date||'').localeCompare(String(a.date||''))).slice(0, 10);
                 const container = document.getElementById('recent-shipment-list');
                 if (!container) return;
+                
                 if (sortedGroups.length > 0) {
                     container.innerHTML = sortedGroups.map(s => { 
                         const isConfirmed = s.status === 'confirmed', colorCls = isConfirmed ? 'blue' : 'amber', labelTxt = isConfirmed ? '완료' : '예정'; 
@@ -287,7 +339,16 @@
                             if (d && !isNaN(d.getTime())) { mmdd = `${d.getMonth()+1}/${d.getDate()}`; } 
                             else { mmdd = s.date.substring(5).replace('-', '/'); }
                         }
-                        return `<div onclick="window.openModal('${isConfirmed ? 'shipment_detail_confirmed' : 'shipment_detail_pending'}', '${s.date}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${colorCls}-100 shadow-sm flex flex-col justify-between relative overflow-hidden shrink-0 cursor-pointer active:scale-95 transition-transform"><div class="absolute top-0 left-0 w-1 h-full bg-${colorCls}-500"></div><div class="flex justify-between items-start mb-2"><p class="text-[14px] font-black text-slate-500 whitespace-nowrap">${mmdd}</p><span class="text-[8px] font-black text-${colorCls}-600 px-1 bg-${colorCls}-50 rounded">${labelTxt}</span></div><p class="text-3xl font-black text-slate-800">${s.total}<span class="text-xs font-bold text-slate-500 ml-1">두</span></p></div>`; 
+                        return `
+                            <div onclick="window.openModal('${isConfirmed ? 'shipment_detail_confirmed' : 'shipment_detail_pending'}', '${s.date}')" class="w-[110px] bg-white p-4 rounded-2xl border border-${colorCls}-100 shadow-sm flex flex-col justify-between relative overflow-hidden shrink-0 cursor-pointer active:scale-95 transition-transform">
+                                <div class="absolute top-0 left-0 w-1 h-full bg-${colorCls}-500"></div>
+                                <div class="flex justify-between items-start mb-2">
+                                    <p class="text-[14px] font-black text-slate-500 whitespace-nowrap">${mmdd}</p>
+                                    <span class="text-[8px] font-black text-${colorCls}-600 px-1 bg-${colorCls}-50 rounded">${labelTxt}</span>
+                                </div>
+                                <p class="text-3xl font-black text-slate-800">${s.total}<span class="text-xs font-bold text-slate-500 ml-1">두</span></p>
+                            </div>
+                        `; 
                     }).join('');
                 } else {
                     container.innerHTML = `<div class="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">출하 기록 없음</div>`;
@@ -303,11 +364,21 @@
                     let needsUpdate = false, newPending = [], newDetails = [...b.penDetails], newDates = [...b.penDates];
                     b.pendingShipments.forEach(ps => {
                         if (ps.date <= todayStr) {
-                            ps.items.forEach(i => { const penDate = (b.penDates && b.penDates[i.pIdx]) || b.weaningDate || b.date; if(newDetails[i.pIdx]>=i.count) newDetails[i.pIdx]-=i.count; else newDetails[i.pIdx]=0; if(newDetails[i.pIdx]===0) newDates[i.pIdx]=''; db.collection(COLS.SHIPMENTS).add({ date: ps.date, batchId: b.id, penIndex: i.pIdx, count: i.count, stockingDate: penDate || '', timestamp: new Date().toISOString() }); });
+                            ps.items.forEach(i => { 
+                                const penDate = (b.penDates && b.penDates[i.pIdx]) || b.weaningDate || b.date; 
+                                if(newDetails[i.pIdx]>=i.count) newDetails[i.pIdx]-=i.count; 
+                                else newDetails[i.pIdx]=0; 
+                                
+                                if(newDetails[i.pIdx]===0) newDates[i.pIdx]=''; 
+                                db.collection(COLS.SHIPMENTS).add({ date: ps.date, batchId: b.id, penIndex: i.pIdx, count: i.count, stockingDate: penDate || '', timestamp: new Date().toISOString() }); 
+                            });
                             needsUpdate = true;
                         } else newPending.push(ps);
                     });
-                    if (needsUpdate) { const nP = newDetails.reduce((a,c)=>a+c,0), nPens = newDetails.filter(v=>v>0).length; await db.doc(`${COLS.GROWER}/batch_${b.id}`).update({ penDetails: newDetails, penDates: newDates, pigs: nP, pens: nPens, status: nP>0?'active':'empty', pendingShipments: newPending }); }
+                    if (needsUpdate) { 
+                        const nP = newDetails.reduce((a,c)=>a+c,0), nPens = newDetails.filter(v=>v>0).length; 
+                        await db.doc(`${COLS.GROWER}/batch_${b.id}`).update({ penDetails: newDetails, penDates: newDates, pigs: nP, pens: nPens, status: nP>0?'active':'empty', pendingShipments: newPending }); 
+                    }
                 }
             });
             await Promise.all(promises);
@@ -319,10 +390,13 @@
             const resultsEl = document.getElementById('expected-shipment-results');
             const annualSummaryEl = document.getElementById('expected-shipment-annual-summary');
             if (!inputEl || !resultsEl) return;
+
             const targetAge = parseInt(inputEl.value) || 170;
             if (descEl) descEl.innerText = `* 각 칸의 입식/이유일로부터 ${targetAge}일령이 되는 달을 기준으로 합산합니다.`;
+
             const monthlyCounts = {}; const yearlyCounts = {}; 
             const batches = [...state.wBatches.map(b => ({...b, isGilt: false})), ...state.gBatches.map(b => ({...b, isGilt: b.id === 8}))];
+            
             batches.forEach(b => {
                 if (b.status === 'empty' || b.pigs === 0) return;
                 const daysToAdd = targetAge - (b.isGilt ? 1 : 20);
@@ -348,8 +422,10 @@
                 const annualHtml = sortedYears.map(y => `<div class="bg-indigo-50 p-3 rounded-2xl border border-indigo-100 flex-1 text-center min-w-[120px] shadow-sm"><p class="text-[11px] font-bold text-indigo-600 mb-1">${y}년 총 출하예측</p><p class="text-2xl font-black text-indigo-800">${yearlyCounts[y]}<span class="text-[11px] ml-1 font-bold text-indigo-500">두</span></p></div>`).join('');
                 annualSummaryEl.innerHTML = annualHtml || '<div class="text-xs text-slate-400 w-full text-center">예측 데이터 없음</div>';
             }
+            
             const currentYearMonth = utils.getTodayStr().substring(0, 7);
             const allSortedMonths = Object.keys(monthlyCounts).sort();
+            
             const html = allSortedMonths.map(ym => {
                 const [yyyy, mm] = ym.split('-'); const count = monthlyCounts[ym]; const isPast = ym < currentYearMonth; const isCurrent = ym === currentYearMonth;
                 let borderCls = 'border-slate-100', barCls = 'bg-slate-400', labelText = `${yyyy}년 ${parseInt(mm)}월`, textCls = 'text-slate-500';
@@ -362,6 +438,7 @@
         };
 
         function renderBatchList(targetId, batches, type, stage, typeCls, bgCls, txtCls) {
+            const iptCls = "text-[11px] font-bold text-slate-600 bg-slate-100/50 border border-slate-200 rounded px-2 py-0.5 w-full focus:bg-white outline-none";
             document.getElementById(targetId).innerHTML = batches.map(b => {
                 const isEmpty = b.status === 'empty' || b.pigs === 0, isRes = stage === 'grower' && b.id === 8;
                 const title = isRes ? '후보사' : `${type} ${b.id}배치`, actualCls = isRes ? 'pen-residual' : typeCls, gateCls = isEmpty ? 'gate-empty' : (isRes ? 'gate-residual' : (stage === 'weaning' ? 'gate-wean' : 'gate-grow'));
@@ -369,14 +446,34 @@
                 for(let i=0; i < b.penDetails.length; i++) {
                     const c = b.penDetails[i] || 0, isFill = c > 0; let txt = isFill ? `<div>${c}</div>` : ''; let penClass = isFill ? actualCls : 'pen-empty';
                     if (isFill && (b.penDates[i] || b.weaningDate || b.date)) {
-                        const ageVal = utils.getDiffDays(b.penDates[i] || b.weaningDate || b.date, utils.getTodayStr()) + (isRes ? 1 : 20); const isSick = b.penIsSick && b.penIsSick[i]; let displayStr = `${ageVal}일령`;
+                        const ageVal = utils.getDiffDays(b.penDates[i] || b.weaningDate || b.date, utils.getTodayStr()) + (isRes ? 1 : 20); 
+                        const isSick = b.penIsSick && b.penIsSick[i]; 
+                        let displayStr = `${ageVal}일령`;
                         if (stage === 'grower') { const isResidual = b.penIsResidual && b.penIsResidual[i]; if (isResidual) { penClass = 'pen-pink'; } }
                         if (isSick) displayStr += '<span class="text-orange-300 ml-0.5">(환)</span>';
                         txt += `<div class="text-[9px] font-normal opacity-90 mt-0.5">${displayStr}</div>`;
                     }
                     pensHtml += `<div onclick="window.handlePenClick(event, '${stage}', ${b.id}, ${i})" class="pen-box ${penClass} cursor-pointer hover:opacity-80 active:scale-95">${txt}</div>`;
                 }
-                return `<div onclick="window.handleBatchClick('${stage}', ${b.id})" class="bg-white p-4 rounded-2xl border ${isEmpty ? 'border-dashed border-slate-200 opacity-60' : bgCls} relative flex flex-col justify-between cursor-pointer hover:shadow-sm transition-all"><div><div class="flex justify-between items-center mb-1"><div class="flex items-center gap-2 flex-1 mr-2"><h4 class="text-sm font-black text-slate-800 whitespace-nowrap">${title}</h4><input type="text" value="${b.memo || ''}" placeholder="메모 입력" class="text-[11px] font-bold text-slate-600 bg-slate-100/50 border border-slate-200 rounded px-2 py-0.5 w-full focus:bg-white outline-none" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter') this.blur();" onchange="window.quickSaveBatchMemo('${stage}', ${b.id}, this.value)"></div><span class="text-[14px] font-black ${txtCls} shrink-0">${b.pigs}두</span></div></div><div><div class="batch-gate-container"><div class="batch-gate-bar ${gateCls}"></div><div class="pen-grid">${pensHtml}</div></div></div></div>`;
+                return `
+                    <div onclick="window.handleBatchClick('${stage}', ${b.id})" class="bg-white p-4 rounded-2xl border ${isEmpty ? 'border-dashed border-slate-200 opacity-60' : bgCls} relative flex flex-col justify-between cursor-pointer hover:shadow-sm transition-all">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <div class="flex items-center gap-2 flex-1 mr-2">
+                                    <h4 class="text-sm font-black text-slate-800 whitespace-nowrap">${title}</h4>
+                                    <input type="text" value="${b.memo || ''}" placeholder="메모 입력" class="${iptCls}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter') this.blur();" onchange="window.quickSaveBatchMemo('${stage}', ${b.id}, this.value)">
+                                </div>
+                                <span class="text-[14px] font-black ${txtCls} shrink-0">${b.pigs}두</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="batch-gate-container">
+                                <div class="batch-gate-bar ${gateCls}"></div>
+                                <div class="pen-grid">${pensHtml}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
             }).join('');
         }
 
@@ -402,7 +499,24 @@
 
         window.addSowHistoryRow = (parity = '', matingDate = '', expDate = '', farrowDate = '', weaningDate = '', total = '', born = '', weaned = '', move = '') => {
             const container = document.getElementById('sow-history-container'); if (!container) return; const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
-            const html = `<div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors"><input type="number" class="h-parity w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${parity}" placeholder="산차"><input type="text" class="h-mating w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${matingDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}"><input type="text" class="h-exp w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${expDate}" placeholder="MM/DD"><input type="text" class="h-farrow w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${farrowDate}" placeholder="MM/DD" onchange="if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}"><input type="text" class="h-weaning-date w-16 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all" value="${weaningDate}" placeholder="MM/DD"><input type="number" class="h-total w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${total}" placeholder="산자수"><input type="number" class="h-born w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${born}" placeholder="포유"><input type="text" class="h-weaned w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${weaned}" placeholder="이동"><input type="text" class="h-move w-12 bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all" value="${move}" placeholder="이유"><div class="w-8 flex justify-center shrink-0"><button onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="x-circle" class="w-4 h-4"></i></button></div></div>`;
+            const numCls = "bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all";
+            const txtCls = "bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all";
+            const ocMating = "if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}";
+            const ocFarrow = "if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}";
+            const html = `
+                <div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors">
+                    <input type="number" class="h-parity w-12 ${numCls}" value="${parity}" placeholder="산차">
+                    <input type="text" class="h-mating w-16 ${txtCls}" value="${matingDate}" placeholder="MM/DD" onchange="${ocMating}">
+                    <input type="text" class="h-exp w-16 ${txtCls}" value="${expDate}" placeholder="MM/DD">
+                    <input type="text" class="h-farrow w-16 ${txtCls}" value="${farrowDate}" placeholder="MM/DD" onchange="${ocFarrow}">
+                    <input type="text" class="h-weaning-date w-16 ${txtCls}" value="${weaningDate}" placeholder="MM/DD">
+                    <input type="number" class="h-total w-12 ${numCls}" value="${total}" placeholder="산자수">
+                    <input type="number" class="h-born w-12 ${numCls}" value="${born}" placeholder="포유">
+                    <input type="text" class="h-weaned w-12 ${numCls}" value="${weaned}" placeholder="이동">
+                    <input type="text" class="h-move w-12 ${numCls}" value="${move}" placeholder="이유">
+                    <div class="w-8 flex justify-center shrink-0"><button onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="x-circle" class="w-4 h-4"></i></button></div>
+                </div>
+            `;
             container.insertAdjacentHTML('beforeend', html); if (typeof lucide !== 'undefined') lucide.createIcons();
         };
 
@@ -412,7 +526,23 @@
             const expDate = s.matingDate ? utils.getExpectedFarrow(s.matingDate) : ''; const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '-';
             let farrowFormatted = ''; if (lastH && lastH.date) { if (lastH.date.includes('-') && lastH.date.length === 10) { farrowFormatted = lastH.date.substring(5).replace('-', '/'); } else { farrowFormatted = lastH.date; } }
             const bornCount = (lastH && lastH.born !== undefined) ? lastH.born : ''; const weanTotalCount = (lastH && lastH.total !== undefined) ? lastH.total : ''; const moveCount = (lastH && lastH.weaned !== undefined) ? lastH.weaned : ''; const weanCount = (lastH && lastH.move !== undefined) ? lastH.move : '';
-            return `<div class="bg-white px-2 py-1.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-emerald-50/50 transition-colors nursing-row" data-dbid="${s.dbId}"><span class="w-8 shrink-0 flex justify-center"><input type="checkbox" class="n-select-sow w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer" data-dbid="${s.dbId}"></span><span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span><div class="w-12 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="n-parity" value="${s.parity}"><span class="text-[12px] font-black text-slate-700">${s.parity}산</span></div><div class="w-20 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="n-mating" value="${matingFormatted}"><span class="text-[12px] font-bold text-slate-500">${matingFormatted}</span></div><div class="w-20 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="n-exp" value="${expFormatted}"><span class="text-[12px] font-bold text-slate-500">${expFormatted}</span></div><div class="w-20 shrink-0 px-0.5"><input type="text" class="n-farrow w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${farrowFormatted}" placeholder="MM/DD"></div><div class="w-16 shrink-0 px-0.5"><input type="number" class="n-total w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${weanTotalCount}" placeholder="산자수"></div><div class="w-14 shrink-0 px-0.5"><input type="number" class="n-born w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${bornCount}" placeholder="포유"></div><div class="w-16 shrink-0 px-0.5"><input type="text" class="n-weaned w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${moveCount}" placeholder="이동"></div><div class="w-16 shrink-0 px-0.5"><input type="text" class="n-move w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all" value="${weanCount}" placeholder="이유"></div></div>`;
+            const inpNum = "w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all";
+            const inpTxt = "w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all";
+            const wrp = "shrink-0 px-0.5 text-center flex items-center justify-center";
+            return `
+                <div class="bg-white px-2 py-1.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-emerald-50/50 transition-colors nursing-row" data-dbid="${s.dbId}">
+                    <span class="w-8 shrink-0 flex justify-center"><input type="checkbox" class="n-select-sow w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer" data-dbid="${s.dbId}"></span>
+                    <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span>
+                    <div class="w-12 ${wrp}"><input type="hidden" class="n-parity" value="${s.parity}"><span class="text-[12px] font-black text-slate-700">${s.parity}산</span></div>
+                    <div class="w-20 ${wrp}"><input type="hidden" class="n-mating" value="${matingFormatted}"><span class="text-[12px] font-bold text-slate-500">${matingFormatted}</span></div>
+                    <div class="w-20 ${wrp}"><input type="hidden" class="n-exp" value="${expFormatted}"><span class="text-[12px] font-bold text-slate-500">${expFormatted}</span></div>
+                    <div class="w-20 shrink-0 px-0.5"><input type="text" class="n-farrow ${inpTxt}" value="${farrowFormatted}" placeholder="MM/DD"></div>
+                    <div class="w-16 shrink-0 px-0.5"><input type="number" class="n-total ${inpNum}" value="${weanTotalCount}" placeholder="산자수"></div>
+                    <div class="w-14 shrink-0 px-0.5"><input type="number" class="n-born ${inpNum}" value="${bornCount}" placeholder="포유"></div>
+                    <div class="w-16 shrink-0 px-0.5"><input type="text" class="n-weaned ${inpTxt}" value="${moveCount}" placeholder="이동"></div>
+                    <div class="w-16 shrink-0 px-0.5"><input type="text" class="n-move ${inpTxt}" value="${weanCount}" placeholder="이유"></div>
+                </div>
+            `;
         };
 
         window.toggleSelectGroup = (cb, gCls) => { document.querySelectorAll(`.${gCls} .n-select-sow`).forEach(c => c.checked = cb.checked); };
@@ -466,32 +596,124 @@
             try { if (isLocalEnv) { state.sowList[sowIdx] = { ...sow, ...updatePayload }; renderAll(); } else { await db.collection(COLS.SOWS).doc(dbId).update(updatePayload); } utils.showToast(`${sow.sowNo}번 모돈 종부 등록 완료!`); window.openModal('sow_list', originalStatus); } catch(e) { utils.showToast("실패: " + e.message); }
         };
 
-        const modalRenderers = {
+        window.modalRenderers = {
             piglet_calc: () => {
                 const nursingSows = state.sowCache.nursingSows, avgPiglets = state.stocks.avgPiglets || 10, weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
-                return { title: `<div class="flex items-center gap-2"><i data-lucide="calculator" class="text-blue-500"></i> 자돈 수 관리</div>`, html: `<div class="bg-blue-50 p-5 rounded-2xl border border-blue-100 space-y-4"><h4 class="text-xs font-black text-blue-800 uppercase tracking-widest border-b border-blue-200 pb-2">포유자돈 자동 계산</h4><div class="flex items-center justify-between"><label class="text-sm font-black text-blue-700 flex flex-col">현재 포유모돈 <span class="text-[10px] mt-0.5 bg-white px-1.5 py-0.5 rounded text-blue-500 font-bold border border-blue-100 inline-block w-max">모돈 목록과 자동 동기화됨</span></label><div class="flex items-center gap-2"><input id="m-nursing-sows" type="number" inputmode="numeric" value="${nursingSows}" readonly class="w-20 bg-blue-100/50 border border-blue-200/50 rounded-lg text-xl font-black text-center text-blue-500 py-1.5 outline-none cursor-not-allowed"><span class="text-sm font-bold text-blue-500">두</span></div></div><div class="flex items-center justify-between"><label class="text-sm font-black text-blue-700">평균 포유자돈 수</label><div class="flex items-center gap-2"><input id="m-avg-piglets" type="number" inputmode="decimal" value="${avgPiglets}" class="w-20 bg-white border border-blue-400 shadow-sm rounded-lg text-xl font-black text-center text-blue-700 py-1.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors" oninput="window.updatePigletTotal()"><span class="text-sm font-bold text-blue-500">두</span></div></div><div class="pt-3 border-t border-blue-200 flex justify-between items-center"><label class="text-sm font-black text-blue-800">계산된 포유자돈</label><div class="text-2xl font-black text-blue-800"><span id="m-nursing-piglets-val">${Math.floor(nursingSows * avgPiglets)}</span><span class="text-sm ml-1 font-bold">두</span></div></div></div><div class="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex justify-between items-center mt-3 shadow-sm"><label class="text-sm font-black text-emerald-800">이유사 재고 (자동합산)</label><div class="text-2xl font-black text-emerald-800"><span id="m-weaning-total">${weaningTotal}</span><span class="text-sm ml-1 font-bold">두</span></div></div><div class="bg-slate-800 p-5 rounded-2xl shadow-lg flex justify-between items-center text-white mt-4"><label class="text-base font-black">총 자돈 수</label><div class="text-4xl font-black"><span id="m-piglet-total">${Math.floor(nursingSows * avgPiglets) + weaningTotal}</span><span class="text-lg ml-1 font-bold text-slate-300">두</span></div></div>` };
+                return { 
+                    title: `<div class="flex items-center gap-2"><i data-lucide="calculator" class="text-blue-500"></i> 자돈 수 관리</div>`, 
+                    html: `
+                        <div class="bg-blue-50 p-5 rounded-2xl border border-blue-100 space-y-4">
+                            <h4 class="text-xs font-black text-blue-800 uppercase tracking-widest border-b border-blue-200 pb-2">포유자돈 자동 계산</h4>
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm font-black text-blue-700 flex flex-col">현재 포유모돈 <span class="text-[10px] mt-0.5 bg-white px-1.5 py-0.5 rounded text-blue-500 font-bold border border-blue-100 inline-block w-max">모돈 목록과 자동 동기화됨</span></label>
+                                <div class="flex items-center gap-2"><input id="m-nursing-sows" type="number" inputmode="numeric" value="${nursingSows}" readonly class="w-20 bg-blue-100/50 border border-blue-200/50 rounded-lg text-xl font-black text-center text-blue-500 py-1.5 outline-none cursor-not-allowed"><span class="text-sm font-bold text-blue-500">두</span></div>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm font-black text-blue-700">평균 포유자돈 수</label>
+                                <div class="flex items-center gap-2"><input id="m-avg-piglets" type="number" inputmode="decimal" value="${avgPiglets}" class="w-20 bg-white border border-blue-400 shadow-sm rounded-lg text-xl font-black text-center text-blue-700 py-1.5 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors" oninput="window.updatePigletTotal()"><span class="text-sm font-bold text-blue-500">두</span></div>
+                            </div>
+                            <div class="pt-3 border-t border-blue-200 flex justify-between items-center">
+                                <label class="text-sm font-black text-blue-800">계산된 포유자돈</label>
+                                <div class="text-2xl font-black text-blue-800"><span id="m-nursing-piglets-val">${Math.floor(nursingSows * avgPiglets)}</span><span class="text-sm ml-1 font-bold">두</span></div>
+                            </div>
+                        </div>
+                        <div class="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 flex justify-between items-center mt-3 shadow-sm">
+                            <label class="text-sm font-black text-emerald-800">이유사 재고 (자동합산)</label>
+                            <div class="text-2xl font-black text-emerald-800"><span id="m-weaning-total">${weaningTotal}</span><span class="text-sm ml-1 font-bold">두</span></div>
+                        </div>
+                        <div class="bg-slate-800 p-5 rounded-2xl shadow-lg flex justify-between items-center text-white mt-4">
+                            <label class="text-base font-black">총 자돈 수</label>
+                            <div class="text-4xl font-black"><span id="m-piglet-total">${Math.floor(nursingSows * avgPiglets) + weaningTotal}</span><span class="text-lg ml-1 font-bold text-slate-300">두</span></div>
+                        </div>
+                    `
+                };
             },
             age_distribution: () => {
                 const todayStr = utils.getTodayStr(); const ageGroups = {}; let total = 0, countUnder60 = 0, count61To120 = 0, countOver120 = 0;
                 const allBatches = [ ...state.wBatches.map(b => ({...b, _stage: 'weaning'})), ...state.gBatches.filter(b => b.id !== 8).map(b => ({...b, _stage: 'grower'})) ];
-                allBatches.forEach(b => { if (b.status === 'empty' || b.pigs === 0) return; for (let i = 0; i < b.penDetails.length; i++) { const count = b.penDetails[i]; if (count > 0) { const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date; if (penDate) { const age = utils.getDiffDays(penDate, todayStr) + 20; if (!ageGroups[age]) ageGroups[age] = { count: 0, pens: [] }; ageGroups[age].count += count; const stageName = b._stage === 'grower' ? `육성${b.id}` : `이유${b.id}`; ageGroups[age].pens.push(`${stageName} ${i+1}칸`); total += count; if (age <= 60) countUnder60 += count; else if (age <= 120) count61To120 += count; else countOver120 += count; } } } });
+                allBatches.forEach(b => { 
+                    if (b.status === 'empty' || b.pigs === 0) return; 
+                    for (let i = 0; i < b.penDetails.length; i++) { 
+                        const count = b.penDetails[i]; 
+                        if (count > 0) { 
+                            const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date; 
+                            if (penDate) { 
+                                const age = utils.getDiffDays(penDate, todayStr) + 20; 
+                                if (!ageGroups[age]) ageGroups[age] = { count: 0, pens: [] }; 
+                                ageGroups[age].count += count; 
+                                const stageName = b._stage === 'grower' ? `육성${b.id}` : `이유${b.id}`; 
+                                ageGroups[age].pens.push(`${stageName} ${i+1}칸`); 
+                                total += count; 
+                                if (age <= 60) countUnder60 += count; 
+                                else if (age <= 120) count61To120 += count; 
+                                else countOver120 += count; 
+                            } 
+                        } 
+                    } 
+                });
                 const sortedAges = Object.keys(ageGroups).map(Number).sort((a,b) => a - b);
-                let listHtml = sortedAges.map(age => { const g = ageGroups[age]; return `<div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-1.5 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div><div class="flex justify-between items-center pl-2"><span class="text-[14px] font-black text-slate-700">${age}일령</span><span class="text-[18px] font-black text-blue-600">${g.count.toLocaleString()}<span class="text-xs font-bold text-slate-400 ml-0.5">두</span></span></div><div class="pl-2 text-[9px] font-bold text-slate-400 truncate" title="${g.pens.join(', ')}">${g.pens.join(', ')}</div></div>`; }).join('');
+                let listHtml = sortedAges.map(age => { 
+                    const g = ageGroups[age]; 
+                    return `<div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-1.5 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div><div class="flex justify-between items-center pl-2"><span class="text-[14px] font-black text-slate-700">${age}일령</span><span class="text-[18px] font-black text-blue-600">${g.count.toLocaleString()}<span class="text-xs font-bold text-slate-400 ml-0.5">두</span></span></div><div class="pl-2 text-[9px] font-bold text-slate-400 truncate" title="${g.pens.join(', ')}">${g.pens.join(', ')}</div></div>`; 
+                }).join('');
                 if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
-                return { title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 일령별 두수 분포</div>`, html: `<div class="mb-2 bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center shadow-sm"><span class="text-xs font-black text-blue-600">이유/육성사 전체 집계</span><span class="text-xl font-black text-blue-800">${total.toLocaleString()}<span class="text-sm ml-1 font-bold">두</span></span></div><div class="grid grid-cols-3 gap-2 mb-4"><div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-100 shadow-sm"><p class="text-[10px] font-bold text-emerald-600 mb-1">~60일령</p><p class="text-[17px] font-black text-emerald-700">${countUnder60.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div><div class="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100 shadow-sm"><p class="text-[10px] font-bold text-indigo-600 mb-1">61~120일령</p><p class="text-[17px] font-black text-indigo-700">${count61To120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div><div class="bg-rose-50 p-3 rounded-xl text-center border border-rose-100 shadow-sm"><p class="text-[10px] font-bold text-rose-600 mb-1">121일령~</p><p class="text-[17px] font-black text-rose-700">${countOver120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div></div><div class="grid grid-cols-2 gap-2 max-h-[45vh] overflow-y-auto no-scrollbar pb-2 px-1">${listHtml || '<div class="col-span-2 text-center py-10 text-slate-400 font-bold text-xs">데이터가 없습니다.</div>'}</div>`, hideSave: true };
+                return { 
+                    title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 일령별 두수 분포</div>`, 
+                    html: `
+                        <div class="mb-2 bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center shadow-sm">
+                            <span class="text-xs font-black text-blue-600">이유/육성사 전체 집계</span>
+                            <span class="text-xl font-black text-blue-800">${total.toLocaleString()}<span class="text-sm ml-1 font-bold">두</span></span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2 mb-4">
+                            <div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-100 shadow-sm"><p class="text-[10px] font-bold text-emerald-600 mb-1">~60일령</p><p class="text-[17px] font-black text-emerald-700">${countUnder60.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div>
+                            <div class="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100 shadow-sm"><p class="text-[10px] font-bold text-indigo-600 mb-1">61~120일령</p><p class="text-[17px] font-black text-indigo-700">${count61To120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div>
+                            <div class="bg-rose-50 p-3 rounded-xl text-center border border-rose-100 shadow-sm"><p class="text-[10px] font-bold text-rose-600 mb-1">121일령~</p><p class="text-[17px] font-black text-rose-700">${countOver120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 max-h-[45vh] overflow-y-auto no-scrollbar pb-2 px-1">${listHtml || '<div class="col-span-2 text-center py-10 text-slate-400 font-bold text-xs">데이터가 없습니다.</div>'}</div>
+                    `, 
+                    hideSave: true 
+                };
             },
             parity_distribution: () => {
                 const distribution = {}; state.sowList.forEach(s => { if (s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신')) { if (!distribution[s.parity]) distribution[s.parity] = []; distribution[s.parity].push(s); } });
                 const sortedParities = Object.keys(distribution).sort((a,b) => Number(a) - Number(b));
-                const html = sortedParities.map(p => { const sows = distribution[p]; sows.sort((a,b) => String(a.sowNo).localeCompare(String(b.sowNo))); return `<div class="bg-white rounded-xl p-3 border border-slate-100 shadow-sm"><div class="flex justify-between items-center mb-2 border-b border-slate-50 pb-2"><span class="font-black text-slate-700 text-sm">${p}산</span><span class="text-[11px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">${sows.length}두</span></div><div class="flex flex-wrap gap-1.5">${sows.map(s => `<span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="text-[11px] font-bold bg-slate-50 border border-slate-200 px-2 py-1 rounded-md cursor-pointer hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all text-slate-600">No.${s.sowNo}</span>`).join('')}</div></div>`; }).join('');
+                const html = sortedParities.map(p => { 
+                    const sows = distribution[p]; sows.sort((a,b) => String(a.sowNo).localeCompare(String(b.sowNo))); 
+                    return `<div class="bg-white rounded-xl p-3 border border-slate-100 shadow-sm"><div class="flex justify-between items-center mb-2 border-b border-slate-50 pb-2"><span class="font-black text-slate-700 text-sm">${p}산</span><span class="text-[11px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">${sows.length}두</span></div><div class="flex flex-wrap gap-1.5">${sows.map(s => `<span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="text-[11px] font-bold bg-slate-50 border border-slate-200 px-2 py-1 rounded-md cursor-pointer hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all text-slate-600">No.${s.sowNo}</span>`).join('')}</div></div>`; 
+                }).join('');
                 if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
-                return { title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 산차별 모돈 현황</div>`, html: `<div class="flex flex-col gap-2.5 max-h-[65vh] overflow-y-auto no-scrollbar pb-2 px-1">${html || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">등록된 모돈이 없습니다.</div>'}</div>`, hideSave: true };
+                return { 
+                    title: `<div class="flex items-center gap-2"><i data-lucide="bar-chart-2" class="text-blue-500"></i> 산차별 모돈 현황</div>`, 
+                    html: `<div class="flex flex-col gap-2.5 max-h-[65vh] overflow-y-auto no-scrollbar pb-2 px-1">${html || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">등록된 모돈이 없습니다.</div>'}</div>`, 
+                    hideSave: true 
+                };
             },
             daily_history: () => {
                 const listHtml = state.historyList.map(h => {
                     const s = h.stocks || {}, total = (s.sow||0) + (s.replacement||0) + (s.boar||0) + (s.piglet||0) + (s.grower||0) + (s.gilt_batch||0), dateObj = utils.parseDate(h.date), days = ['일', '월', '화', '수', '목', '금', '토'], dayStr = !dateObj ? '' : ` (${days[dateObj.getDay()]})`;
-                    const sowHtml = s.sow_pregnant !== undefined ? `<div class="grid grid-cols-4 gap-1 text-center mb-2"><div class="flex flex-col items-center justify-center p-1 bg-blue-50 rounded-lg"><p class="text-[10px] text-blue-600 font-bold mb-0.5">임신</p><p class="text-[14px] font-black text-blue-700">${s.sow_pregnant||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg"><p class="text-[10px] text-emerald-600 font-bold mb-0.5">포유</p><p class="text-[14px] font-black text-emerald-700">${s.sow_nursing||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-amber-50 rounded-lg"><p class="text-[10px] text-amber-600 font-bold mb-0.5">이유</p><p class="text-[14px] font-black text-slate-800">${s.sow_weaning||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-rose-50 rounded-lg"><p class="text-[10px] text-rose-600 font-bold mb-0.5">재발</p><p class="text-[14px] font-black text-rose-700">${s.sow_return||0}</p></div></div>` : `<div class="grid grid-cols-1 mb-2"><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg"><p class="text-[10px] text-slate-500 font-bold mb-0.5">모돈(세부미상)</p><p class="text-[14px] font-black text-slate-800">${s.sow||0}</p></div></div>`;
-                    return `<div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-1"><div class="flex justify-between items-center border-b border-slate-50 pb-2 mb-1"><span class="text-[14px] font-black text-slate-700 tracking-tighter">${h.date}${dayStr}</span><span class="text-[11px] font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">총 ${total.toLocaleString()}두</span></div>${sowHtml}<div class="grid grid-cols-6 gap-1 text-center"><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[9px] text-slate-400 font-bold mb-0.5">후보</p><p class="text-[12px] font-black text-slate-700">${s.replacement||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[9px] text-slate-400 font-bold mb-0.5">웅돈</p><p class="text-[12px] font-black text-slate-700">${s.boar||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg border border-emerald-100"><p class="text-[9px] text-emerald-600 font-bold mb-0.5">자돈</p><p class="text-[12px] font-black text-emerald-700">${s.piglet||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-indigo-50 rounded-lg border border-indigo-100"><p class="text-[9px] text-indigo-600 font-bold mb-0.5">육성</p><p class="text-[12px] font-black text-indigo-700">${s.grower||0}</p></div><div class="flex flex-col items-center justify-center p-1 bg-purple-50 rounded-lg border border-purple-100"><p class="text-[9px] text-purple-600 font-bold mb-0.5">후보사</p><p class="text-[12px] font-black text-purple-700">${s.gilt_batch||0}</p></div></div></div>`;
+                    const sowHtml = s.sow_pregnant !== undefined ? `
+                        <div class="grid grid-cols-4 gap-1 text-center mb-2">
+                            <div class="flex flex-col items-center justify-center p-1 bg-blue-50 rounded-lg"><p class="text-[10px] text-blue-600 font-bold mb-0.5">임신</p><p class="text-[14px] font-black text-blue-700">${s.sow_pregnant||0}</p></div>
+                            <div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg"><p class="text-[10px] text-emerald-600 font-bold mb-0.5">포유</p><p class="text-[14px] font-black text-emerald-700">${s.sow_nursing||0}</p></div>
+                            <div class="flex flex-col items-center justify-center p-1 bg-amber-50 rounded-lg"><p class="text-[10px] text-amber-600 font-bold mb-0.5">이유</p><p class="text-[14px] font-black text-slate-800">${s.sow_weaning||0}</p></div>
+                            <div class="flex flex-col items-center justify-center p-1 bg-rose-50 rounded-lg"><p class="text-[10px] text-rose-600 font-bold mb-0.5">재발</p><p class="text-[14px] font-black text-rose-700">${s.sow_return||0}</p></div>
+                        </div>` : `<div class="grid grid-cols-1 mb-2"><div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg"><p class="text-[10px] text-slate-500 font-bold mb-0.5">모돈(세부미상)</p><p class="text-[14px] font-black text-slate-800">${s.sow||0}</p></div></div>`;
+                    return `
+                        <div class="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-1">
+                            <div class="flex justify-between items-center border-b border-slate-50 pb-2 mb-1">
+                                <span class="text-[14px] font-black text-slate-700 tracking-tighter">${h.date}${dayStr}</span>
+                                <span class="text-[11px] font-black text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">총 ${total.toLocaleString()}두</span>
+                            </div>
+                            ${sowHtml}
+                            <div class="grid grid-cols-6 gap-1 text-center">
+                                <div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[9px] text-slate-400 font-bold mb-0.5">후보</p><p class="text-[12px] font-black text-slate-700">${s.replacement||0}</p></div>
+                                <div class="flex flex-col items-center justify-center p-1 bg-slate-50 rounded-lg border border-slate-100"><p class="text-[9px] text-slate-400 font-bold mb-0.5">웅돈</p><p class="text-[12px] font-black text-slate-700">${s.boar||0}</p></div>
+                                <div class="flex flex-col items-center justify-center p-1 bg-emerald-50 rounded-lg border border-emerald-100"><p class="text-[9px] text-emerald-600 font-bold mb-0.5">자돈</p><p class="text-[12px] font-black text-emerald-700">${s.piglet||0}</p></div>
+                                <div class="flex flex-col items-center justify-center p-1 bg-indigo-50 rounded-lg border border-indigo-100"><p class="text-[9px] text-indigo-600 font-bold mb-0.5">육성</p><p class="text-[12px] font-black text-indigo-700">${s.grower||0}</p></div>
+                                <div class="flex flex-col items-center justify-center p-1 bg-purple-50 rounded-lg border border-purple-100"><p class="text-[9px] text-purple-600 font-bold mb-0.5">후보사</p><p class="text-[12px] font-black text-purple-700">${s.gilt_batch||0}</p></div>
+                            </div>
+                        </div>
+                    `;
                 }).join('');
                 if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
                 return { title: `<div class="flex items-center gap-2"><i data-lucide="history" class="text-slate-500"></i> 날짜별 재고 변경사항</div>`, html: `<div class="flex flex-col gap-2.5 max-h-[65vh] overflow-y-auto no-scrollbar pb-2 px-1">${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs">기록이 없습니다.</div>'}</div>`, hideSave: true };
@@ -500,7 +722,18 @@
                 if (typeof lucide !== 'undefined') setTimeout(() => { window.updateExpectedShipment(); lucide.createIcons(); }, 50);
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="trending-up" class="text-purple-500"></i> 출하 예측 리포트</div>`, 
-                    html: `<div class="mb-4 bg-purple-50 p-3 rounded-xl border border-purple-100 flex items-center justify-between shadow-sm"><label class="text-xs font-black text-purple-700">목표 출하 일령 설정</label><div class="flex items-center gap-1"><input type="number" id="target-age-input" value="170" class="w-20 bg-white border border-purple-200 rounded-lg text-center font-black text-purple-700 py-1.5 focus:border-purple-400 outline-none transition-colors" oninput="window.updateExpectedShipment()"><span class="text-xs font-bold text-purple-600">일령</span></div></div><div id="expected-shipment-annual-summary" class="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div><p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 입식/이유일로부터 170일령이 되는 달을 기준으로 합산합니다.</p><div id="expected-shipment-results" class="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto no-scrollbar pb-2 px-1"></div>`, 
+                    html: `
+                        <div class="mb-4 bg-purple-50 p-3 rounded-xl border border-purple-100 flex items-center justify-between shadow-sm">
+                            <label class="text-xs font-black text-purple-700">목표 출하 일령 설정</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="target-age-input" value="170" class="w-20 bg-white border border-purple-200 rounded-lg text-center font-black text-purple-700 py-1.5 focus:border-purple-400 outline-none transition-colors" oninput="window.updateExpectedShipment()">
+                                <span class="text-xs font-bold text-purple-600">일령</span>
+                            </div>
+                        </div>
+                        <div id="expected-shipment-annual-summary" class="mb-4 flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+                        <p class="text-[11px] font-bold text-slate-400 mb-3 px-1" id="expected-shipment-desc">* 각 칸의 입식/이유일로부터 170일령이 되는 달을 기준으로 합산합니다.</p>
+                        <div id="expected-shipment-results" class="grid grid-cols-2 gap-3 max-h-[40vh] overflow-y-auto no-scrollbar pb-2 px-1"></div>
+                    `, 
                     hideSave: true 
                 };
             },
@@ -514,17 +747,42 @@
                 statsHtml += `</div></div>`;
                 return { 
                     title: '<div class="flex items-center gap-2"><i data-lucide="truck" class="text-blue-500"></i> 출하 기록 조회 및 다운로드</div>', 
-                    html: `<div class="space-y-4">${statsHtml}<div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3 shadow-sm"><p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">출력 기간 설정</p><div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-blue-500 pl-1">시작일</label><input type="date" id="log-start" value="${startStr}" class="bg-white border border-blue-200 focus:border-blue-400 transition-colors"></div><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-blue-500 pl-1">종료일</label><input type="date" id="log-end" value="${today}" class="bg-white border border-blue-200 focus:border-blue-400 transition-colors"></div></div></div><button onclick="window.exportShipmentLogToExcel()" class="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all"><i data-lucide="download" class="w-5 h-5"></i> 엑셀 파일 다운로드</button></div>`, 
+                    html: `
+                        <div class="space-y-4">
+                            ${statsHtml}
+                            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 space-y-3 shadow-sm">
+                                <p class="text-[10px] font-black text-blue-600 uppercase tracking-widest">출력 기간 설정</p>
+                                <div class="grid grid-cols-2 gap-3">
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[9px] font-bold text-blue-500 pl-1">시작일</label>
+                                        <input type="date" id="log-start" value="${startStr}" class="bg-white border border-blue-200 focus:border-blue-400 transition-colors">
+                                    </div>
+                                    <div class="flex flex-col gap-1">
+                                        <label class="text-[9px] font-bold text-blue-500 pl-1">종료일</label>
+                                        <input type="date" id="log-end" value="${today}" class="bg-white border border-blue-200 focus:border-blue-400 transition-colors">
+                                    </div>
+                                </div>
+                            </div>
+                            <button onclick="window.exportShipmentLogToExcel()" class="w-full py-4 bg-blue-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all"><i data-lucide="download" class="w-5 h-5"></i> 엑셀 파일 다운로드</button>
+                        </div>
+                    `, 
                     hideSave: true 
                 };
             },
             manual_stock: (id) => {
                 const label = id === 'boar' ? '웅돈' : '재고', currentVal = state.stocks[id] || 0;
-                return { title: `${label} 수동 관리`, html: `<div class="bg-blue-50 p-6 rounded-2xl text-center border border-blue-100"><label class="text-[10px] font-black text-blue-600 block mb-2">${label} 마릿수 입력</label><input id="m-stock-val" type="number" inputmode="numeric" value="${currentVal}" class="w-full bg-transparent text-5xl font-black text-center text-blue-700"><input type="hidden" id="m-stock-id" value="${id}"></div>` };
+                return { 
+                    title: `${label} 수동 관리`, 
+                    html: `<div class="bg-blue-50 p-6 rounded-2xl text-center border border-blue-100"><label class="text-[10px] font-black text-blue-600 block mb-2">${label} 마릿수 입력</label><input id="m-stock-val" type="number" inputmode="numeric" value="${currentVal}" class="w-full bg-transparent text-5xl font-black text-center text-blue-700"><input type="hidden" id="m-stock-id" value="${id}"></div>` 
+                };
             },
             shipment_history: () => {
                 const today = utils.getTodayStr(), oneMonthAgo = new Date(); oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-                return { title: '농장 기록 관리 (기간별 엑셀)', html: `<div class="space-y-5"><div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">출력 기간 설정</p><div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">시작일</label><input type="date" id="excel-start" value="${oneMonthAgo.toISOString().split('T')[0]}" class="bg-white"></div><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">종료일</label><input type="date" id="excel-end" value="${today}" class="bg-white"></div></div></div><button onclick="window.exportToExcel()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all"><i data-lucide="download" class="w-6 h-6"></i> 리포트 생성 및 다운로드</button></div>`, hideSave: true };
+                return { 
+                    title: '농장 기록 관리 (기간별 엑셀)', 
+                    html: `<div class="space-y-5"><div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3"><p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">출력 기간 설정</p><div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">시작일</label><input type="date" id="excel-start" value="${oneMonthAgo.toISOString().split('T')[0]}" class="bg-white"></div><div class="flex flex-col gap-1"><label class="text-[9px] font-bold text-slate-500 pl-1">종료일</label><input type="date" id="excel-end" value="${today}" class="bg-white"></div></div></div><button onclick="window.exportToExcel()" class="w-full py-5 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-3 active:scale-95 transition-all"><i data-lucide="download" class="w-6 h-6"></i> 리포트 생성 및 다운로드</button></div>`, 
+                    hideSave: true 
+                };
             },
             weaning_record: (date) => {
                 const isEditing = !!(date && typeof date === 'string');
@@ -579,13 +837,33 @@
             expected_week: (weekKey) => {
                 const sows = state.sowList.filter(s => { if (!s.matingDate || s.farrowingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false; const expectedFarrowingDate = utils.getExpectedFarrow(s.matingDate); return utils.getWeekKey(expectedFarrowingDate) === weekKey; });
                 sows.sort((a,b) => String(a.matingDate||'').localeCompare(String(b.matingDate||'')));
+                const inpCls = "w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 transition-all";
                 const listHtml = sows.map(s => {
                     const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : ''; const expDate = s.matingDate ? utils.getExpectedFarrow(s.matingDate) : ''; const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '';
-                    return `<div class="bg-white px-2 py-1.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-rose-50/50 transition-colors expected-row" data-dbid="${s.dbId}"><span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span><div class="w-12 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="e-parity" value="${s.parity}"><span class="text-[12px] font-black text-slate-700">${s.parity}산</span></div><div class="w-20 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="e-mating" value="${matingFormatted}"><span class="text-[12px] font-bold text-slate-500">${matingFormatted}</span></div><div class="w-20 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="e-exp" value="${expFormatted}"><span class="text-[12px] font-bold text-slate-500">${expFormatted}</span></div><div class="w-24 shrink-0 px-0.5"><input type="number" id="e-total-${s.dbId}" class="w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 transition-all" placeholder="산자수"></div><div class="w-28 shrink-0 px-0.5 text-center"><button onclick="window.completeSingleSowFarrowing('${s.dbId}', '${weekKey}')" class="bg-rose-500 hover:bg-rose-600 text-white font-black text-[11px] px-2.5 py-1.5 rounded-lg active:scale-95 transition-all shadow-sm">분만완료</button></div></div>`;
+                    return `
+                        <div class="bg-white px-2 py-1.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-rose-50/50 transition-colors expected-row" data-dbid="${s.dbId}">
+                            <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span>
+                            <div class="w-12 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="e-parity" value="${s.parity}"><span class="text-[12px] font-black text-slate-700">${s.parity}산</span></div>
+                            <div class="w-20 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="e-mating" value="${matingFormatted}"><span class="text-[12px] font-bold text-slate-500">${matingFormatted}</span></div>
+                            <div class="w-20 shrink-0 px-0.5 text-center flex items-center justify-center"><input type="hidden" class="e-exp" value="${expFormatted}"><span class="text-[12px] font-bold text-slate-500">${expFormatted}</span></div>
+                            <div class="w-24 shrink-0 px-0.5"><input type="number" id="e-total-${s.dbId}" class="${inpCls}" placeholder="산자수"></div>
+                            <div class="w-28 shrink-0 px-0.5 text-center"><button onclick="window.completeSingleSowFarrowing('${s.dbId}', '${weekKey}')" class="bg-rose-500 hover:bg-rose-600 text-white font-black text-[11px] px-2.5 py-1.5 rounded-lg active:scale-95 transition-all shadow-sm">분만완료</button></div>
+                        </div>
+                    `;
                 }).join('');
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="calendar-heart" class="text-rose-500"></i> <span class="text-lg font-black leading-tight">${utils.getWeekOfMonth(weekKey)} 예정 <span class="text-rose-600 ml-1 inline-block">${sows.length}복</span></span></div>`, 
-                    html: `<p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 해당 모돈의 총 산자수를 적은 뒤 우측 [분만완료] 버튼을 클릭해 주세요. 자동으로 오늘 날짜로 분만 처리되어 포유 모돈으로 연동되며, 포유두수는 산자수와 동일하게 입력됩니다.</p><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[50vh] relative shadow-sm mb-4"><div class="min-w-max"><div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10"><span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">종부일</span><span class="w-20 shrink-0">예상일</span><span class="w-24 shrink-0">총 산자수</span><span class="w-28 shrink-0">분만완료</span></div><div class="bg-slate-50 flex flex-col">${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full border border-dashed border-slate-200 rounded-xl">해당 주차 분만 예정 개체 없음</div>'}</div></div></div>`,
+                    html: `
+                        <p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 해당 모돈의 총 산자수를 적은 뒤 우측 [분만완료] 버튼을 클릭해 주세요. 자동으로 오늘 날짜로 분만 처리되어 포유 모돈으로 연동되며, 포유두수는 산자수와 동일하게 입력됩니다.</p>
+                        <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[50vh] relative shadow-sm mb-4">
+                            <div class="min-w-max">
+                                <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
+                                    <span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">종부일</span><span class="w-20 shrink-0">예상일</span><span class="w-24 shrink-0">총 산자수</span><span class="w-28 shrink-0">분만완료</span>
+                                </div>
+                                <div class="bg-slate-50 flex flex-col">${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full border border-dashed border-slate-200 rounded-xl">해당 주차 분만 예정 개체 없음</div>'}</div>
+                            </div>
+                        </div>
+                    `,
                     hideSave: true
                 };
             },
@@ -594,7 +872,19 @@
                 const listHtml = sows.map(s => window.renderSowNursingRowHTML(s)).join(''); const titleStr = weekKey === 'Unknown' ? '날짜 미상' : utils.getWeekOfMonth(weekKey);
                 return { 
                     title: `<div class="flex items-center gap-2"><i data-lucide="baby" class="text-emerald-500"></i> <span class="text-lg font-black leading-tight">${titleStr} 도래 <span class="text-emerald-600 ml-1 inline-block">${sows.length}복</span></span></div>`, 
-                    html: `<p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 산차가 1 증가하며 '이유' 상태로 변경됩니다.</p><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[50vh] relative shadow-sm mb-4"><div class="min-w-max"><div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10"><span class="w-8 shrink-0 flex justify-center"><input type="checkbox" id="n-select-all" onclick="window.toggleSelectAllNursing(this.checked)" class="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"></span><span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">종부일</span><span class="w-20 shrink-0">예상일</span><span class="w-20 shrink-0">분만일</span><span class="w-16 shrink-0">산자수</span><span class="w-14 shrink-0">포유</span><span class="w-16 shrink-0">이동</span><span class="w-16 shrink-0">이유</span></div><div class="bg-slate-50 flex flex-col">${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full border border-dashed border-slate-200 rounded-xl">해당 주차 20일령 도래 개체 없음</div>'}</div></div></div>${sows.length > 0 ? `<button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all mb-2"><i data-lucide="check-circle" class="w-5 h-5"></i> 선택 모돈 분만/이유 완료 처리 (산차+1, 이유)</button>` : ''}`
+                    html: `
+                        <p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 산차가 1 증가하며 '이유' 상태로 변경됩니다.</p>
+                        <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[50vh] relative shadow-sm mb-4">
+                            <div class="min-w-max">
+                                <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
+                                    <span class="w-8 shrink-0 flex justify-center"><input type="checkbox" id="n-select-all" onclick="window.toggleSelectAllNursing(this.checked)" class="w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer"></span>
+                                    <span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">종부일</span><span class="w-20 shrink-0">예상일</span><span class="w-20 shrink-0">분만일</span><span class="w-16 shrink-0">산자수</span><span class="w-14 shrink-0">포유</span><span class="w-16 shrink-0">이동</span><span class="w-16 shrink-0">이유</span>
+                                </div>
+                                <div class="bg-slate-50 flex flex-col">${listHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white w-full border border-dashed border-slate-200 rounded-xl">해당 주차 20일령 도래 개체 없음</div>'}</div>
+                            </div>
+                        </div>
+                        ${sows.length > 0 ? `<button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all mb-2"><i data-lucide="check-circle" class="w-5 h-5"></i> 선택 모돈 분만/이유 완료 처리 (산차+1, 이유)</button>` : ''}
+                    `
                 };
             },
             shipment_detail_confirmed: (date) => {
@@ -604,39 +894,171 @@
                 const recordsWithDates = records.map(r => { let rDate = r.stockingDate || ''; if(!rDate && r.batchId) { const b = (state.gBatches||[]).find(x => String(x.id) === String(r.batchId)); if(b) rDate = (b.penDates && b.penDates[r.penIndex]) || b.weaningDate || b.date; } return { ...r, calculatedWeaningDate: rDate }; });
                 recordsWithDates.sort((a, b) => { if (!a.calculatedWeaningDate) return 1; if (!b.calculatedWeaningDate) return -1; return String(a.calculatedWeaningDate).localeCompare(String(b.calculatedWeaningDate)); });
                 const dObj = utils.parseDate(date) || new Date(date); const dateStr = !isNaN(dObj.getTime()) ? `${dObj.getMonth()+1}월 ${dObj.getDate()}일` : date;
-                const html = `<input type="hidden" id="m-ship-date" value="${date}"><div class="flex flex-col gap-3 mb-5"><div class="flex justify-between items-center px-1"><p class="text-lg font-black text-blue-800">${dateStr}</p><span class="text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 uppercase tracking-tighter">Confirmed</span></div><div class="grid grid-cols-3 gap-2"><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">총 두수</p><p class="text-2xl font-black text-blue-700">${totalCount}<span class="text-xs ml-0.5 font-bold">두</span></p></div><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 출하일령</p><p class="text-2xl font-black text-blue-700">${avgAgeDisplay}<span class="text-xs ml-0.5 font-bold">일</span></p></div><div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 체중(kg)</p><input type="number" id="m-ship-avg-weight" value="${summary.avgWeight || ''}" placeholder="0" class="w-full bg-transparent text-center font-black text-blue-800 text-2xl p-0 m-0"></div></div></div><div class="space-y-2"><p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 내역 상세 (입식/이유일 및 일령 확인)</p><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[40vh] relative shadow-sm"><table class="w-full text-center text-sm border-collapse bg-white"><thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 text-center sticky top-0 z-10 uppercase tracking-wider"><tr><th class="py-2.5 px-3">입식/이유일</th><th class="py-2.5 px-3">일령</th><th class="py-2.5 px-3">두수</th><th class="py-2.5 px-3 w-16"></th></tr></thead><tbody class="divide-y divide-slate-50">${recordsWithDates.map(r => { const d_obj = utils.parseDate(r.calculatedWeaningDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (r.calculatedWeaningDate || '기록없음'); const isGilt = String(r.batchId) === '8'; const age = r.calculatedWeaningDate ? utils.getDiffDays(r.calculatedWeaningDate, date) + (isGilt ? 1 : 20) : '??'; return `<tr class="hover:bg-slate-50/50 transition-colors"><td class="py-3 px-3 font-bold text-slate-700">${mmdd}</td><td class="py-3 px-3 font-semibold text-slate-600">${age}일</td><td class="py-3 px-3 font-black text-blue-600">${r.count}두</td><td class="py-3 px-3 relative min-w-[70px]"><div class="flex justify-center items-center"><button id="del-btn-${r.dbId}" onclick="window.toggleDeleteConfirm('${r.dbId}')" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button><button id="confirm-btn-${r.dbId}" onclick="window.deleteShipment('${r.dbId}', '${date}')" class="hidden absolute inset-0 bg-rose-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button></div></td></tr>`; }).join('')}</tbody></table></div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">출하 비고 및 메모</label><textarea id="m-ship-memo" placeholder="비고 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
-                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: '출하 기록 상세 (완료)', html };
+                
+                const tableRows = recordsWithDates.map(r => { 
+                    const d_obj = utils.parseDate(r.calculatedWeaningDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (r.calculatedWeaningDate || '기록없음'); const isGilt = String(r.batchId) === '8'; const age = r.calculatedWeaningDate ? utils.getDiffDays(r.calculatedWeaningDate, date) + (isGilt ? 1 : 20) : '??'; 
+                    return `<tr class="hover:bg-slate-50/50 transition-colors"><td class="py-3 px-3 font-bold text-slate-700">${mmdd}</td><td class="py-3 px-3 font-semibold text-slate-600">${age}일</td><td class="py-3 px-3 font-black text-blue-600">${r.count}두</td><td class="py-3 px-3 relative min-w-[70px]"><div class="flex justify-center items-center"><button id="del-btn-${r.dbId}" onclick="window.toggleDeleteConfirm('${r.dbId}')" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button><button id="confirm-btn-${r.dbId}" onclick="window.deleteShipment('${r.dbId}', '${date}')" class="hidden absolute inset-0 bg-rose-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button></div></td></tr>`; 
+                }).join('');
+
+                const html = `
+                    <input type="hidden" id="m-ship-date" value="${date}">
+                    <div class="flex flex-col gap-3 mb-5">
+                        <div class="flex justify-between items-center px-1">
+                            <p class="text-lg font-black text-blue-800">${dateStr}</p><span class="text-[10px] font-black text-blue-500 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 uppercase tracking-tighter">Confirmed</span>
+                        </div>
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">총 두수</p><p class="text-2xl font-black text-blue-700">${totalCount}<span class="text-xs ml-0.5 font-bold">두</span></p></div>
+                            <div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 출하일령</p><p class="text-2xl font-black text-blue-700">${avgAgeDisplay}<span class="text-xs ml-0.5 font-bold">일</span></p></div>
+                            <div class="bg-blue-50 p-3 rounded-2xl border border-blue-100 text-center flex-1 flex flex-col justify-center"><p class="text-[9px] font-bold text-blue-600 mb-0.5">평균 체중(kg)</p><input type="number" id="m-ship-avg-weight" value="${summary.avgWeight || ''}" placeholder="0" class="w-full bg-transparent text-center font-black text-blue-800 text-2xl p-0 m-0"></div>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 내역 상세 (입식/이유일 및 일령 확인)</p>
+                        <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[40vh] relative shadow-sm">
+                            <table class="w-full text-center text-sm border-collapse bg-white">
+                                <thead class="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 text-center sticky top-0 z-10 uppercase tracking-wider"><tr><th class="py-2.5 px-3">입식/이유일</th><th class="py-2.5 px-3">일령</th><th class="py-2.5 px-3">두수</th><th class="py-2.5 px-3 w-16"></th></tr></thead>
+                                <tbody class="divide-y divide-slate-50">${tableRows}</tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">출하 비고 및 메모</label>
+                        <textarea id="m-ship-memo" placeholder="비고 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea>
+                    </div>
+                `;
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); 
+                return { title: '출하 기록 상세 (완료)', html };
             },
             shipment_detail_pending: (date) => {
                 const flatPendings = [], summary = state.shipmentSummaries[date] || { avgWeight: '', memo: '' };
                 (state.gBatches||[]).forEach(b => { if (b.pendingShipments && Array.isArray(b.pendingShipments)) { b.pendingShipments.filter(ps => ps && ps.date === date).forEach(ps => { if(ps.items && Array.isArray(ps.items)){ ps.items.forEach(item => { const pIdx = (item.pIdx !== undefined) ? item.pIdx : 0; const penDate = (b.penDates && b.penDates[pIdx]) || b.weaningDate || b.date; const isGilt = b.id === 8; const age = penDate ? utils.getDiffDays(penDate, date) + (isGilt ? 1 : 20) : 0; flatPendings.push({ batchId: b.id, penIndex: pIdx, count: Number(item.count)||0, originalObj: ps, age: age, penDate: penDate || '-' }); }); } }); } });
                 const totalCount = flatPendings.reduce((a,c)=>a+c.count, 0), avgAge = flatPendings.length > 0 ? Math.round(flatPendings.reduce((a,c)=>a+c.age,0) / flatPendings.length) : 0;
                 const dObj = utils.parseDate(date) || new Date(date); const dateStr = !isNaN(dObj.getTime()) ? `${dObj.getMonth()+1}월 ${dObj.getDate()}일` : date;
-                const html = `<input type="hidden" id="m-ship-date" value="${date}"><div class="flex flex-col gap-3 mb-5"><div class="flex justify-between items-center px-1"><p class="text-lg font-black text-amber-800">${dateStr}</p><span class="text-[10px] font-black text-amber-500 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 uppercase tracking-tighter">Scheduled</span></div><div class="grid grid-cols-2 gap-3"><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">총 예정 두수</p><p class="text-3xl font-black text-amber-700">${totalCount}<span class="text-sm ml-1 font-bold">두</span></p></div><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">평균 일령</p><p class="text-3xl font-black text-amber-700">${avgAge}<span class="text-sm ml-1 font-bold">일</span></p></div></div></div><div class="space-y-2"><p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 예정 상세</p><div class="grid grid-cols-3 gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar pb-2">${flatPendings.map(p => { const d_obj = utils.parseDate(p.penDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (p.penDate || '-'); return `<div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden"><div class="flex items-start justify-between mb-1.5"><div class="flex flex-col"><span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">입식/이유일</span><span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span></div><div class="flex flex-col items-end gap-1"><button onclick="window.cancelPendingShipment(${p.batchId}, '${encodeURIComponent(JSON.stringify(p.originalObj))}')" class="text-slate-300 hover:text-rose-500 transition-colors"><i data-lucide="x-circle" class="w-3 h-3"></i></button><div class="bg-slate-50 px-1 rounded leading-none py-0.5 text-right"><span class="text-[8px] font-black text-slate-400 block mb-0.5">일령</span><span class="text-[10px] font-black text-slate-600">${p.age}일</span></div></div></div><div class="flex justify-between items-end border-t border-slate-50 pt-1.5"><span class="text-[8px] font-bold text-slate-400">예정량</span><div class="flex items-baseline gap-0.5"><span class="font-black text-amber-600 text-base leading-none">${p.count}</span><span class="text-[8px] font-bold text-amber-400 leading-none">두</span></div></div></div>`; }).join('')}</div></div><div class="mt-4 pt-4 border-t border-slate-100"><label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">예정 메모</label><textarea id="m-ship-memo" placeholder="메모 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea></div>`;
-                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: '출하 예정 상세', html };
+                
+                const listRows = flatPendings.map(p => { 
+                    const d_obj = utils.parseDate(p.penDate); const mmdd = d_obj ? `${d_obj.getMonth()+1}/${d_obj.getDate()}` : (p.penDate || '-'); 
+                    return `
+                        <div class="bg-white p-2 rounded-xl border border-slate-100 shadow-sm relative overflow-hidden">
+                            <div class="flex items-start justify-between mb-1.5">
+                                <div class="flex flex-col"><span class="text-[8px] font-bold text-slate-400 leading-none mb-0.5">입식/이유일</span><span class="font-black text-slate-800 text-xs leading-none">${mmdd}</span></div>
+                                <div class="flex flex-col items-end gap-1"><button onclick="window.cancelPendingShipment(${p.batchId}, '${encodeURIComponent(JSON.stringify(p.originalObj))}')" class="text-slate-300 hover:text-rose-500 transition-colors"><i data-lucide="x-circle" class="w-3 h-3"></i></button><div class="bg-slate-50 px-1 rounded leading-none py-0.5 text-right"><span class="text-[8px] font-black text-slate-400 block mb-0.5">일령</span><span class="text-[10px] font-black text-slate-600">${p.age}일</span></div></div>
+                            </div>
+                            <div class="flex justify-between items-end border-t border-slate-50 pt-1.5"><span class="text-[8px] font-bold text-slate-400">예정량</span><div class="flex items-baseline gap-0.5"><span class="font-black text-amber-600 text-base leading-none">${p.count}</span><span class="text-[8px] font-bold text-amber-400 leading-none">두</span></div></div>
+                        </div>`; 
+                }).join('');
+
+                const html = `
+                    <input type="hidden" id="m-ship-date" value="${date}">
+                    <div class="flex flex-col gap-3 mb-5">
+                        <div class="flex justify-between items-center px-1"><p class="text-lg font-black text-amber-800">${dateStr}</p><span class="text-[10px] font-black text-amber-500 bg-amber-50 px-2 py-1 rounded-md border border-amber-100 uppercase tracking-tighter">Scheduled</span></div>
+                        <div class="grid grid-cols-2 gap-3"><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">총 예정 두수</p><p class="text-3xl font-black text-amber-700">${totalCount}<span class="text-sm ml-1 font-bold">두</span></p></div><div class="bg-amber-50 p-4 rounded-2xl border border-amber-100 text-center"><p class="text-[10px] font-bold text-amber-600 mb-0.5">평균 일령</p><p class="text-3xl font-black text-amber-700">${avgAge}<span class="text-sm ml-1 font-bold">일</span></p></div></div>
+                    </div>
+                    <div class="space-y-2">
+                        <p class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider">출하 예정 상세</p>
+                        <div class="grid grid-cols-3 gap-1.5 max-h-[40vh] overflow-y-auto no-scrollbar pb-2">${listRows}</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-slate-100">
+                        <label class="text-[10px] font-black text-slate-400 pl-1 uppercase tracking-wider block mb-2">예정 메모</label>
+                        <textarea id="m-ship-memo" placeholder="메모 입력..." class="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 text-sm font-medium text-slate-700 h-24 resize-none">${summary.memo || ''}</textarea>
+                    </div>
+                `;
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); 
+                return { title: '출하 예정 상세', html };
             },
             pen_detail: (t) => {
                 const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(t.batchId));
                 if (!b) return { title: '오류', html: '<p>데이터를 찾을 수 없습니다.</p>', hideSave: true };
-                const count = b.penDetails[t.penIndex], pDate = count > 0 ? ((b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr()) : utils.getTodayStr(), isGrower = t.stage === 'grower', isResidual = b.penIsResidual ? b.penIsResidual[t.penIndex] : false;
-                const relevantAccidents = state.accidents.filter(a => a.stage === t.stage && a.batchId === t.batchId && a.penIndex === t.penIndex && !a.archived);
-                const accHistoryHtml = relevantAccidents.length > 0 ? `<div class="mt-2 space-y-1.5 border-t border-amber-100 pt-2 w-full">${relevantAccidents.slice(0, 3).map(a => `<div class="flex justify-between items-center bg-white/50 px-2 py-1 rounded-lg"><span class="text-[10px] font-bold text-amber-600">${a.date} <span class="text-[9px] text-amber-500 ml-1 font-black">${a.type === 'sick' ? '(환돈)' : '(폐사)'}</span></span><span class="text-[11px] font-black text-amber-700">-${a.count}두</span></div>`).join('')}${relevantAccidents.length > 3 ? '<p class="text-[8px] text-center text-amber-400 mt-1">최근 3건만 표시됨</p>' : ''}</div>` : '<p class="text-[9px] text-amber-300 mt-2 text-center w-full">기록된 폐사/환돈 내역 없음</p>';
-                let titleHtml = `${t.stage==='weaning'?'이유사':'육성사'} ${b.id===8?'후보사':b.id+'배치'} - ${t.penIndex+1}번`;
-                if (isGrower) titleHtml = `<div class="flex items-center justify-between w-full pr-2"><span>${titleHtml}</span><div class="flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 mr-2 shrink-0"><label class="text-[11px] font-black text-rose-600 cursor-pointer" for="m-pen-residual">잔류</label><input id="m-pen-residual" type="checkbox" ${isResidual ? 'checked' : ''} class="w-4 h-4 rounded text-rose-600 accent-rose-600 cursor-pointer"></div></div>`;
+                
+                const count = b.penDetails[t.penIndex];
+                const pDate = count > 0 ? ((b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr()) : utils.getTodayStr();
+                const isGrower = t.stage === 'grower';
+                const isResidual = b.penIsResidual ? b.penIsResidual[t.penIndex] : false;
+                
+                const relevantAccidents = state.accidents
+                    .filter(a => a.stage === t.stage && String(a.batchId) === String(t.batchId) && a.penIndex === t.penIndex && !a.archived)
+                    .sort((a,b) => String(b.date).localeCompare(String(a.date)));
+                
+                let accHistoryHtml = '<p class="text-[9px] text-amber-300 mt-2 text-center w-full">기록된 폐사/환돈 내역 없음</p>';
+                if (relevantAccidents.length > 0) {
+                    const rows = relevantAccidents.slice(0, 3).map(a => 
+                        `<div class="flex justify-between items-center bg-white/50 px-2 py-1 rounded-lg">
+                            <span class="text-[10px] font-bold text-amber-600">${a.date} <span class="text-[9px] text-amber-500 ml-1 font-black">${a.type === 'sick' ? '(환돈)' : '(폐사)'}</span></span>
+                            <span class="text-[11px] font-black text-amber-700">-${a.count}두</span>
+                        </div>`
+                    ).join('');
+                    accHistoryHtml = `<div class="mt-2 space-y-1.5 border-t border-amber-100 pt-2 w-full">${rows}${relevantAccidents.length > 3 ? '<p class="text-[8px] text-center text-amber-400 mt-1">최근 3건만 표시됨</p>' : ''}</div>`;
+                }
 
-                let html = `<input type="hidden" id="m-stage" value="${t.stage}"><input type="hidden" id="m-batch" value="${t.batchId}"><input type="hidden" id="m-pen" value="${t.penIndex}">`;
+                let titleHtml = `${t.stage==='weaning'?'이유사':'육성사'} ${b.id===8?'후보사':b.id+'배치'} - ${t.penIndex+1}번`;
+                if (isGrower) {
+                    titleHtml = `<div class="flex items-center justify-between w-full pr-2"><span>${titleHtml}</span><div class="flex items-center gap-1.5 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-100 mr-2 shrink-0"><label class="text-[11px] font-black text-rose-600 cursor-pointer" for="m-pen-residual">잔류</label><input id="m-pen-residual" type="checkbox" ${isResidual ? 'checked' : ''} class="w-4 h-4 rounded text-rose-600 accent-rose-600 cursor-pointer"></div></div>`;
+                }
+
+                let html = `
+                    <input type="hidden" id="m-stage" value="${t.stage}">
+                    <input type="hidden" id="m-batch" value="${t.batchId}">
+                    <input type="hidden" id="m-pen" value="${t.penIndex}">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="flex flex-col gap-2">
+                            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center flex-1 flex flex-col justify-center overflow-hidden">
+                                <input id="m-count" type="number" inputmode="numeric" value="${count||''}" placeholder="0" class="w-full bg-transparent text-7xl font-black text-center text-emerald-600 outline-none focus:ring-0 p-0 m-0">
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center">
+                                <label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">${isGrower ? '입식/이유일' : '이유일'}</label>
+                                <input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center">
+                            </div>
+                        </div>
+                `;
 
                 if (!isGrower) {
-                    html += `<div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-2"><div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center flex-1 flex flex-col justify-center overflow-hidden"><input id="m-count" type="number" inputmode="numeric" value="${count||''}" placeholder="0" class="w-full bg-transparent text-7xl font-black text-center text-emerald-600 outline-none focus:ring-0 p-0 m-0"></div><div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center"><label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">이유일</label><input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center"></div></div><div class="bg-amber-50 p-3 rounded-xl border border-amber-100 flex flex-col shadow-inner"><label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0"><i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i> 폐사/도태 기록</label><div class="flex flex-col gap-1.5 flex-1 justify-center"><div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">발생 날짜</label><input id="m-acc-date" type="date" value="${utils.getTodayStr()}" class="w-full bg-transparent text-[11px] font-bold text-amber-800 border-b border-amber-200 pb-0.5"></div><div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">차감 두수</label><input id="m-acc-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-amber-200 text-amber-800 pb-0.5"></div></div></div></div><div class="mt-3">${accHistoryHtml}</div>`;
+                    html += `
+                        <div class="bg-amber-50 p-3 rounded-xl border border-amber-100 flex flex-col shadow-inner">
+                            <label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0"><i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i> 폐사/도태 기록</label>
+                            <div class="flex flex-col gap-1.5 flex-1 justify-center">
+                                <div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">발생 날짜</label><input id="m-acc-date" type="date" value="${utils.getTodayStr()}" class="w-full bg-transparent text-[11px] font-bold text-amber-800 border-b border-amber-200 pb-0.5"></div>
+                                <div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">차감 두수</label><input id="m-acc-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-amber-200 text-amber-800 pb-0.5"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">${accHistoryHtml}</div>`;
                 } else {
-                    html += `<div class="grid grid-cols-2 gap-3"><div class="flex flex-col gap-2"><div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center flex-1 flex flex-col justify-center overflow-hidden"><input id="m-count" type="number" inputmode="numeric" value="${count||''}" placeholder="0" class="w-full bg-transparent text-7xl font-black text-center text-emerald-600 outline-none focus:ring-0 p-0 m-0"></div><div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center"><label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">입식/이유일</label><input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center"></div></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col shadow-inner"><label class="text-[9px] font-black text-rose-600 block mb-2 flex items-center gap-1 shrink-0"><i data-lucide="truck" class="w-3.5 h-3.5 text-rose-500"></i> 출하 기록</label><div class="flex flex-col gap-1.5 flex-1 justify-center"><div><label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하일</label><input type="date" id="m-ship-date" value="${utils.getTomorrowStr()}" class="w-full bg-transparent text-[11px] font-black text-rose-700 border-b border-rose-200 pb-0.5"></div><div><label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하 두수</label><input id="m-ship-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-rose-200 text-rose-800 pb-0.5"></div></div></div></div><div class="grid grid-cols-2 gap-3 mt-3"><div class="bg-amber-50 p-3 rounded-xl border border-amber-100 shadow-inner flex flex-col"><label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0"><i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i> 폐사/도태 기록</label><div class="flex flex-col gap-1.5 flex-1 justify-center"><div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">발생 날짜</label><input id="m-acc-date" type="date" value="${utils.getTodayStr()}" class="w-full bg-transparent text-[11px] font-bold text-amber-800 border-b border-amber-200 pb-0.5"></div><div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">차감 두수</label><input id="m-acc-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-amber-200 text-amber-800 pb-0.5"></div></div></div><div class="flex flex-col justify-end">${accHistoryHtml}</div></div>`;
+                    html += `
+                        <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col shadow-inner">
+                            <label class="text-[9px] font-black text-rose-600 block mb-2 flex items-center gap-1 shrink-0"><i data-lucide="truck" class="w-3.5 h-3.5 text-rose-500"></i> 출하 기록</label>
+                            <div class="flex flex-col gap-1.5 flex-1 justify-center">
+                                <div><label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하일</label><input type="date" id="m-ship-date" value="${utils.getTomorrowStr()}" class="w-full bg-transparent text-[11px] font-black text-rose-700 border-b border-rose-200 pb-0.5"></div>
+                                <div><label class="text-[8px] font-bold text-rose-400 block mb-0.5">출하 두수</label><input id="m-ship-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-rose-200 text-rose-800 pb-0.5"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                        <div class="bg-amber-50 p-3 rounded-xl border border-amber-100 shadow-inner flex flex-col">
+                            <label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0"><i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i> 폐사/도태 기록</label>
+                            <div class="flex flex-col gap-1.5 flex-1 justify-center">
+                                <div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">발생 날짜</label><input id="m-acc-date" type="date" value="${utils.getTodayStr()}" class="w-full bg-transparent text-[11px] font-bold text-amber-800 border-b border-amber-200 pb-0.5"></div>
+                                <div><label class="text-[8px] font-bold text-amber-400 block mb-0.5">차감 두수</label><input id="m-acc-count" type="number" inputmode="numeric" placeholder="0" class="w-full bg-transparent text-[11px] font-black border-b border-amber-200 text-amber-800 pb-0.5"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col justify-end">${accHistoryHtml}</div>
+                    </div>`;
                 }
 
                 if (count > 0) {
-                    html += `<div class="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex flex-col gap-2.5"><div class="flex justify-between items-center px-1"><label class="text-[11px] font-black text-indigo-700">이동할 두수</label><div class="flex items-baseline gap-1"><input type="number" id="m-transfer-count" inputmode="numeric" placeholder="0" class="w-20 bg-white border border-indigo-200 rounded-lg text-center text-base font-black text-indigo-700 py-1.5 shadow-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none transition-all"><span class="text-[11px] text-indigo-500 font-bold">두</span></div></div><button onclick="window.startTransfer('${t.stage}', ${t.batchId}, ${t.penIndex})" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg active:scale-95 transition-all text-sm shadow-sm flex justify-center items-center gap-2"><i data-lucide="move-right" class="w-4 h-4"></i> 이 칸의 돼지 이동하기</button></div>`;
+                    html += `
+                        <div class="mt-4 p-3 bg-indigo-50 rounded-xl border border-indigo-100 flex flex-col gap-2.5">
+                            <div class="flex justify-between items-center px-1">
+                                <label class="text-[11px] font-black text-indigo-700">이동할 두수</label>
+                                <div class="flex items-baseline gap-1">
+                                    <input type="number" id="m-transfer-count" inputmode="numeric" placeholder="0" class="w-20 bg-white border border-indigo-200 rounded-lg text-center text-base font-black text-indigo-700 py-1.5 shadow-sm focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none transition-all">
+                                    <span class="text-[11px] text-indigo-500 font-bold">두</span>
+                                </div>
+                            </div>
+                            <button onclick="window.startTransfer('${t.stage}', ${t.batchId}, ${t.penIndex})" class="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg active:scale-95 transition-all text-sm shadow-sm flex justify-center items-center gap-2"><i data-lucide="move-right" class="w-4 h-4"></i> 이 칸의 돼지 이동하기</button>
+                        </div>`;
                 }
 
-                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: titleHtml, html };
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); 
+                return { title: titleHtml, html };
             },
             batch_settings: (t) => {
                 const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(t.batchId));
@@ -647,15 +1069,52 @@
                 if (batchAccidents.length === 0) {
                     accHtml = '<p class="text-[10px] font-bold text-slate-400 text-center py-4 bg-slate-50 border border-slate-100 rounded-xl">기록된 폐사/도태 내역이 없습니다.</p>';
                 } else {
-                    accHtml = `<div class="max-h-40 overflow-y-auto space-y-1.5 no-scrollbar">` + 
-                        batchAccidents.map(a => {
-                            const typeLabel = a.type === 'sick' ? '환돈' : '폐사';
-                            const typeColor = a.type === 'sick' ? 'text-orange-500 bg-orange-50 border-orange-100' : 'text-amber-600 bg-amber-50 border-amber-100';
-                            return `<div class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm"><div class="flex items-center gap-2"><span class="text-[10px] font-black px-1.5 py-0.5 rounded border ${typeColor}">${typeLabel}</span><span class="text-[11px] font-bold text-slate-600">${a.date}</span></div><div class="flex items-center gap-2"><span class="text-[10px] font-bold text-slate-400">${a.penIndex + 1}칸</span><span class="text-[13px] font-black text-rose-500">-${a.count}두</span></div></div>`;
-                        }).join('') + `</div>`;
+                    const rows = batchAccidents.map(a => {
+                        const typeLabel = a.type === 'sick' ? '환돈' : '폐사';
+                        const typeColor = a.type === 'sick' ? 'text-orange-500 bg-orange-50 border-orange-100' : 'text-amber-600 bg-amber-50 border-amber-100';
+                        return `
+                            <div class="flex justify-between items-center bg-white p-2.5 rounded-xl border border-slate-100 shadow-sm">
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-black px-1.5 py-0.5 rounded border ${typeColor}">${typeLabel}</span>
+                                    <span class="text-[11px] font-bold text-slate-600">${a.date}</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="text-[10px] font-bold text-slate-400">${a.penIndex + 1}칸</span>
+                                    <span class="text-[13px] font-black text-rose-500">-${a.count}두</span>
+                                </div>
+                            </div>`;
+                    }).join('');
+                    accHtml = `<div class="max-h-40 overflow-y-auto space-y-1.5 no-scrollbar">${rows}</div>`;
                 }
 
-                return { title: `배치 설정 (${t.stage==='weaning'?'이유':'육성'})`, html: `<input type="hidden" id="m-stage" value="${t.stage}"><input type="hidden" id="m-batch" value="${t.batchId}"><div class="bg-slate-50 p-4 rounded-xl mb-3"><label class="text-[10px] font-black text-slate-500 block mb-2">메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none outline-none" placeholder="여기에 메모를 입력하세요...">${b.memo||''}</textarea></div><div class="mb-4"><label class="text-[10px] font-black text-slate-500 block mb-2 flex items-center gap-1"><i data-lucide="skull" class="w-3.5 h-3.5 text-slate-400"></i> 현재 배치 폐사/도태 내역</label>${accHtml}</div><div class="pt-4 border-t border-slate-100 mt-4"><div id="batch-reset-btn-container" class="flex justify-center"><button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기</button></div><div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center"><p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화되며,<br>관련된 <strong>폐사/도태 기록은 화면에서 숨김(엑셀 보존)</strong> 처리됩니다.</p><div class="flex gap-2 w-full mt-1"><button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button></div></div></div>` };
+                return { 
+                    title: `배치 설정 (${t.stage==='weaning'?'이유':'육성'})`, 
+                    html: `
+                        <input type="hidden" id="m-stage" value="${t.stage}">
+                        <input type="hidden" id="m-batch" value="${t.batchId}">
+                        <div class="bg-slate-50 p-4 rounded-xl mb-3">
+                            <label class="text-[10px] font-black text-slate-500 block mb-2">메모 사항</label>
+                            <textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none outline-none" placeholder="여기에 메모를 입력하세요...">${b.memo||''}</textarea>
+                        </div>
+                        <div class="mb-4">
+                            <label class="text-[10px] font-black text-slate-500 block mb-2 flex items-center gap-1"><i data-lucide="skull" class="w-3.5 h-3.5 text-slate-400"></i> 현재 배치 폐사/도태 내역</label>
+                            ${accHtml}
+                        </div>
+                        <div class="pt-4 border-t border-slate-100 mt-4">
+                            <div id="batch-reset-btn-container" class="flex justify-center">
+                                <button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors">
+                                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기
+                                </button>
+                            </div>
+                            <div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center">
+                                <p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화되며,<br>관련된 <strong>폐사/도태 기록은 화면에서 숨김(엑셀 보존)</strong> 처리됩니다.</p>
+                                <div class="flex gap-2 w-full mt-1">
+                                    <button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button>
+                                    <button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button>
+                                </div>
+                            </div>
+                        </div>` 
+                };
             },
             sow_list: (f) => {
                 let list = state.sowList, title = '모돈 목록'; const isSow = s => s.parity >= 1 || (s.parity === 0 && s.currentStatus === '임신');
@@ -669,9 +1128,34 @@
                         const sList = groups[wk]; const groupClass = 'group-' + wk.replace(/[^a-zA-Z0-9]/g, ''); const weekTitle = wk === 'Unknown' ? '날짜 미상 도래' : `${utils.getWeekOfMonth(wk)} 도래`;
                         sList.sort((a,b) => String(a.sowNo||'').localeCompare(String(b.sowNo||'')));
                         const rowsHtml = sList.map(s => window.renderSowNursingRowHTML(s)).join('');
-                        return `<div class="${groupClass} bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3 relative overflow-hidden"><div class="flex justify-between items-center bg-slate-50/50 px-3 py-2 rounded-xl border border-slate-100"><h4 class="text-sm font-black text-slate-800 flex items-center gap-1.5"><i data-lucide="baby" class="w-4.5 h-4.5 text-emerald-500"></i>${weekTitle} <span class="text-emerald-600 ml-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-black text-xs">${sList.length}복</span></h4></div><div class="overflow-x-auto w-full no-scrollbar border border-slate-150 rounded-xl relative"><div class="min-w-max"><div class="bg-slate-100/80 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider"><span class="w-8 shrink-0 flex justify-center">선택</span><span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">종부일</span><span class="w-20 shrink-0">예상일</span><span class="w-20 shrink-0">분만일</span><span class="w-16 shrink-0">산자수</span><span class="w-14 shrink-0">포유</span><span class="w-16 shrink-0">이동</span><span class="w-16 shrink-0">이유</span></div><div class="bg-slate-50/40 flex flex-col divide-y divide-slate-100">${rowsHtml}</div></div></div></div>`;
+                        return `
+                            <div class="${groupClass} bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3 relative overflow-hidden">
+                                <div class="flex justify-between items-center bg-slate-50/50 px-3 py-2 rounded-xl border border-slate-100">
+                                    <h4 class="text-sm font-black text-slate-800 flex items-center gap-1.5"><i data-lucide="baby" class="w-4.5 h-4.5 text-emerald-500"></i>${weekTitle} <span class="text-emerald-600 ml-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 font-black text-xs">${sList.length}복</span></h4>
+                                </div>
+                                <div class="overflow-x-auto w-full no-scrollbar border border-slate-150 rounded-xl relative">
+                                    <div class="min-w-max">
+                                        <div class="bg-slate-100/80 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider">
+                                            <span class="w-8 shrink-0 flex justify-center">선택</span><span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">종부일</span><span class="w-20 shrink-0">예상일</span><span class="w-20 shrink-0">분만일</span><span class="w-16 shrink-0">산자수</span><span class="w-14 shrink-0">포유</span><span class="w-16 shrink-0">이동</span><span class="w-16 shrink-0">이유</span>
+                                        </div>
+                                        <div class="bg-slate-50/40 flex flex-col divide-y divide-slate-100">${rowsHtml}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
                     }).join('');
-                    const html = `<div class="flex gap-2 mb-3 shrink-0"><div class="relative flex-1"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div><input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all"></div><button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button></div><p class="text-[10px] font-bold text-slate-400 px-1 mb-2 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 일괄 완료 처리를 하세요.</p><div class="space-y-4 max-h-[45vh] overflow-y-auto no-scrollbar pb-4 px-1" id="sow-list-container">${tablesHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">포유 중인 모돈이 없습니다.</div>'}</div>${list.length > 0 ? `<div class="mt-2 pt-3 border-t border-slate-100 shrink-0"><button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all"><i data-lucide="check-circle" class="w-5 h-5"></i> 선택 모돈 분만/이유 완료 처리 (산차+1, 이유)</button></div>` : ''}`;
+                    const html = `
+                        <div class="flex gap-2 mb-3 shrink-0">
+                            <div class="relative flex-1">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div>
+                                <input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all">
+                            </div>
+                            <button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button>
+                        </div>
+                        <p class="text-[10px] font-bold text-slate-400 px-1 mb-2 block shrink-0">* 20일령 도래 주차별 연동 목록입니다. 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 일괄 완료 처리를 하세요.</p>
+                        <div class="space-y-4 max-h-[45vh] overflow-y-auto no-scrollbar pb-4 px-1" id="sow-list-container">${tablesHtml || '<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">포유 중인 모돈이 없습니다.</div>'}</div>
+                        ${list.length > 0 ? `<div class="mt-2 pt-3 border-t border-slate-100 shrink-0"><button onclick="window.completeSelectedSowsCycle()" class="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg flex justify-center items-center gap-2 active:scale-95 transition-all"><i data-lucide="check-circle" class="w-5 h-5"></i> 선택 모돈 분만/이유 완료 처리 (산차+1, 이유)</button></div>` : ''}
+                    `;
                     if (typeof lucide !== 'undefined') setTimeout(() => { lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
                 }
 
@@ -684,40 +1168,351 @@
                     };
                     list.sort((a, b) => { const dateA = getSortableWeaningDate(a); const dateB = getSortableWeaningDate(b); return dateA.localeCompare(dateB); });
                     const dateHeaderLabel = f === '재발' ? '최근 재발일' : '이전 이유일';
-                    const html = `<div class="flex gap-2 mb-4 shrink-0"><div class="relative flex-1"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div><input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all"></div><button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button></div><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[60vh] relative shadow-sm" id="sow-list-container"><div class="min-w-max"><div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider"><span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">${dateHeaderLabel}</span><span class="w-24 shrink-0">종부일 입력</span><span class="w-24 shrink-0">분만일 (자동)</span><span class="w-16 shrink-0">저장</span></div><div class="bg-slate-50 flex flex-col divide-y divide-slate-100">${list.map(s => {
+                    
+                    const inpt = "w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all";
+                    const listRows = list.map(s => {
                         const sortedHistory = s.history && s.history.length > 0 ? [...s.history].sort((a,b) => b.parity - a.parity) : []; const prevWeaningDate = sortedHistory.length > 0 ? (sortedHistory[0].weaningDate || sortedHistory[0].date || '-') : '-';
-                        return `<div class="bg-white px-3 py-2 flex items-center gap-1.5 hover:bg-slate-50 transition-colors sow-list-item" data-sow-no="${s.sowNo}"><span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span><span class="w-12 shrink-0 text-center font-black text-slate-700 text-[13px]">${s.parity}산</span><span class="w-20 shrink-0 text-center font-bold text-slate-500 text-[12px]">${prevWeaningDate}</span><div class="w-24 shrink-0 px-1"><input type="text" id="row-mating-${s.dbId}" placeholder="MM/DD" class="w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 transition-all" oninput="window.calculateExpectedFarrowInline('${s.dbId}', this.value)"></div><div class="w-24 shrink-0 px-1"><input type="text" id="row-farrow-${s.dbId}" placeholder="자동 계산" readonly class="w-full bg-slate-100/80 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none text-slate-500 cursor-not-allowed"></div><div class="w-16 shrink-0 text-center"><button onclick="window.saveWeanedSowRow('${s.dbId}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-[11px] px-2.5 py-1.5 rounded-lg border border-blue-100 active:scale-95 transition-all">저장</button></div></div>`;
-                    }).join('') || `<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl">${f === '재발' ? '재발' : '이유'} 중인 모돈이 없습니다.</div>`}</div></div></div>`;
+                        return `
+                            <div class="bg-white px-3 py-2 flex items-center gap-1.5 hover:bg-slate-50 transition-colors sow-list-item" data-sow-no="${s.sowNo}">
+                                <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span>
+                                <span class="w-12 shrink-0 text-center font-black text-slate-700 text-[13px]">${s.parity}산</span>
+                                <span class="w-20 shrink-0 text-center font-bold text-slate-500 text-[12px]">${prevWeaningDate}</span>
+                                <div class="w-24 shrink-0 px-1"><input type="text" id="row-mating-${s.dbId}" placeholder="MM/DD" class="${inpt}" oninput="window.calculateExpectedFarrowInline('${s.dbId}', this.value)"></div>
+                                <div class="w-24 shrink-0 px-1"><input type="text" id="row-farrow-${s.dbId}" placeholder="자동 계산" readonly class="w-full bg-slate-100/80 border border-slate-200 shadow-sm rounded-lg py-1.5 text-[11px] font-bold text-center outline-none text-slate-500 cursor-not-allowed"></div>
+                                <div class="w-16 shrink-0 text-center"><button onclick="window.saveWeanedSowRow('${s.dbId}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-[11px] px-2.5 py-1.5 rounded-lg border border-blue-100 active:scale-95 transition-all">저장</button></div>
+                            </div>
+                        `;
+                    }).join('');
+
+                    const html = `
+                        <div class="flex gap-2 mb-4 shrink-0">
+                            <div class="relative flex-1">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div>
+                                <input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all">
+                            </div>
+                            <button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button>
+                        </div>
+                        <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-2xl max-h-[60vh] relative shadow-sm" id="sow-list-container">
+                            <div class="min-w-max">
+                                <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider">
+                                    <span class="w-14 shrink-0">번호</span><span class="w-12 shrink-0">산차</span><span class="w-20 shrink-0">${dateHeaderLabel}</span><span class="w-24 shrink-0">종부일 입력</span><span class="w-24 shrink-0">분만일 (자동)</span><span class="w-16 shrink-0">저장</span>
+                                </div>
+                                <div class="bg-slate-50 flex flex-col divide-y divide-slate-100">${listRows || `<div class="text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl">${f === '재발' ? '재발' : '이유'} 중인 모돈이 없습니다.</div>`}</div>
+                            </div>
+                        </div>
+                    `;
                     if (typeof lucide !== 'undefined') setTimeout(() => { lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
                 }
 
-                const html = `<div class="flex gap-2 mb-4"><div class="relative flex-1"><div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div><input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all"></div><button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button></div><div class="grid grid-cols-4 gap-1.5 pb-4 max-h-[60vh] overflow-y-auto no-scrollbar" id="sow-list-container">${list.map(s => { const statusColor = s.currentStatus === '재발' ? 'text-rose-500' : (s.currentStatus === '임신' ? 'text-blue-600' : (s.currentStatus === '포유' ? 'text-emerald-600' : 'text-slate-500')); return `<div class="relative sow-card-item" data-sow-no="${s.sowNo}"><div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white p-1.5 rounded-2xl border border-slate-100 flex flex-col items-center justify-center h-28 shadow-sm active:scale-95 transition-all cursor-pointer overflow-hidden"><div class="flex flex-col items-center gap-0.5 mb-2"><span class="text-[20px] font-black text-slate-800 leading-none tracking-tighter">${s.sowNo}</span><span class="text-[14px] font-bold text-slate-400 leading-none">${s.parity}산</span></div><span class="text-[17px] font-black ${statusColor} uppercase tracking-tighter leading-none">${s.currentStatus || '이유'}</span></div><button id="sow-del-btn-${s.dbId}" onclick="event.stopPropagation(); window.toggleSowDeleteConfirm('${s.dbId}')" class="absolute top-1.5 right-1.5 p-1 text-slate-200 hover:text-rose-400 transition-colors"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i></button><button id="sow-confirm-btn-${s.dbId}" onclick="event.stopPropagation(); window.deleteSow('${s.dbId}')" class="hidden absolute inset-0 bg-rose-500/95 backdrop-blur-sm text-white text-[10px] font-black rounded-2xl flex items-center justify-center z-20 text-center px-1">삭제확인</button></div>`; }).join('')}</div>`;
+                const listGrids = list.map(s => { 
+                    const statusColor = s.currentStatus === '재발' ? 'text-rose-500' : (s.currentStatus === '임신' ? 'text-blue-600' : (s.currentStatus === '포유' ? 'text-emerald-600' : 'text-slate-500')); 
+                    return `
+                        <div class="relative sow-card-item" data-sow-no="${s.sowNo}">
+                            <div onclick="window.openModal('sow_detail', '${s.dbId}')" class="bg-white p-1.5 rounded-2xl border border-slate-100 flex flex-col items-center justify-center h-28 shadow-sm active:scale-95 transition-all cursor-pointer overflow-hidden">
+                                <div class="flex flex-col items-center gap-0.5 mb-2"><span class="text-[20px] font-black text-slate-800 leading-none tracking-tighter">${s.sowNo}</span><span class="text-[14px] font-bold text-slate-400 leading-none">${s.parity}산</span></div>
+                                <span class="text-[17px] font-black ${statusColor} uppercase tracking-tighter leading-none">${s.currentStatus || '이유'}</span>
+                            </div>
+                            <button id="sow-del-btn-${s.dbId}" onclick="event.stopPropagation(); window.toggleSowDeleteConfirm('${s.dbId}')" class="absolute top-1.5 right-1.5 p-1 text-slate-200 hover:text-rose-400 transition-colors"><i data-lucide="x-circle" class="w-3.5 h-3.5"></i></button>
+                            <button id="sow-confirm-btn-${s.dbId}" onclick="event.stopPropagation(); window.deleteSow('${s.dbId}')" class="hidden absolute inset-0 bg-rose-500/95 backdrop-blur-sm text-white text-[10px] font-black rounded-2xl flex items-center justify-center z-20 text-center px-1">삭제확인</button>
+                        </div>`; 
+                }).join('');
+
+                const html = `
+                    <div class="flex gap-2 mb-4">
+                        <div class="relative flex-1">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none"><i data-lucide="search" class="w-4 h-4 text-slate-400"></i></div>
+                            <input type="text" id="sow-search-input" oninput="window.filterSowList(this.value)" placeholder="번호 검색..." class="w-full pl-9 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:border-blue-400 transition-all">
+                        </div>
+                        <button onclick="window.openModal('sow_detail', 'new')" class="bg-rose-50 text-rose-600 font-bold px-4 py-3 rounded-xl text-sm shrink-0 whitespace-nowrap active:scale-95 transition-transform">+ 새 등록</button>
+                    </div>
+                    <div class="grid grid-cols-4 gap-1.5 pb-4 max-h-[60vh] overflow-y-auto no-scrollbar" id="sow-list-container">
+                        ${listGrids}
+                    </div>
+                `;
                 if (typeof lucide !== 'undefined') setTimeout(() => { lucide.createIcons(); const searchInput = document.getElementById('sow-search-input'); if (searchInput) searchInput.focus(); }, 50); return { title, html, hideSave: true };
             },
             sow_detail: (t) => {
                 const s = t==='new'?{sowNo:'',parity:0,currentStatus:'이유', matingDate: '', history: []}:state.sowList.find(x=>x.dbId===t);
                 if (!s) return { title: '오류', html: '<p class="text-center py-10 text-slate-500 font-bold">찾을 수 없음</p>', hideSave: true };
                 setTimeout(() => { (s.history || []).forEach(h => window.addSowHistoryRow(h.parity, h.matingDate || '', h.expDate || '', h.date, h.weaningDate || '', h.total || '', h.born, h.weaned, h.move)); }, 100);
-                let html = `<input type="hidden" id="s-dbid" value="${t}"><div class="space-y-4"><div class="grid grid-cols-3 gap-2"><div class="bg-slate-50 p-2 rounded-xl"><label class="text-[9px] font-bold text-slate-500 block mb-0.5">관리 번호</label><input type="text" id="s-no" value="${s.sowNo}" class="w-full bg-transparent font-black text-slate-800 text-sm"></div><div class="bg-slate-50 p-2 rounded-xl"><label class="text-[9px] font-bold text-slate-500 block mb-0.5">현재 산차</label><input type="number" id="s-parity" inputmode="numeric" value="${s.parity}" class="w-full bg-transparent font-black text-slate-800 text-sm"></div><div class="bg-slate-50 p-2 rounded-xl"><label class="text-[9px] font-bold text-slate-500 block mb-0.5">현재 상태</label><select id="s-status" class="w-full bg-transparent font-bold text-slate-800 text-sm"><option value="이유" ${s.currentStatus==='이유'?'selected':''}>이유</option><option value="임신" ${s.currentStatus==='임신'?'selected':''}>임신</option><option value="포유" ${s.currentStatus==='포유'?'selected':''}>포유</option><option value="재발" ${s.currentStatus==='재발'?'selected':''}>재발</option></select></div></div><div class="grid grid-cols-2 gap-2"><div class="bg-rose-50 p-3 rounded-xl border border-rose-100"><label class="text-[9px] font-bold text-rose-600 block mb-0.5">최근 종부일</label><input type="date" id="s-mating" value="${s.matingDate||''}" onchange="const v=this.value; const e=v?utils.getExpectedFarrow(v):''; document.getElementById('s-expected-val').innerText=e||'미입력'; const rs=document.querySelectorAll('.history-row'); if(rs.length>0){ const lr=rs[rs.length-1]; lr.querySelector('.h-mating').value=v?v.substring(5).replace('-','/'):''; lr.querySelector('.h-exp').value=e?e.substring(5).replace('-','/'):''; }" class="w-full bg-transparent font-black text-rose-700 text-[11px]"></div><div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center"><label class="text-[9px] font-bold text-rose-600 block mb-0.5">분만 예정일</label><span id="s-expected-val" class="font-black text-rose-700 text-sm">${s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '미입력'}</span></div></div><div class="pt-2"><div class="flex justify-between items-center mb-2 px-1"><div class="flex flex-col"><h4 class="text-xs font-black text-slate-700 leading-none">생산 기록</h4><p class="text-[8px] font-bold text-slate-400 mt-1 uppercase">Production History</p></div><div class="flex gap-2"><button onclick="const mating = document.getElementById('s-mating').value; const mDateStr = mating ? mating.substring(5).replace('-', '/') : ''; const exp = mating ? utils.getExpectedFarrow(mating).substring(5).replace('-', '/') : ''; window.addSowHistoryRow(document.getElementById('s-parity').value, mDateStr, exp, '', '', '', '', '', '')" class="bg-slate-800 text-white p-1.5 rounded-lg hover:bg-slate-700 transition-colors active:scale-95"><i data-lucide="plus" class="w-4 h-4"></i></button></div></div><div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg"><div class="min-w-max"><div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center"><span class="w-12 shrink-0">산차</span><span class="w-16 shrink-0">종부일</span><span class="w-16 shrink-0">예상일</span><span class="w-16 shrink-0">분만일</span><span class="w-16 shrink-0">이유일</span><span class="w-12 shrink-0">산자수</span><span class="w-12 shrink-0">포유</span><span class="w-12 shrink-0">이동</span><span class="w-12 shrink-0">이유</span><span class="w-8 shrink-0"></span></div><div id="sow-history-container" class="space-y-0 bg-slate-50"></div></div></div></div>${t !== 'new' ? `<div class="mt-6 pt-4 border-t border-slate-100"><div id="sow-del-btn-detail" class="flex justify-center"><button onclick="window.toggleSowDetailDeleteConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i> 이 모돈 정보 삭제하기</button></div><div id="sow-confirm-btn-detail" class="hidden flex flex-col gap-2 items-center"><p class="text-[10px] font-black text-rose-500">정말로 삭제하시겠습니까? 기록이 모두 사라집니다.</p><div class="flex gap-2 w-full"><button onclick="window.toggleSowDetailDeleteConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.deleteSow('${t}')" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">삭제 확인</button></div></div></div>` : ''}</div>`;
-                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); return { title: `<div class="flex items-center gap-2">모돈 상세 정보</div>`, html };
+                
+                const deleteHtml = t !== 'new' ? `
+                    <div class="mt-6 pt-4 border-t border-slate-100">
+                        <div id="sow-del-btn-detail" class="flex justify-center">
+                            <button onclick="window.toggleSowDetailDeleteConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="trash-2" class="w-4 h-4"></i> 이 모돈 정보 삭제하기</button>
+                        </div>
+                        <div id="sow-confirm-btn-detail" class="hidden flex flex-col gap-2 items-center">
+                            <p class="text-[10px] font-black text-rose-500">정말로 삭제하시겠습니까? 기록이 모두 사라집니다.</p>
+                            <div class="flex gap-2 w-full">
+                                <button onclick="window.toggleSowDetailDeleteConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button>
+                                <button onclick="window.deleteSow('${t}')" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">삭제 확인</button>
+                            </div>
+                        </div>
+                    </div>` : '';
+
+                let html = `
+                    <input type="hidden" id="s-dbid" value="${t}">
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-slate-50 p-2 rounded-xl">
+                                <label class="text-[9px] font-bold text-slate-500 block mb-0.5">관리 번호</label>
+                                <input type="text" id="s-no" value="${s.sowNo}" class="w-full bg-transparent font-black text-slate-800 text-sm">
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded-xl">
+                                <label class="text-[9px] font-bold text-slate-500 block mb-0.5">현재 산차</label>
+                                <input type="number" id="s-parity" inputmode="numeric" value="${s.parity}" class="w-full bg-transparent font-black text-slate-800 text-sm">
+                            </div>
+                            <div class="bg-slate-50 p-2 rounded-xl">
+                                <label class="text-[9px] font-bold text-slate-500 block mb-0.5">현재 상태</label>
+                                <select id="s-status" class="w-full bg-transparent font-bold text-slate-800 text-sm">
+                                    <option value="이유" ${s.currentStatus==='이유'?'selected':''}>이유</option>
+                                    <option value="임신" ${s.currentStatus==='임신'?'selected':''}>임신</option>
+                                    <option value="포유" ${s.currentStatus==='포유'?'selected':''}>포유</option>
+                                    <option value="재발" ${s.currentStatus==='재발'?'selected':''}>재발</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-rose-50 p-3 rounded-xl border border-rose-100">
+                                <label class="text-[9px] font-bold text-rose-600 block mb-0.5">최근 종부일</label>
+                                <input type="date" id="s-mating" value="${s.matingDate||''}" onchange="const v=this.value; const e=v?utils.getExpectedFarrow(v):''; document.getElementById('s-expected-val').innerText=e||'미입력'; const rs=document.querySelectorAll('.history-row'); if(rs.length>0){ const lr=rs[rs.length-1]; lr.querySelector('.h-mating').value=v?v.substring(5).replace('-','/'):''; lr.querySelector('.h-exp').value=e?e.substring(5).replace('-','/'):''; }" class="w-full bg-transparent font-black text-rose-700 text-[11px]">
+                            </div>
+                            <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center">
+                                <label class="text-[9px] font-bold text-rose-600 block mb-0.5">분만 예정일</label>
+                                <span id="s-expected-val" class="font-black text-rose-700 text-sm">${s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '미입력'}</span>
+                            </div>
+                        </div>
+                        <div class="pt-2">
+                            <div class="flex justify-between items-center mb-2 px-1">
+                                <div class="flex flex-col">
+                                    <h4 class="text-xs font-black text-slate-700 leading-none">생산 기록</h4>
+                                    <p class="text-[8px] font-bold text-slate-400 mt-1 uppercase">Production History</p>
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="const mating = document.getElementById('s-mating').value; const mDateStr = mating ? mating.substring(5).replace('-', '/') : ''; const exp = mating ? utils.getExpectedFarrow(mating).substring(5).replace('-', '/') : ''; window.addSowHistoryRow(document.getElementById('s-parity').value, mDateStr, exp, '', '', '', '', '', '')" class="bg-slate-800 text-white p-1.5 rounded-lg hover:bg-slate-700 transition-colors active:scale-95"><i data-lucide="plus" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg">
+                                <div class="min-w-max">
+                                    <div class="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center">
+                                        <span class="w-12 shrink-0">산차</span>
+                                        <span class="w-16 shrink-0">종부일</span>
+                                        <span class="w-16 shrink-0">예상일</span>
+                                        <span class="w-16 shrink-0">분만일</span>
+                                        <span class="w-16 shrink-0">이유일</span>
+                                        <span class="w-12 shrink-0">산자수</span>
+                                        <span class="w-12 shrink-0">포유</span>
+                                        <span class="w-12 shrink-0">이동</span>
+                                        <span class="w-12 shrink-0">이유</span>
+                                        <span class="w-8 shrink-0"></span>
+                                    </div>
+                                    <div id="sow-history-container" class="space-y-0 bg-slate-50"></div>
+                                </div>
+                            </div>
+                        </div>
+                        ${deleteHtml}
+                    </div>
+                `;
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50); 
+                return { title: `<div class="flex items-center gap-2">모돈 상세 정보</div>`, html };
             },
             transfer_pen: (t) => {
                 const src = (t.src.stage==='weaning'?state.wBatches:state.gBatches).find(b=>String(b.id)===String(t.src.batchId)), sC = src.penDetails[t.src.penIndex]; 
                 const defaultCount = t.src.count > 0 ? t.src.count : sC;
                 return { 
                     title: '칸 이동', 
-                    html: `<input type="hidden" id="m-src-stage" value="${t.src.stage}">
-                           <input type="hidden" id="m-src-batch" value="${src.id}">
-                           <input type="hidden" id="m-src-pen" value="${t.src.penIndex}">
-                           <input type="hidden" id="m-dest-stage" value="${t.dest.stage}">
-                           <input type="hidden" id="m-dest-batch" value="${t.dest.batchId}">
-                           <input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}">
-                           <div class="p-6 bg-indigo-50 rounded-xl text-center">
-                               <label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC})</label>
-                               <input id="m-count" type="number" inputmode="numeric" value="${defaultCount}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700">
-                           </div>` 
+                    html: `
+                        <input type="hidden" id="m-src-stage" value="${t.src.stage}">
+                        <input type="hidden" id="m-src-batch" value="${src.id}">
+                        <input type="hidden" id="m-src-pen" value="${t.src.penIndex}">
+                        <input type="hidden" id="m-dest-stage" value="${t.dest.stage}">
+                        <input type="hidden" id="m-dest-batch" value="${t.dest.batchId}">
+                        <input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}">
+                        <div class="p-6 bg-indigo-50 rounded-xl text-center">
+                            <label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC})</label>
+                            <input id="m-count" type="number" inputmode="numeric" value="${defaultCount}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700">
+                        </div>
+                    ` 
                 };
             }
+        };
+
+        window.toggleBatchResetConfirm = () => { 
+            const btn = document.getElementById('batch-reset-btn-container'); 
+            const confirmBtn = document.getElementById('batch-reset-confirm-container'); 
+            if (btn && confirmBtn) { 
+                if (!btn.classList.contains('hidden')) { 
+                    btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); 
+                } else { 
+                    btn.classList.remove('hidden'); confirmBtn.classList.add('hidden'); 
+                } 
+            } 
+        };
+        
+        window.resetBatch = async (stg, bId) => { 
+            try { 
+                const isGrower = stg === 'grower'; 
+                const emptyBatch = getEmptyBatch(bId, isGrower); 
+                const col = isGrower ? COLS.GROWER : COLS.WEANING; 
+                let updateData = { status: emptyBatch.status, date: emptyBatch.date, pens: emptyBatch.pens, pigs: emptyBatch.pigs, memo: emptyBatch.memo, penDetails: emptyBatch.penDetails, penDates: emptyBatch.penDates, penIsResidual: emptyBatch.penIsResidual, penIsSick: emptyBatch.penIsSick }; 
+                if (isGrower) { updateData.sourceId = null; updateData.weaningDate = ''; updateData.pendingShipments = []; } 
+                
+                await db.doc(`${col}/batch_${bId}`).update(updateData); 
+                
+                if (!isLocalEnv) {
+                    const accToArchive = state.accidents.filter(a => a.stage === stg && String(a.batchId) === String(bId) && !a.archived);
+                    const updatePromises = accToArchive.map(a => db.collection(COLS.ACCIDENTS).doc(a.dbId).update({ archived: true }));
+                    await Promise.all(updatePromises);
+                } else {
+                    state.accidents = state.accidents.map(a => (a.stage === stg && String(a.batchId) === String(bId)) ? { ...a, archived: true } : a);
+                }
+
+                utils.showToast("배치 기록이 초기화되고 과거 폐사 기록이 보관되었습니다."); 
+                window.closeModal(); 
+                if (isLocalEnv) renderAll(); 
+            } catch (e) { 
+                utils.showToast("리셋 실패: " + e.message); 
+            } 
+        };
+        
+        window.startTransfer = (stg, bId, pIdx) => { 
+            const transferCountInput = document.getElementById('m-transfer-count');
+            const count = transferCountInput ? parseInt(transferCountInput.value) || 0 : 0;
+            const maxCount = parseInt(document.getElementById('m-count').value) || 0;
+            if (count <= 0) { utils.showToast("이동할 두수를 1마리 이상 입력하세요."); return; }
+            if (count > maxCount) { utils.showToast("이동 두수가 현재 칸에 있는 두수보다 많습니다."); return; }
+            window.closeModal(); state.transfer = { active: true, src: { stage: stg, batchId: bId, penIndex: pIdx, count: count } }; 
+            const msg = `<h2 class="text-base font-black text-rose-600 animate-pulse">도착할 칸을 터치하세요!</h2>`; document.getElementById('weaning-header').innerHTML = msg; document.getElementById('grower-header').innerHTML = msg; renderGrower(); renderWeaning(); 
+        };
+        
+        window.quickSaveBatchMemo = async (stg, bId, memoVal) => { try { await db.doc(`${stg==='weaning'?COLS.WEANING:COLS.GROWER}/batch_${bId}`).update({ memo: memoVal }); utils.showToast("메모가 저장되었습니다.", 1500); } catch(e) { utils.showToast("메모 저장 실패: " + e.message); } };
+
+        window.saveActions = {
+            piglet_calc: async () => { const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0; const nursingSows = state.sowCache.nursingSows; const nursingPiglets = Math.floor(nursingSows * avgPiglets); state.stocks.nursingPiglets = nursingPiglets; state.stocks.avgPiglets = avgPiglets; await db.doc(`${COLS.STOCKS}/current`).update({ nursingPiglets: nursingPiglets, avgPiglets: avgPiglets }); },
+            manual_stock: async () => { const id = document.getElementById('m-stock-id').value, val = parseInt(document.getElementById('m-stock-val').value) || 0; state.stocks[id] = val; await db.doc(`${COLS.STOCKS}/current`).update({ [id]: val }); },
+            sow_detail: async () => { 
+                const id = document.getElementById('s-dbid').value; 
+                const history = Array.from(document.querySelectorAll('.history-row')).map(row => ({ 
+                    parity: parseInt(row.querySelector('.h-parity').value) || 0, 
+                    matingDate: row.querySelector('.h-mating').value, 
+                    expDate: row.querySelector('.h-exp').value, 
+                    date: row.querySelector('.h-farrow').value, 
+                    weaningDate: row.querySelector('.h-weaning-date').value, 
+                    total: parseInt(row.querySelector('.h-total').value) || 0, 
+                    born: parseInt(row.querySelector('.h-born').value) || 0, 
+                    weaned: row.querySelector('.h-weaned').value, 
+                    move: row.querySelector('.h-move').value 
+                })).sort((a, b) => a.parity - b.parity); 
+                const data = { 
+                    sowNo: document.getElementById('s-no').value, 
+                    parity: parseInt(document.getElementById('s-parity').value)||0, 
+                    currentStatus: document.getElementById('s-status').value, 
+                    matingDate: document.getElementById('s-mating').value, 
+                    history 
+                }; 
+                if (id === 'new') await db.collection(COLS.SOWS).add(data); 
+                else await db.doc(`${COLS.SOWS}/${id}`).update(data); 
+            },
+            weaning_record: async () => {
+                const date = document.getElementById('w-date').value;
+                const sowCount = Number(document.getElementById('w-sow-count').value) || 0;
+                const totalWeaned = Number(document.getElementById('w-total-weaned').value) || 0;
+                if (!date) throw new Error("날짜를 입력해주세요.");
+                await db.collection(COLS.WEANING_RECORDS).doc(date).set({ sowCount, totalWeaned, updatedAt: new Date().toISOString() });
+                utils.showToast("이유 성적이 저장되었습니다.");
+            },
+            nursing_week: async () => {
+                const rows = document.querySelectorAll('.nursing-row'); if (rows.length === 0) return; const updatePromises = [];
+                rows.forEach(row => {
+                    const dbId = row.dataset.dbid; const sow = state.sowList.find(x => x.dbId === dbId); if (!sow) return;
+                    const parity = parseInt(row.querySelector('.n-parity').value) || sow.parity; const mRaw = row.querySelector('.n-mating').value; const eRaw = row.querySelector('.n-exp').value; const fRaw = row.querySelector('.n-farrow').value; const totalInput = row.querySelector('.n-total').value; const total = totalInput === '' ? '' : parseInt(totalInput) || 0; const bornInput = row.querySelector('.n-born').value; const born = bornInput === '' ? '' : parseInt(bornInput) || 0; const weaned = row.querySelector('.n-weaned').value; const move = row.querySelector('.n-move').value;
+                    let history = [...(sow.history || [])]; history.sort((a,b) => b.parity - a.parity);
+                    if (history.length === 0) { history.push({ parity: parity, matingDate: mRaw, expDate: eRaw, date: fRaw, weaningDate: '', total: total, born: born, weaned: weaned, move: move }); } else { history[0].parity = parity; history[0].matingDate = mRaw; history[0].expDate = eRaw; history[0].date = fRaw; history[0].total = total; history[0].born = born; history[0].weaned = weaned; history[0].move = move; }
+                    let newMatingRoot = sow.matingDate; if (mRaw) { const d = utils.parseDate(mRaw); if (d) newMatingRoot = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; } else { newMatingRoot = ''; }
+                    const dataToUpdate = { parity: parity, history: history }; if (newMatingRoot !== sow.matingDate) { dataToUpdate.matingDate = newMatingRoot; }
+                    updatePromises.push(db.collection(COLS.SOWS).doc(dbId).update(dataToUpdate));
+                });
+                await Promise.all(updatePromises); utils.showToast("이유 도래 개체 정보가 일괄 저장되었습니다.");
+            },
+            pen_detail: async () => {
+                const stg = document.getElementById('m-stage').value;
+                const bId = parseInt(document.getElementById('m-batch').value);
+                const pIdx = parseInt(document.getElementById('m-pen').value);
+                let cnt = parseInt(document.getElementById('m-count').value)||0; 
+                
+                const shipCountEl = document.getElementById('m-ship-count');
+                const shipDateEl = document.getElementById('m-ship-date');
+                const accCountEl = document.getElementById('m-acc-count');
+                const accDateEl = document.getElementById('m-acc-date');
+                const resEl = document.getElementById('m-pen-residual');
+                const pDateInput = document.getElementById('m-pen-date');
+                
+                const shipCount = shipCountEl ? parseInt(shipCountEl.value) || 0 : 0;
+                const shipDate = shipDateEl ? shipDateEl.value || utils.getTomorrowStr() : utils.getTomorrowStr();
+                const accCount = accCountEl ? parseInt(accCountEl.value) || 0 : 0;
+                const accDate = accDateEl ? accDateEl.value || utils.getTodayStr() : utils.getTodayStr();
+                const currentPenDate = pDateInput ? pDateInput.value : '';
+                
+                const b = (stg === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(bId));
+                if (!b) throw new Error("배치 데이터를 찾을 수 없습니다.");
+                
+                if (!b.penIsResidual) b.penIsResidual = Array(b.penDetails.length).fill(false); 
+                b.penIsResidual[pIdx] = resEl ? resEl.checked : false;
+                if (!b.penIsSick) b.penIsSick = Array(b.penDetails.length).fill(false); 
+                b.penIsSick[pIdx] = false;
+                
+                const cStockDate = currentPenDate || (b.penDates && b.penDates[pIdx]) || b.weaningDate || b.date;
+                
+                if (accCount > 0) { 
+                    if (accCount > cnt) throw new Error("입력된 폐사/도태 두수가 현재 두수보다 많습니다."); 
+                    cnt -= accCount; 
+                    if (!isLocalEnv) {
+                        await db.collection(COLS.ACCIDENTS).add({ date: accDate, stage: stg, batchId: bId, penIndex: pIdx, count: accCount, type: 'death', timestamp: new Date().toISOString(), archived: false }); 
+                    } else {
+                        state.accidents.push({ dbId: 'acc_'+Date.now(), date: accDate, stage: stg, batchId: bId, penIndex: pIdx, count: accCount, type: 'death', timestamp: new Date().toISOString(), archived: false });
+                    }
+                }
+                
+                if (shipCount > 0) { 
+                    if (shipCount > cnt) throw new Error("출하 두수가 부족합니다."); 
+                    if (shipDate > utils.getTodayStr()) { 
+                        if (!isLocalEnv) {
+                            await db.doc(`${COLS.GROWER}/batch_${bId}`).update({ pendingShipments: firebase.firestore.FieldValue.arrayUnion({ date: shipDate, total: shipCount, items: [{ pIdx, count: shipCount }] }) }); 
+                        }
+                    } else { 
+                        cnt -= shipCount; 
+                        if (!isLocalEnv) {
+                            await db.collection(COLS.SHIPMENTS).add({ date: shipDate, batchId: bId, penIndex: pIdx, count: shipCount, stockingDate: cStockDate || '', timestamp: new Date().toISOString() }); 
+                        } else {
+                            state.shipments.push({ dbId: 'ship_'+Date.now(), date: shipDate, batchId: bId, penIndex: pIdx, count: shipCount, stockingDate: cStockDate || '', timestamp: new Date().toISOString() });
+                        }
+                    } 
+                }
+                
+                b.penDetails[pIdx] = cnt; 
+                b.penDates[pIdx] = cnt > 0 ? currentPenDate : ''; 
+                const pigs = b.penDetails.reduce((a,c)=>a+c,0); 
+                const updateData = { penDetails: b.penDetails, penDates: b.penDates, penIsResidual: b.penIsResidual, penIsSick: b.penIsSick, pigs, pens: b.penDetails.filter(c=>c>0).length, status: pigs>0?'active':'empty' };
+                if (!isLocalEnv) {
+                    await db.doc(`${stg==='weaning'?COLS.WEANING:COLS.GROWER}/batch_${bId}`).update(updateData);
+                }
+            },
+            batch_settings: async () => { const stg = document.getElementById('m-stage').value, bId = parseInt(document.getElementById('m-batch').value); await db.doc(`${stg==='weaning'?COLS.WEANING:COLS.GROWER}/batch_${bId}`).update({ memo: document.getElementById('m-memo').value }); },
+            transfer_pen: async () => {
+                const srcStg = document.getElementById('m-src-stage').value, sbId = parseInt(document.getElementById('m-src-batch').value), spIdx = parseInt(document.getElementById('m-src-pen').value);
+                const destStg = document.getElementById('m-dest-stage').value, dbId = parseInt(document.getElementById('m-dest-batch').value), dpIdx = parseInt(document.getElementById('m-dest-pen').value), cnt = parseInt(document.getElementById('m-count').value)||0;
+                const src = (srcStg==='weaning'?state.wBatches:state.gBatches).find(b=>String(b.id)===String(sbId)), dest = (destStg==='weaning'?state.wBatches:state.gBatches).find(b=>String(b.id)===String(dbId));
+                let srcDate = src.penDates[spIdx] || (srcStg === 'weaning' ? src.date : src.weaningDate || src.date), destDate = dest.penDates[dpIdx], finalDate = '';
+                if (!destDate) { finalDate = srcDate; } else if (!srcDate) { finalDate = destDate; } else { finalDate = srcDate < destDate ? srcDate : destDate; }
+                src.penDetails[spIdx] -= cnt; if(src.penDetails[spIdx]===0) { src.penDates[spIdx]=''; if(src.penIsResidual) src.penIsResidual[spIdx] = false; if(src.penIsSick) src.penIsSick[spIdx] = false; }
+                dest.penDetails[dpIdx] += cnt; dest.penDates[dpIdx] = finalDate;
+                let updateDestPayload = { penDetails: dest.penDetails, penDates: dest.penDates, pigs: dest.penDetails.reduce((a,c)=>a+c,0), status: 'active' };
+                if (destStg === 'grower') { if (!dest.weaningDate || (finalDate && finalDate < dest.weaningDate)) { updateDestPayload.weaningDate = finalDate || ''; } } else { updateDestPayload.weaningDate = finalDate || ''; }
+                await db.doc(`${srcStg==='weaning'?COLS.WEANING:COLS.GROWER}/batch_${sbId}`).update({ penDetails: src.penDetails, penDates: src.penDates, penIsResidual: src.penIsResidual || Array(src.penDetails.length).fill(false), penIsSick: src.penIsSick || Array(src.penDetails.length).fill(false), pigs: src.penDetails.reduce((a,c)=>a+c,0), status: src.penDetails.some(v=>v>0)?'active':'empty' });
+                await db.doc(`${destStg==='weaning'?COLS.WEANING:COLS.GROWER}/batch_${dbId}`).update(updateDestPayload);
+            },
+            shipment_detail_confirmed: async () => { const date = document.getElementById('m-ship-date').value, avgWeight = document.getElementById('m-ship-avg-weight').value, memo = document.getElementById('m-ship-memo').value; await db.doc(`${COLS.SHIPMENT_SUMMARIES}/${date}`).set({ avgWeight, memo, updatedAt: new Date().toISOString() }, { merge: true }); },
+            shipment_detail_pending: async () => { const date = document.getElementById('m-ship-date').value, memo = document.getElementById('m-ship-memo').value; await db.doc(`${COLS.SHIPMENT_SUMMARIES}/${date}`).set({ memo, updatedAt: new Date().toISOString() }, { merge: true }); }
         };
 
         window.toggleWeaningDeleteConfirm = () => {
@@ -759,24 +1554,6 @@
             utils.showToast("이유 성적 엑셀이 생성되었습니다.");
         };
 
-        window.openModal = (type, target) => { 
-            try {
-                const renderer = modalRenderers[type]; 
-                if (!renderer) return; 
-                const { title, html, hideSave } = renderer(target); 
-                document.getElementById('modal-title').innerHTML = title; 
-                document.getElementById('modal-content').innerHTML = html; 
-                document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex'; 
-                document.getElementById('save-btn').onclick = () => processSave(type); 
-                document.getElementById('modal-overlay').classList.remove('hidden'); 
-                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20); 
-            } catch (error) {
-                console.error("팝업 렌더링 에러:", error);
-                utils.showToast("오류가 발생했습니다: " + error.message);
-            }
-        };
-        window.closeModal = () => { document.getElementById('modal-overlay').classList.add('hidden'); };
-        
         window.deleteShipment = async (docId, date) => { try { await db.collection(COLS.SHIPMENTS).doc(docId).delete(); utils.showToast("기록 삭제 완료"); const remaining = state.shipments.filter(s => s.date === date && s.dbId !== docId); if (remaining.length > 0) window.openModal('shipment_detail_confirmed', date); else window.closeModal(); } catch (e) { utils.showToast("삭제 실패: " + e.message); } };
         window.cancelPendingShipment = async (batchId, shipmentObjEncoded) => { try { const shipmentObj = JSON.parse(decodeURIComponent(shipmentObjEncoded)); await db.doc(`${COLS.GROWER}/batch_${batchId}`).update({ pendingShipments: firebase.firestore.FieldValue.arrayRemove(shipmentObj) }); utils.showToast("예정 건이 취소되었습니다."); window.closeModal(); } catch (e) { utils.showToast("취소 실패: " + e.message); } };
         window.deleteSow = async (dbId) => { try { await db.doc(`${COLS.SOWS}/${dbId}`).delete(); utils.showToast("모돈 삭제 완료"); window.closeModal(); } catch (e) { utils.showToast("삭제 실패: " + e.message); } };
@@ -784,47 +1561,28 @@
         window.toggleDeleteConfirm = (docId) => { const btn = document.getElementById(`del-btn-${docId}`); const confirmBtn = document.getElementById(`confirm-btn-${docId}`); if (confirmBtn) { if (btn) btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } };
         window.toggleSowDeleteConfirm = (dbId) => { const btn = document.getElementById(`sow-del-btn-${dbId}`); const confirmBtn = document.getElementById(`sow-confirm-btn-${dbId}`); if (confirmBtn) { if (btn) btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } };
         window.toggleSowDetailDeleteConfirm = () => { const btn = document.getElementById('sow-del-btn-detail'); const confirmBtn = document.getElementById('sow-confirm-btn-detail'); if (btn && confirmBtn) { if (!btn.classList.contains('hidden')) { btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } else { btn.classList.remove('hidden'); confirmBtn.classList.add('hidden'); } } };
-        window.toggleBatchResetConfirm = () => { const btn = document.getElementById('batch-reset-btn-container'); const confirmBtn = document.getElementById('batch-reset-confirm-container'); if (btn && confirmBtn) { if (!btn.classList.contains('hidden')) { btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } else { btn.classList.remove('hidden'); confirmBtn.classList.add('hidden'); } } };
         
-        window.resetBatch = async (stg, bId) => { 
+        window.processSave = async (type) => { 
+            const btn = document.getElementById('save-btn'); 
+            btn.disabled = true; 
+            btn.innerText = '저장 중...'; 
             try { 
-                const isGrower = stg === 'grower'; 
-                const emptyBatch = getEmptyBatch(bId, isGrower); 
-                const col = isGrower ? COLS.GROWER : COLS.WEANING; 
-                let updateData = { status: emptyBatch.status, date: emptyBatch.date, pens: emptyBatch.pens, pigs: emptyBatch.pigs, memo: emptyBatch.memo, penDetails: emptyBatch.penDetails, penDates: emptyBatch.penDates, penIsResidual: emptyBatch.penIsResidual, penIsSick: emptyBatch.penIsSick }; 
-                if (isGrower) { updateData.sourceId = null; updateData.weaningDate = ''; updateData.pendingShipments = []; } 
-                
-                await db.doc(`${col}/batch_${bId}`).update(updateData); 
-                
-                if (!isLocalEnv) {
-                    const accToArchive = state.accidents.filter(a => a.stage === stg && String(a.batchId) === String(bId) && !a.archived);
-                    const updatePromises = accToArchive.map(a => db.collection(COLS.ACCIDENTS).doc(a.dbId).update({ archived: true }));
-                    await Promise.all(updatePromises);
-                } else {
-                    state.accidents = state.accidents.map(a => (a.stage === stg && String(a.batchId) === String(bId)) ? { ...a, archived: true } : a);
-                }
-
-                utils.showToast("배치 기록이 초기화되고 과거 폐사 기록이 보관되었습니다."); 
+                await window.saveActions[type](); 
                 window.closeModal(); 
+                if (!isLocalEnv) saveDailyHistory(); 
                 if (isLocalEnv) renderAll(); 
             } catch (e) { 
-                utils.showToast("리셋 실패: " + e.message); 
+                if (e.code === 'permission-denied' || (e.message && e.message.includes('permission'))) { 
+                    utils.showToast("저장 실패: 파이어베이스 Security Rules 권한이 없습니다."); 
+                } else { 
+                    utils.showToast("처리 실패: " + e.message); 
+                } 
+            } finally { 
+                btn.disabled = false; 
+                btn.innerText = '확인 및 저장'; 
             } 
         };
-        
-        window.startTransfer = (stg, bId, pIdx) => { 
-            const transferCountInput = document.getElementById('m-transfer-count');
-            const count = transferCountInput ? parseInt(transferCountInput.value) || 0 : 0;
-            const maxCount = parseInt(document.getElementById('m-count').value) || 0;
-            if (count <= 0) { utils.showToast("이동할 두수를 1마리 이상 입력하세요."); return; }
-            if (count > maxCount) { utils.showToast("이동 두수가 현재 칸에 있는 두수보다 많습니다."); return; }
-            window.closeModal(); state.transfer = { active: true, src: { stage: stg, batchId: bId, penIndex: pIdx, count: count } }; 
-            const msg = `<h2 class="text-base font-black text-rose-600 animate-pulse">도착할 칸을 터치하세요!</h2>`; document.getElementById('weaning-header').innerHTML = msg; document.getElementById('grower-header').innerHTML = msg; renderGrower(); renderWeaning(); 
-        };
-        
-        window.quickSaveBatchMemo = async (stg, bId, memoVal) => { try { await db.doc(`${stg==='weaning'?COLS.WEANING:COLS.GROWER}/batch_${bId}`).update({ memo: memoVal }); utils.showToast("메모가 저장되었습니다.", 1500); } catch(e) { utils.showToast("메모 저장 실패: " + e.message); } };
 
-        async function processSave(type) { const btn = document.getElementById('save-btn'); btn.disabled = true; btn.innerText = '저장 중...'; try { await saveActions[type](); window.closeModal(); if (!isLocalEnv) saveDailyHistory(); if (isLocalEnv) renderAll(); } catch (e) { if (e.code === 'permission-denied' || (e.message && e.message.includes('permission'))) { utils.showToast("저장 실패: 파이어베이스 Security Rules 권한이 없습니다."); } else { utils.showToast("처리 실패: " + e.message); } } finally { btn.disabled = false; btn.innerText = '확인 및 저장'; } }
         window.onload = init;
     </script>
 </body>
