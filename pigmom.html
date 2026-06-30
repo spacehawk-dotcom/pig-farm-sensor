@@ -51,10 +51,8 @@
     const Trash2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>;
     const Activity = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>;
     const Baby = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><path d="M8 11.5h.01"/><path d="M16 11.5h.01"/><path d="M9 15.5a4 4 0 0 0 6 0"/></svg>;
-    const FileText = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>;
     const ChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6"/></svg>;
     const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
-    const Download = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
     const Bell = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
 
     // --- 성암농장 실제 Firebase Configuration ---
@@ -76,7 +74,7 @@
     
     const SOWS_COLLECTION_PATH = 'farms/sungamfarm/sows';
     const SETTINGS_PATH = 'farms/sungamfarm/settings'; 
-    const SHIPMENTS_COLLECTION_PATH = 'farms/sungamfarm/shipments'; // 사육현황 출하 기록 연동 경로 추가
+    const SHIPMENTS_COLLECTION_PATH = 'farms/sungamfarm/shipments';
 
     // 알림창 컴포넌트
     const CustomAlert = ({ message, onClose }) => (
@@ -126,7 +124,7 @@
       const [user, setUser] = useState(null);
       const [sows, setSows] = useState([]);
       const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0 }); 
-      const [shipments, setShipments] = useState([]); // 사육현황 출하 기록 상태 추가
+      const [shipments, setShipments] = useState([]); 
       const [loading, setLoading] = useState(true);
       
       // 알림 상태 관리
@@ -156,9 +154,9 @@
       const [showMonthlySowModal, setShowMonthlySowModal] = useState(false);
       const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-      // 폼 상태
+      // 폼 상태 (산자/포유/이동/이유 필드 분리 적용)
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
-      const [newRecord, setNewRecord] = useState({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
+      const [newRecord, setNewRecord] = useState({ parity: '', date: '', expDate: '', totalBorn: '', born: '', weaned: '', move: '' });
 
       // 가로 스크롤 포커스를 위한 Ref
       const farrowingScrollRef = useRef(null);
@@ -180,7 +178,6 @@
       }, []);
 
       useEffect(() => {
-        // 인증(로그인)이 완료되지 않으면 데이터베이스 접근 시도 금지
         if (!user) return;
 
         // 1. 모돈 정보 가져오기
@@ -213,7 +210,7 @@
           (error) => console.error("Error fetching settings:", error)
         );
 
-        // 4. 사육현황 출하 기록 가져오기 (자동 연동)
+        // 3. 사육현황 출하 기록 가져오기 (자동 연동)
         const unsubShipments = db.collection(SHIPMENTS_COLLECTION_PATH).onSnapshot(
           (snapshot) => {
             const records = snapshot.docs.map(doc => doc.data());
@@ -325,10 +322,10 @@
 
               // 1. 실제 분만 완료 매칭 (history 기록)
               const matchActual = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === filterObj.value);
-              // 2. 분만 예정 매칭 (교배일 기준) - 포유 상태인 경우도 일단 교배일이 있으면 예정주차로 매칭됨
+              // 2. 분만 예정 매칭 (교배일 기준)
               const expDateStr = s.matingDate && s.currentStatus !== '재발' ? getExpectedFarrow(s.matingDate) : null;
               const matchExpected = expDateStr && getMonday(expDateStr) === filterObj.value;
-              // 3. 교배일조차 없고 상태만 '포유'인 경우 (이번 주차로 편입)
+              // 3. 교배일조차 없고 상태만 '포유'인 경우
               const matchFallback = !s.matingDate && s.currentStatus === '포유' && filterObj.value === currentMonday;
               
               return matchActual || matchExpected || matchFallback;
@@ -336,13 +333,11 @@
           } else if (filterObj.type === 'activityMonth') {
             result = result.filter(sow => {
               const s = sow || {};
-              // 1. 해당 월 교배 (matingDate 기준)
               let matedThisMonth = false;
               if (s.matingDate) {
                 const parsed = parseValidDate(s.matingDate);
                 if (parsed && formatDate(parsed).substring(0, 7) === filterObj.value) matedThisMonth = true;
               }
-              // 2. 해당 월 분만 (history 기준)
               let farrowedThisMonth = false;
               if (s.history && Array.isArray(s.history)) {
                 farrowedThisMonth = s.history.some(r => {
@@ -371,7 +366,7 @@
         return sows.find(s => s && (s || {}).id === selectedSowId) || null;
       }, [sows, selectedSowId]);
 
-      // 대시보드 통계 계산 (수기 기록, 설정 모돈수, 사육현황 자동 연동 적용)
+      // 대시보드 통계 계산 (개체별 수기 기록 합산 반영)
       const dashboardStats = useMemo(() => {
         const stats = {
           total: sows.filter(Boolean).length,
@@ -383,6 +378,8 @@
         const oneYearAgo = new Date();
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
         const oneYearAgoStr = formatDate(oneYearAgo);
+        
+        let historyYearlyWeaned = 0; // 개체 기록 기준 최근 1년 이유두수
         
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
@@ -400,6 +397,15 @@
               stats.monthlyFarrowing[ym] = (stats.monthlyFarrowing[ym] || 0) + 1;
             }
           }
+
+          // 최근 1년 이유두수 합산 (사육현황 연동 기준 필드: move)
+          if (s.history && Array.isArray(s.history)) {
+            s.history.forEach(r => {
+               if (r && r.date && r.date >= oneYearAgoStr) {
+                 historyYearlyWeaned += Number(r.move || 0);
+               }
+            });
+          }
         });
 
         // 사육현황 DB에서 최근 1년 출하두수 합산
@@ -414,8 +420,15 @@
         const fSettings = farmSettings || {};
         const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
         
+        // 출하두수 결정 (사육현황 DB 우선 적용, 없으면 기록된 이유두수*95% 가계산)
+        const autoShipped = Math.floor(historyYearlyWeaned * 0.95);
+        const yearlyShipped = dbYearlyShipped > 0 ? dbYearlyShipped : autoShipped;
+
         stats.avgSows = avgSows;
-        stats.dbYearlyShipped = dbYearlyShipped; // UI 표시용
+        stats.historyYearlyWeaned = historyYearlyWeaned;
+        stats.yearlyShipped = yearlyShipped;
+        stats.autoShipped = autoShipped;
+        stats.dbYearlyShipped = dbYearlyShipped;
 
         return stats;
       }, [sows, farmSettings, shipments]);
@@ -429,8 +442,8 @@
         
         const history = s.history.filter(Boolean);
         const totalLitters = history.length;
-        const totalBorn = history.reduce((sum, r) => sum + Number((r || {}).born || 0), 0);
-        const totalWeaned = history.reduce((sum, r) => sum + Number((r || {}).weaned || 0), 0);
+        const totalBorn = history.reduce((sum, r) => sum + Number(r.totalBorn || r.born || 0), 0);
+        const totalWeaned = history.reduce((sum, r) => sum + Number(r.move || 0), 0);
         
         return {
           totalLitters,
@@ -439,7 +452,7 @@
         };
       }, [currentSow]);
 
-      // 주간별 분만 현황 산출 (실제 완료 + 상태가 포유인 경우 + 예정 포함)
+      // 주간별 분만 현황 산출
       const weeklyFarrowingStats = useMemo(() => {
         const statsMap = {};
         
@@ -449,7 +462,6 @@
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
           
-          // 1. 실제 분만 (history 기록이 있는 경우)
           if (s.history && Array.isArray(s.history)) {
             s.history.filter(Boolean).forEach(record => {
               const r = record || {};
@@ -463,10 +475,10 @@
               }
               statsMap[monday].actual += 1;
               
-              // 포유두수 계산: 산자수(born) - 이동/도태(move)
-              const born = Number(r.born || 0);
-              const move = Number(r.move || 0);
-              statsMap[monday].nursingPiglets += (born >= move ? born - move : 0);
+              // 포유두수 계산: 포유(born) - 이동(weaned) (사육현황 구조 매핑)
+              const nursingStart = Number(r.born || 0);
+              const transferOut = Number(r.weaned || 0);
+              statsMap[monday].nursingPiglets += (nursingStart >= transferOut ? nursingStart - transferOut : 0);
               
               // 6산 도태는 이유를 완료한 시점(DB 상 산차가 6산 이상)으로 계산
               if (Number(s.parity || 0) >= 6) {
@@ -479,13 +491,11 @@
             });
           }
 
-          // 2. 예정 분만 (matingDate 기준) 및 상태만 '포유'로 변경된 모돈 처리
           if (s.matingDate && s.currentStatus !== '재발') {
             const expDateStr = getExpectedFarrow(s.matingDate);
             if (expDateStr) {
               const expMonday = getMonday(expDateStr);
               if (expMonday) {
-                // 이미 해당 주차에 분만 기록(history)이 있는지 확인
                 const hasActualThisWeek = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === expMonday);
                 
                 if (!hasActualThisWeek) {
@@ -494,17 +504,11 @@
                   }
                   
                   if (s.currentStatus === '포유') {
-                    // 상태가 '포유'로 되어있으면 분만 완료(포유)로 카운트 (기록이 없어 두수는 0)
                     statsMap[expMonday].actual += 1;
-                    if (Number(s.parity || 0) >= 6) {
-                      statsMap[expMonday].parity6Plus += 1;
-                    }
+                    if (Number(s.parity || 0) >= 6) statsMap[expMonday].parity6Plus += 1;
                   } else {
-                    // 일반적인 분만 예정
                     statsMap[expMonday].expected += 1;
-                    if ((Number(s.parity || 0) + 1) >= 6) {
-                      statsMap[expMonday].parity6Plus += 1;
-                    }
+                    if ((Number(s.parity || 0) + 1) >= 6) statsMap[expMonday].parity6Plus += 1;
                   }
 
                   if (!statsMap[expMonday].sows.find(item => item && item.id === s.id)) {
@@ -514,16 +518,13 @@
               }
             }
           } else if (!s.matingDate && s.currentStatus === '포유' && currentMonday) {
-             // 3. 교배일(matingDate)도 없는데 상태만 포유인 극단적인 경우 -> 이번 주차에 강제 편입
              const hasActualThisWeek = s.history && Array.isArray(s.history) && s.history.some(r => r && r.date && getMonday(r.date) === currentMonday);
              if (!hasActualThisWeek) {
                 if (!statsMap[currentMonday]) {
                   statsMap[currentMonday] = { date: currentMonday, actual: 0, expected: 0, parity6Plus: 0, nursingPiglets: 0, sows: [] };
                 }
                 statsMap[currentMonday].actual += 1;
-                if (Number(s.parity || 0) >= 6) {
-                  statsMap[currentMonday].parity6Plus += 1;
-                }
+                if (Number(s.parity || 0) >= 6) statsMap[currentMonday].parity6Plus += 1;
                 if (!statsMap[currentMonday].sows.find(item => item && item.id === s.id)) {
                   statsMap[currentMonday].sows.push(s);
                 }
@@ -531,29 +532,25 @@
           }
         });
 
-        // 빠른 날짜 순서대로 정렬 (오름차순)
         return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
       }, [sows]);
 
-      // 월별 후보돈 예상 입수 두수 계산 (목표 11복 대비 미달분 - 6산 도태 반영)
+      // 월별 후보돈 예상 입수 두수 계산
       const monthlyGiltIntroStats = useMemo(() => {
         const statsMap = {};
         
         weeklyFarrowingStats.forEach(stat => {
-          // 유효 모돈 수 = 전체(실제+예정) - 도태예정(6산 이상)
           const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
           const missingCount = 11 - validSowsCount;
 
           if (missingCount >= 2) {
             const weaningThursday = getWeaningThursday(stat.date);
             if (weaningThursday) {
-              const estMatingDate = addDays(weaningThursday, 4); // 종부 예정일 (이유일 + 4일)
-              const giltIntroDate = subtractDays(estMatingDate, 60); // 종부 2달 전
-              const ym = giltIntroDate.substring(0, 7); // YYYY-MM
+              const estMatingDate = addDays(weaningThursday, 4); 
+              const giltIntroDate = subtractDays(estMatingDate, 60); 
+              const ym = giltIntroDate.substring(0, 7);
               
-              if (!statsMap[ym]) {
-                statsMap[ym] = 0;
-              }
+              if (!statsMap[ym]) statsMap[ym] = 0;
               statsMap[ym] += missingCount;
             }
           }
@@ -562,17 +559,13 @@
         const today = new Date();
         const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
-        // 빠른 연월(과거->미래) 순으로 정렬하되, 지난 달(과거) 데이터는 제외
         return Object.keys(statsMap)
           .filter(ym => ym >= currentYM)
           .sort()
-          .map(ym => ({
-            month: ym,
-            count: statsMap[ym]
-          }));
+          .map(ym => ({ month: ym, count: statsMap[ym] }));
       }, [weeklyFarrowingStats]);
 
-      // 예정된 후보돈 약제 투여 알림 (최대 2주 분량 추출)
+      // 예정된 후보돈 약제 투여 알림 (최대 4순위)
       const upcomingMedications = useMemo(() => {
         const today = new Date();
         const yy = today.getFullYear();
@@ -586,21 +579,20 @@
           const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
           const missingCount = 11 - validSowsCount;
 
-          // 부족분이 2 이상일 때만 보충을 고려
           if (missingCount >= 2) {
             const weaningThursday = getWeaningThursday(stat.date);
             if (weaningThursday) {
-              const estMatingDate = addDays(weaningThursday, 4); // 종부 예정일 (이유일 + 4일)
+              const estMatingDate = addDays(weaningThursday, 4); 
               
               const medEndDate = subtractDays(estMatingDate, 4); // 투약 종료일 (종부 4일 전)
               const medStartDate = subtractDays(medEndDate, 17); // 투약 시작일 (종료일 17일 전)
               
-              const medWeekMonday = getMonday(medStartDate); // 수동 입력 키(Key) 생성을 위한 기준 주간
+              const medWeekMonday = getMonday(medStartDate); 
               const matingWeekMonday = getMonday(estMatingDate);
               
-              // 종부 예정일이 오늘 이후인 경우만 포함 (종부일이 지나면 사라짐)
               if (estMatingDate >= todayStr) {
                 const deleteKey = `medDeleted_${medWeekMonday}`;
+                // 사용자가 삭제하지 않은 항목만 배열에 추가
                 if (!(farmSettings && farmSettings[deleteKey])) {
                   upcoming.push({
                     medWeekMonday,
@@ -616,18 +608,17 @@
           }
         });
 
-        // 날짜순 정렬 후 가장 가까운 2개(다음 주, 다다음 주 개념)만 추출
-        return upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 2);
+        // 날짜순 정렬 후 최대 4개(4순위)까지 추출
+        return upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 4);
       }, [weeklyFarrowingStats, farmSettings]);
 
-      // 월별 교배(임신) 및 분만(포유) 실적 통계 (강화된 날짜 파싱 적용)
+      // 월별 실적
       const monthlyActivityStats = useMemo(() => {
         const statsMap = {};
         
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
           
-          // 1. 교배(임신) 기록 (matingDate 기준)
           if (s.matingDate) {
             const parsed = parseValidDate(s.matingDate);
             if (parsed) {
@@ -637,7 +628,6 @@
             }
           }
           
-          // 2. 분만(포유) 기록 (history.date 기준)
           if (s.history && Array.isArray(s.history)) {
             s.history.filter(Boolean).forEach(r => {
               if (r && r.date) {
@@ -652,31 +642,24 @@
           }
         });
 
-        // 최신 월이 먼저 오도록 내림차순 정렬
         return Object.values(statsMap).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
       }, [sows]);
 
-      // 앱 실행 및 데이터 갱신 시 주간별 분만 복수 리스트를 '이번 주' 부근으로 자동 스크롤
+      // 부드러운 가로 스크롤 이동
       useEffect(() => {
         if (farrowingScrollRef.current && weeklyFarrowingStats.length > 0) {
           const todayStr = formatDate(new Date());
           const currentMonday = getMonday(todayStr);
           
-          // 이번 주와 일치하거나 미래인 첫 번째 주차 인덱스 찾기
           let targetIndex = weeklyFarrowingStats.findIndex(stat => stat.date >= currentMonday);
-          
-          // 미래 일정이 전혀 없으면 리스트의 맨 끝(가장 최근 과거)으로 설정
-          if (targetIndex === -1) {
-            targetIndex = weeklyFarrowingStats.length - 1;
-          }
+          if (targetIndex === -1) targetIndex = weeklyFarrowingStats.length - 1;
 
-          // 렌더링 완료 후 부드럽게 스크롤 되도록 지연 실행
           setTimeout(() => {
             const container = farrowingScrollRef.current;
             if (container && container.children && container.children[targetIndex]) {
               const card = container.children[targetIndex];
               container.scrollTo({
-                left: card.offsetLeft - container.offsetLeft - 16, // 약간의 좌측 여백 포함
+                left: card.offsetLeft - container.offsetLeft - 16,
                 behavior: 'smooth'
               });
             }
@@ -684,12 +667,12 @@
         }
       }, [weeklyFarrowingStats]);
 
-      // --- 매월 현재 모돈수 자동 기록 (당월 실시간 동기화 -> 말일 데이터로 고정) ---
+      // --- 매월 현재 모돈수 자동 기록 ---
       useEffect(() => {
         if (!user || loading) return;
         
         const currentSowsCount = sows.filter(Boolean).length;
-        if (currentSowsCount === 0) return; // 데이터가 아직 불러와지지 않은 경우 무시
+        if (currentSowsCount === 0) return; 
 
         const today = new Date();
         const yyyy = today.getFullYear();
@@ -698,7 +681,6 @@
 
         const savedCounts = (farmSettings || {}).monthlySowCounts || {};
         
-        // 현재 달의 저장된 모돈수가 현재 실제 사육두수와 다르면 자동으로 최신화
         if (savedCounts[currentYM] !== currentSowsCount) {
           const newCounts = { ...savedCounts, [currentYM]: currentSowsCount };
           db.collection(SETTINGS_PATH).doc('main').set({ monthlySowCounts: newCounts }, { merge: true })
@@ -717,11 +699,9 @@
       const handleSaveMonthlySowCount = (yearMonth, val) => {
         const currentCounts = (farmSettings || {}).monthlySowCounts || {};
         const newCounts = { ...currentCounts };
-        if (val === '') {
-          delete newCounts[yearMonth];
-        } else {
-          newCounts[yearMonth] = Number(val);
-        }
+        if (val === '') delete newCounts[yearMonth];
+        else newCounts[yearMonth] = Number(val);
+        
         db.collection(SETTINGS_PATH).doc('main').set({ monthlySowCounts: newCounts }, { merge: true }).catch(err => {
           console.error("월말 모돈수 저장 실패:", err);
         });
@@ -729,11 +709,7 @@
 
       const handleSaveMedicationOverride = (week, val) => {
         const field = `medOverride_${week}`;
-        // 수동 입력값이 비어있으면(지우면) null로 처리하여 자동 계산값이 보이도록 함
-        const updateData = val === '' 
-          ? { [field]: null }
-          : { [field]: Number(val) };
-          
+        const updateData = val === '' ? { [field]: null } : { [field]: Number(val) };
         db.collection(SETTINGS_PATH).doc('main').set(updateData, { merge: true }).catch(err => {
           console.error("약제 투여 두수 저장 실패:", err);
         });
@@ -800,13 +776,15 @@
         const nr = newRecord || {};
         if (!user || !s.id) return;
         try {
+          // 화면 UI 입력 항목을 사육현황 DB 구조 필드명에 맞게 매핑하여 저장
           const newHistoryItem = {
             parity: Number(nr.parity) || 0,
             date: nr.date || '',
             expDate: nr.expDate || '',
-            born: Number(nr.born) || 0,
-            weaned: Number(nr.weaned) || 0,
-            move: Number(nr.move) || 0
+            totalBorn: Number(nr.totalBorn) || 0, // 화면: 산자수 (신규)
+            born: Number(nr.born) || 0,           // 화면: 포유두수 (기존 연동)
+            weaned: Number(nr.weaned) || 0,       // 화면: 이동/도태 (기존 연동)
+            move: Number(nr.move) || 0            // 화면: 이유두수 (기존 연동)
           };
           
           const updatedHistory = [...(s.history || []).filter(Boolean), newHistoryItem]
@@ -817,7 +795,7 @@
             parity: Math.max(Number(s.parity) || 0, newHistoryItem.parity || 0)
           });
           
-          setNewRecord({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
+          setNewRecord({ parity: '', date: '', expDate: '', totalBorn: '', born: '', weaned: '', move: '' });
           setShowAddRecord(false);
         } catch (err) {
           console.error("Error adding record:", err);
@@ -967,23 +945,26 @@
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-50">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-500 text-center">
-                      <span className="w-10">산차</span>
+                    <div className="flex items-center gap-1.5 px-3 py-2 bg-slate-50 text-[10px] font-black text-slate-500 text-center">
+                      <span className="w-8">산차</span>
                       <span className="flex-1">분만일</span>
-                      <span className="w-12">산자</span>
-                      <span className="w-12">이동</span>
-                      <span className="w-12">이유</span>
+                      <span className="w-10">산자</span>
+                      <span className="w-10">포유</span>
+                      <span className="w-10">이동</span>
+                      <span className="w-10">이유</span>
                       <span className="w-6"></span>
                     </div>
                     {historyList.map((record, idx) => {
                       const r = record || {};
                       return (
-                        <div key={idx} className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-slate-800 text-center hover:bg-slate-50 transition">
-                          <span className="w-10 bg-slate-100 py-1 rounded text-slate-600">{r.parity || 0}산</span>
-                          <span className="flex-1 text-[13px]">{r.date || r.expDate || '-'}</span>
-                          <span className="w-12 text-emerald-600">{r.born || 0}</span>
-                          <span className="w-12 text-slate-500">{r.move || 0}</span>
-                          <span className="w-12 text-blue-600">{r.weaned || 0}</span>
+                        <div key={idx} className="flex items-center gap-1.5 px-3 py-3 text-[13px] font-bold text-slate-800 text-center hover:bg-slate-50 transition">
+                          <span className="w-8 bg-slate-100 py-1 rounded text-slate-600 text-[11px]">{r.parity || 0}산</span>
+                          <span className="flex-1 text-[12px]">{r.date || r.expDate || '-'}</span>
+                          {/* DB 매핑 필드에 맞게 출력 */}
+                          <span className="w-10 text-emerald-600">{r.totalBorn || r.born || 0}</span>
+                          <span className="w-10 text-amber-600">{r.born || 0}</span>
+                          <span className="w-10 text-slate-500">{r.weaned || 0}</span>
+                          <span className="w-10 text-blue-600">{r.move || 0}</span>
                           <button onClick={() => handleDeleteRecord(idx)} className="w-6 flex justify-center text-rose-300 hover:text-rose-500 transition">
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -1013,18 +994,23 @@
                         <input type="date" value={(newRecord || {}).date || ''} onChange={e => setNewRecord({...newRecord, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" />
                       </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-3">
+                    {/* 산자수(totalBorn), 포유(born), 이동(weaned), 이유(move) 필드 추가 매핑 */}
+                    <div className="grid grid-cols-4 gap-2">
                       <div>
                         <label className="text-[11px] font-bold text-emerald-600 block mb-1">산자수</label>
-                        <input type="number" value={(newRecord || {}).born || ''} onChange={e => setNewRecord({...newRecord, born: e.target.value})} className="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300" placeholder="0" />
+                        <input type="number" value={(newRecord || {}).totalBorn || ''} onChange={e => setNewRecord({...newRecord, totalBorn: e.target.value})} className="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-2.5 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300 text-center" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-amber-600 block mb-1">포유두수</label>
+                        <input type="number" value={(newRecord || {}).born || ''} onChange={e => setNewRecord({...newRecord, born: e.target.value})} className="w-full bg-amber-50 border border-amber-100 rounded-xl p-2.5 text-sm font-black text-amber-700 outline-none focus:border-amber-300 text-center" placeholder="0" />
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-slate-500 block mb-1">이동/도태</label>
-                        <input type="number" value={(newRecord || {}).move || ''} onChange={e => setNewRecord({...newRecord, move: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-slate-400" placeholder="0" />
+                        <input type="number" value={(newRecord || {}).weaned || ''} onChange={e => setNewRecord({...newRecord, weaned: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-sm font-black outline-none focus:border-slate-400 text-center" placeholder="0" />
                       </div>
                       <div>
                         <label className="text-[11px] font-bold text-blue-600 block mb-1">이유두수</label>
-                        <input type="number" value={(newRecord || {}).weaned || ''} onChange={e => setNewRecord({...newRecord, weaned: e.target.value})} className="w-full bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm font-black text-blue-700 outline-none focus:border-blue-300" placeholder="0" />
+                        <input type="number" value={(newRecord || {}).move || ''} onChange={e => setNewRecord({...newRecord, move: e.target.value})} className="w-full bg-blue-50 border border-blue-100 rounded-xl p-2.5 text-sm font-black text-blue-700 outline-none focus:border-blue-300 text-center" placeholder="0" />
                       </div>
                     </div>
                     <button type="submit" className="w-full mt-4 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg">저장하기</button>
@@ -1190,7 +1176,7 @@
                   </div>
                 </div>
 
-                {/* 예정된 약제 투여 후보돈 알림 (최대 2건) */}
+                {/* 예정된 약제 투여 후보돈 알림 (최대 4순위) */}
                 <div className="mt-4">
                   <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
                     예정된 후보돈 약제 투여 일정 <span className="text-[9px] bg-indigo-50 text-indigo-600 border border-indigo-200 px-1.5 py-0.5 rounded ml-1 font-bold">투약 17일 진행</span>
@@ -1214,7 +1200,7 @@
                               </div>
                               <div className="flex flex-col">
                                 <span className="text-[12px] font-black text-indigo-800">
-                                  {idx === 0 ? '[1순위] 약제 투여 일정' : '[2순위] 약제 투여 일정'}
+                                  [{idx + 1}순위] 약제 투여 일정
                                 </span>
                                 <div className="flex flex-col gap-0.5 mt-1 border-t border-indigo-200 pt-1">
                                   <span className="text-[10px] font-bold text-indigo-600">
