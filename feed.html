@@ -126,7 +126,6 @@
         );
 
         function App() {
-            // --- Core state variables ---
             const [user, setUser] = useState(null);
             const [orders, setOrders] = useState([]);
             const [loading, setLoading] = useState(true);
@@ -136,10 +135,21 @@
             const [confirmConfig, setConfirmConfig] = useState(null);
             const [toastConfig, setToastConfig] = useState({ show: false, message: '', bgColor: 'bg-slate-900' });
 
-            // 벌크 사료 주문 상태
+            // 오늘 다음날 날짜 획득 함수 (기본 입고일용)
+            const getTomorrowDateString = () => {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const year = tomorrow.getFullYear();
+                const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+                const day = String(tomorrow.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            };
+
+            // 벌크 사료 주문 상태 및 입고 날짜 입력 상태
             const [bulkFeedType, setBulkFeedType] = useState('젖돈');
             const [bulkBin, setBulkBin] = useState('1');
             const [bulkQuantity, setBulkQuantity] = useState('');
+            const [bulkDeliveryDate, setBulkDeliveryDate] = useState(getTomorrowDateString());
 
             // 수정 관련 제어
             const [editingOrderId, setEditingOrderId] = useState(null);
@@ -169,7 +179,7 @@
             const [orderFishMeal, setOrderFishMeal] = useState('');       // 어분
             const [orderSpecialPlus, setOrderSpecialPlus] = useState(''); // 스페셜플러스
 
-            // 돈사별 지대 배치 메모 입력 상태 (A, B, C동)
+            // 돈사별 지대 배치 메모 입력 상태 (자돈 A, B, C동)
             const [alloc, setAlloc] = useState({
                 barnA: { f1: '', f2: '', f3: '' },
                 barnB: { f1: '', f2: '', f3: '' },
@@ -294,6 +304,7 @@
             // Processing active wean and grow batch sizes memo
             const computedWeanCounts = useMemo(() => {
                 const getCountForDate = (dateStr) => {
+                    // 금주는 수기 기록 우선, 이전 주차는 배치 우선 적용하기 위해 source 보존
                     if (weaningRecords[dateStr] && weaningRecords[dateStr].totalWeaned > 0) {
                         return { count: weaningRecords[dateStr].totalWeaned, source: 'record' };
                     }
@@ -335,30 +346,53 @@
                 }
             }, [computedWeanCounts.w0]);
 
+            // 사료 주문 계산기 상의 주차별 데이터 우선순위 분기 로직 적용
             const weanCountsForCalc = useMemo(() => {
-                return {
-                    w3: computedWeanCounts.w3.count,
-                    w2: computedWeanCounts.w2.count,
-                    w1: computedWeanCounts.w1.count,
-                    w0: manualW0 !== '' ? (parseInt(manualW0) || 0) : computedWeanCounts.w0.count
-                };
-            }, [computedWeanCounts, manualW0]);
-
-            // Fetching real-time pen locations matching target dates
-            const getActiveBarnsForDate = (dateStr) => {
-                const activeBarns = [];
-                batchList.forEach(b => {
-                    const numId = b.id ? String(b.id).replace('batch_', '') : '';
-                    const hasDateInPens = b.penDates && b.penDates.some((pd, idx) => pd === dateStr && (b.penDetails?.[idx] > 0));
-                    if (hasDateInPens) {
-                        const shortName = b.type === 'weaning' ? `이유 ${numId}` : (numId === '8' ? '후보사' : `육성 ${numId}`);
-                        if (!activeBarns.includes(shortName)) {
-                            activeBarns.push(shortName);
+                const getSourceForWeek = (weekLabel, index) => {
+                    const dbKey = targetThursdays[index].dbKey;
+                    const recordVal = weaningRecords[dbKey]?.totalWeaned || 0;
+                    
+                    // 배치 수량 연산
+                    let batchSum = 0;
+                    batchList.forEach(b => {
+                        if (b.penDates && b.penDetails) {
+                            b.penDates.forEach((pd, idx) => {
+                                if (pd === dbKey) {
+                                    batchSum += (b.penDetails[idx] || 0);
+                                }
+                            });
                         }
+                    });
+
+                    if (weekLabel === 'w0') {
+                        // 금주(w0)는 수기 성적이 우선 (1순위: record, 2순위: batch)
+                        if (recordVal > 0) return { count: recordVal, source: 'record' };
+                        if (batchSum > 0) return { count: batchSum, source: 'batch' };
+                        return { count: 0, source: 'none' };
+                    } else {
+                        // 지난 주차(w1, w2, w3)는 돈방 배치 데이터가 우선 (1순위: batch, 2순위: record)
+                        if (batchSum > 0) return { count: batchSum, source: 'batch' };
+                        if (recordVal > 0) return { count: recordVal, source: 'record' };
+                        return { count: 0, source: 'none' };
                     }
-                });
-                return activeBarns.length > 0 ? activeBarns.join(', ') : '-';
-            };
+                };
+
+                const w3Obj = getSourceForWeek('w3', 0);
+                const w2Obj = getSourceForWeek('w2', 1);
+                const w1Obj = getSourceForWeek('w1', 2);
+                const w0Obj = getSourceForWeek('w0', 3);
+
+                return {
+                    w3: w3Obj.count,
+                    w2: w2Obj.count,
+                    w1: w1Obj.count,
+                    w0: manualW0 !== '' ? (parseInt(manualW0) || 0) : w0Obj.count,
+                    w3Source: w3Obj.source,
+                    w2Source: w2Obj.source,
+                    w1Source: w1Obj.source,
+                    w0Source: w0Obj.source
+                };
+            }, [weaningRecords, batchList, targetThursdays, manualW0]);
 
             const dailyOrders = useMemo(() => {
                 const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
@@ -465,29 +499,12 @@
                 };
             }, [calcProgramResults.totalF1, calcProgramResults.totalF2, calcProgramResults.totalF3, stockF1, stockF2, stockF3]);
 
-            // 돈사별 분배 총액 연산
-            const allocTotals = useMemo(() => {
-                const getVal = (v) => parseInt(v) || 0;
-                return {
-                    f1: getVal(alloc.barnA.f1) + getVal(alloc.barnB.f1) + getVal(alloc.barnC.f1),
-                    f2: getVal(alloc.barnA.f2) + getVal(alloc.barnB.f2) + getVal(alloc.barnC.f2),
-                    f3: getVal(alloc.barnA.f3) + getVal(alloc.barnB.f3) + getVal(alloc.barnC.f3),
-                };
-            }, [alloc]);
-
             const handleAddCalculatorToOrders = () => {
-                let msg = `재고 차감 및 5단위로 보정된 최종 실주문량 1호(${netF1}포), 2호(${netF2}포), 3호(${netF3}포)`;
-                const fmBags = parseInt(orderFishMeal) || 0;
-                const spBags = parseInt(orderSpecialPlus) || 0;
-                if (fmBags > 0 || spBags > 0) {
-                    msg += `, 첨가제 [어분 ${fmBags}포, 스페셜플러스 ${spBags}포]`;
-                }
-                msg += `를 당일 주문에 즉시 추가하시겠습니까?`;
-
-                showConfirm(msg, async () => {
+                showConfirm(`재고 차감 및 5단위로 보정된 최종 실주문량 1호(${netF1}포), 2호(${netF2}포), 3호(${netF3}포)를 당일 주문에 즉시 추가하시겠습니까?`, async () => {
                     try {
                         const now = new Date();
                         const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                        const deliveryDateString = getTomorrowDateString(); // 지대 사료 등록 시에도 내일을 기본 입고 날짜로 세팅
                         
                         const batch = db.batch();
                         let count = 0;
@@ -500,7 +517,8 @@
                                 bulkBin: '지대 1',
                                 quantity: qtyTons,
                                 unit: '톤',
-                                date: dateString
+                                date: dateString,
+                                deliveryDate: deliveryDateString
                             });
                             count++;
                         }
@@ -512,7 +530,8 @@
                                 bulkBin: '지대 2',
                                 quantity: qtyTons,
                                 unit: '톤',
-                                date: dateString
+                                date: dateString,
+                                deliveryDate: deliveryDateString
                             });
                             count++;
                         }
@@ -524,47 +543,18 @@
                                 bulkBin: '지대 3',
                                 quantity: qtyTons,
                                 unit: '톤',
-                                date: dateString
-                            });
-                            count++;
-                        }
-
-                        // 첨가제: 어분 추가 등록 (20kg 규격 기준 톤 환산)
-                        if (fmBags > 0) {
-                            const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((fmBags * 20 / 1000).toFixed(3));
-                            batch.set(ref, {
-                                feedType: '첨가제',
-                                bulkBin: '지대 어분',
-                                quantity: qtyTons,
-                                unit: '톤',
-                                date: dateString
-                            });
-                            count++;
-                        }
-
-                        // 첨가제: 스페셜플러스 추가 등록 (20kg 규격 기준 톤 환산)
-                        if (spBags > 0) {
-                            const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((spBags * 20 / 1000).toFixed(3));
-                            batch.set(ref, {
-                                feedType: '첨가제',
-                                bulkBin: '지대 스페셜플러스',
-                                quantity: qtyTons,
-                                unit: '톤',
-                                date: dateString
+                                date: dateString,
+                                deliveryDate: deliveryDateString
                             });
                             count++;
                         }
 
                         if (count > 0) {
                             await batch.commit();
-                            showToast("✨ 실주문량 산출값 및 첨가제 " + count + "건이 규격톤수로 등록되었습니다!", "bg-emerald-600");
-                            setOrderFishMeal('');
-                            setOrderSpecialPlus('');
+                            showToast("✨ 실주문량 산출값 " + count + "건이 규격톤수로 변환되어 추가되었습니다!", "bg-emerald-600");
                             setShowCalculator(false);
                         } else {
-                            showAlert("실제 추가할 주문 수량이 존재하지 않습니다.");
+                            showAlert("실제 추가할 주문 수량이 존재하지 않습니다. (재고가 필요량보다 많거나 보정 후 0포가 됨)");
                         }
                     } catch (err) {
                         showAlert("주문 추가 실패: " + err.message);
@@ -577,6 +567,7 @@
                 setBulkFeedType('젖돈');
                 setBulkBin('1');
                 setBulkQuantity('');
+                setBulkDeliveryDate(getTomorrowDateString());
             };
 
             const handleSubmitBulkOrder = async (e) => {
@@ -595,12 +586,21 @@
                 try {
                     if (editingOrderId) {
                         await db.collection(FEED_ORDERS_COLLECTION_PATH).doc(editingOrderId).update({
-                            feedType: bulkFeedType, bulkBin, quantity: qVal, date: dateString + " (수정됨)"
+                            feedType: bulkFeedType, 
+                            bulkBin, 
+                            quantity: qVal, 
+                            date: dateString + " (수정됨)",
+                            deliveryDate: bulkDeliveryDate
                         });
                         showToast("📝 벌크 사료 주문서가 수정되었습니다.", "bg-amber-600");
                     } else {
                         await db.collection(FEED_ORDERS_COLLECTION_PATH).add({
-                            feedType: bulkFeedType, bulkBin, quantity: qVal, unit: '톤', date: dateString
+                            feedType: bulkFeedType, 
+                            bulkBin, 
+                            quantity: qVal, 
+                            unit: '톤', 
+                            date: dateString,
+                            deliveryDate: bulkDeliveryDate
                         });
                         showToast("✨ 새 벌크 주문이 등록되었습니다!", "bg-emerald-600");
                     }
@@ -620,6 +620,7 @@
                 setBulkFeedType(order.feedType);
                 setBulkBin(order.bulkBin);
                 setBulkQuantity(order.quantity);
+                setBulkDeliveryDate(order.deliveryDate || getTomorrowDateString());
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 showToast("✏️ 벌크 사료 주문 정보 수정 상태로 돌입합니다.", "bg-indigo-600");
             };
@@ -682,7 +683,8 @@
                     text += `-------------------------\n\n`;
                     text += `■ 벌크통 사료 개별 주문 내역\n`;
                     bulkOrders.forEach((order) => {
-                        text += `${order.bulkBin}번 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
+                        const deliveryStr = order.deliveryDate ? ` [입고: ${order.deliveryDate.substring(5)}]` : '';
+                        text += `${order.bulkBin}번 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤${deliveryStr}\n`;
                     });
                 }
 
@@ -740,7 +742,13 @@
 
                 for (let day = 1; day <= totalDaysInMonth; day++) {
                     const compareDateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                    const dayOrders = orders.filter(o => o.date.startsWith(compareDateStr));
+                    
+                    // 매치 타겟: 입고 예정일(deliveryDate)이 있으면 사용하고, 없을 시 등록 시각(date)의 앞 10자리를 기준으로 달력 매칭
+                    const dayOrders = orders.filter(o => {
+                        const targetDate = o.deliveryDate ? o.deliveryDate : o.date.substring(0, 10);
+                        return targetDate === compareDateStr;
+                    });
+                    
                     let dayTotal = 0;
 
                     const badges = dayOrders.map(o => {
@@ -806,7 +814,7 @@
                             {/* --- Left Column: Stacked Forms --- */}
                             <div className="lg:col-span-8 space-y-6">
                                 
-                                {/* 1. 벌크 사료 주문 정보 폼 */}
+                                {/* 1. 벌크 사료 주문 정보 폼 (입고 날짜 추가 반영 완료) */}
                                 <section className="bg-white rounded-2xl p-6 md:p-8 shadow-sm border border-stone-200/60">
                                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-6 border-b border-slate-100 pb-4">
                                         <div className="flex items-center gap-2">
@@ -820,7 +828,7 @@
                                     </div>
 
                                     <form onSubmit={handleSubmitBulkOrder} className="space-y-4">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                             <div>
                                                 <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 종류 <span className="text-rose-500">*</span></label>
                                                 <div className="relative">
@@ -852,10 +860,18 @@
                                                 </div>
                                             </div>
                                             <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1.5">입고 날짜 <span className="text-rose-500">*</span></label>
+                                                <div className="relative">
+                                                    <input type="date" value={bulkDeliveryDate} onChange={e => setBulkDeliveryDate(e.target.value)} required
+                                                        className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-bold text-slate-800 appearance-none"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <div>
                                                 <label className="block text-xs font-bold text-slate-700 mb-1.5">사료 주문량 (톤) <span className="text-rose-500">*</span></label>
                                                 <div className="flex gap-2">
                                                     <input type="number" step="0.1" min="0.1" value={bulkQuantity} onChange={e => setBulkQuantity(e.target.value)} required placeholder="예: 3.5"
-                                                        className="w-full min-w-0 flex-1 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-black text-slate-800"
+                                                        className="w-full min-w-0 flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-base font-black text-slate-800"
                                                     />
                                                     <span className="flex items-center justify-center shrink-0 px-3 bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-600">
                                                         톤
@@ -922,7 +938,7 @@
                                                 </div>
                                             </div>
 
-                                            {/* 엑셀 스타일 테이블 */}
+                                            {/* 엑셀 스타일 테이블 (수기 vs 배치 연동 우선순위 지능형 개편 완료) */}
                                             <div className="overflow-x-auto rounded-xl border border-slate-200">
                                                 <table className="w-full text-xs font-mono text-center text-slate-700 excel-table border-collapse min-w-[650px]">
                                                     <thead>
@@ -937,13 +953,14 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-200">
-                                                        {/* 3주 전 이유 (3호 사료 급여 - 사육현황 자동 로드) */}
+                                                        {/* 3주 전 이유 (3호 사료 급여 - 배치 우선) */}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[0].display}</td>
                                                             <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     <span className="text-[13px]">{weanCountsForCalc.w3} 두</span>
-                                                                    {computedWeanCounts.w3.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
+                                                                    {weanCountsForCalc.w3Source === 'record' && <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-600 px-1.5 py-0.5 rounded-md font-bold">기록 연동</span>}
+                                                                    {weanCountsForCalc.w3Source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
                                                                 </div>
                                                             </td>
                                                             <td className="p-2.5 bg-slate-50/50 font-bold">{calcProgramResults.n3}</td>
@@ -952,13 +969,14 @@
                                                             <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w3_f3.toFixed(1)} 포</td>
                                                             <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[0].dbKey)}</td>
                                                         </tr>
-                                                        {/* 2주 전 이유 (3호 사료 급여 - 사육현황 자동 로드) */}
+                                                        {/* 2주 전 이유 (3호 사료 급여 - 배치 우선) */}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[1].display}</td>
                                                             <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     <span className="text-[13px]">{weanCountsForCalc.w2} 두</span>
-                                                                    {computedWeanCounts.w2.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
+                                                                    {weanCountsForCalc.w2Source === 'record' && <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-600 px-1.5 py-0.5 rounded-md font-bold">기록 연동</span>}
+                                                                    {weanCountsForCalc.w2Source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
                                                                 </div>
                                                             </td>
                                                             <td className="p-2.5 bg-slate-50/50 font-bold">{calcProgramResults.n2}</td>
@@ -967,13 +985,14 @@
                                                             <td className="p-2.5 font-bold text-slate-800 bg-amber-50/20">{calcProgramResults.w2_f3.toFixed(1)} 포</td>
                                                             <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[1].dbKey)}</td>
                                                         </tr>
-                                                        {/* 1주 전 이유 (2호 사료 급여 - 사육현황 자동 로드) */}
+                                                        {/* 1주 전 이유 (2호 사료 급여 - 배치 우선) */}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[2].display}</td>
                                                             <td className="p-2.5 font-black text-slate-800 bg-slate-50/35">
                                                                 <div className="flex items-center justify-center gap-1.5">
                                                                     <span className="text-[13px]">{weanCountsForCalc.w1} 두</span>
-                                                                    {computedWeanCounts.w1.source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
+                                                                    {weanCountsForCalc.w1Source === 'record' && <span className="text-[9px] bg-indigo-50 border border-indigo-200 text-indigo-600 px-1.5 py-0.5 rounded-md font-bold">기록 연동</span>}
+                                                                    {weanCountsForCalc.w1Source === 'none' && <span className="text-[9px] bg-rose-50 border border-rose-200 text-rose-500 px-1.5 py-0.5 rounded-md font-bold">미등록</span>}
                                                                 </div>
                                                             </td>
                                                             <td className="p-2.5 bg-slate-50/50 font-bold">{calcProgramResults.n1}</td>
@@ -982,7 +1001,7 @@
                                                             <td className="p-2.5 text-slate-400">-</td>
                                                             <td className="p-2.5 text-blue-600 font-bold text-xs">{getActiveBarnsForDate(targetThursdays[2].dbKey)}</td>
                                                         </tr>
-                                                        {/* 금주 이유 (1호 사료 급여 - 직접 기입 우선 및 연동 폴백 지원) */}
+                                                        {/* 금주 이유 (1호 사료 급여 - 수기 우선) */}
                                                         <tr>
                                                             <td className="p-2.5 bg-slate-50 font-bold text-blue-600">{targetThursdays[3].display}</td>
                                                             <td className="p-1.5 bg-amber-50/10">
@@ -994,8 +1013,8 @@
                                                                         placeholder="직접 입력"
                                                                         className="w-full text-center py-1 bg-white border border-slate-200 focus:border-amber-500 focus:outline-none font-black text-slate-900 rounded shadow-inner" 
                                                                     />
-                                                                    {computedWeanCounts.w0.source === 'record' && (
-                                                                        <span className="absolute right-1 text-[8px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1.5 py-0.5 rounded-md font-bold pointer-events-none">
+                                                                    {weanCountsForCalc.w0Source === 'record' && (
+                                                                        <span className="absolute right-1 text-[8px] bg-indigo-50 border border-indigo-200 text-indigo-700 px-1 rounded scale-90 pointer-events-none font-bold">
                                                                             기록 연동
                                                                         </span>
                                                                     )}
@@ -1341,7 +1360,7 @@
                                     </div>
                                 </div>
 
-                                {/* 벌크 사료 당일 테이블 */}
+                                {/* 벌크 사료 당일 테이블 (입고 예정일 노출 추가) */}
                                 <div>
                                     <div className="flex justify-between items-center mb-2">
                                         <h3 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
@@ -1367,12 +1386,13 @@
                                                     <th className="p-2.5 w-32 bg-slate-100">사료 종류</th>
                                                     <th className="p-2.5 w-32 bg-slate-100">벌크통 번호</th>
                                                     <th className="p-2.5 w-32 bg-slate-100 text-right pr-4">주문량 (톤)</th>
+                                                    <th className="p-2.5 w-28 bg-slate-100">입고 예정일</th>
                                                     <th className="p-2.5 w-24 bg-slate-100">관리</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {bulkOrders.length === 0 ? (
-                                                    <tr><td colSpan="5" className="p-6 text-center text-slate-400 font-sans bg-slate-50/50">오늘 접수된 벌크통 주문이 없습니다.</td></tr>
+                                                    <tr><td colSpan="6" className="p-6 text-center text-slate-400 font-sans bg-slate-50/50">오늘 접수된 벌크통 주문이 없습니다.</td></tr>
                                                 ) : (
                                                     bulkOrders.map((order, index) => {
                                                         const rowNo = index + 1;
@@ -1382,6 +1402,9 @@
                                                                 <td className="p-3 text-center font-sans font-black border border-slate-300 text-slate-900">{order.feedType}</td>
                                                                 <td className="p-3 text-center font-sans font-black border border-slate-300 text-blue-700">벌크 {order.bulkBin}호</td>
                                                                 <td className="p-3 text-right pr-4 font-black border border-slate-300 text-slate-950">{parseFloat(order.quantity).toFixed(1)} 톤</td>
+                                                                <td className="p-3 text-center border border-slate-300 font-black text-rose-600 text-xs">
+                                                                    {order.deliveryDate ? order.deliveryDate : '-'}
+                                                                </td>
                                                                 <td className="p-2 text-center border border-slate-300">
                                                                     <div className="flex justify-center gap-1.5">
                                                                         <button onClick={() => handleEditClick(order)} title="수정" className="p-1.5 bg-white hover:bg-slate-100 text-slate-600 hover:text-indigo-600 border border-slate-300 rounded shadow-sm transition-all"><Edit3 className="w-4 h-4" /></button>
