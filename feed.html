@@ -731,6 +731,16 @@
                         });
                     }
                 } else {
+                    // unique 입고 예정일 추출하여 벌크 상단에 단 한 번만 배치
+                    const uniqueDates = [...new Set(bulkOrders.map(o => o.deliveryDate).filter(Boolean))].sort();
+                    if (uniqueDates.length > 0) {
+                        const formattedDates = uniqueDates.map(d => {
+                            const parts = d.split('-');
+                            return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : d;
+                        }).join(', ');
+                        text += `■ 입고 예정일: ${formattedDates}\n`;
+                    }
+
                     // 벌크 사료 종류별 총합 우선 집계 및 상단 표기
                     const bulkSummary = {};
                     bulkOrders.forEach(order => {
@@ -744,8 +754,8 @@
                     text += `-------------------------\n\n`;
                     text += `■ 벌크통 사료 개별 주문 내역\n`;
                     bulkOrders.forEach((order) => {
-                        const deliveryStr = order.deliveryDate ? ` [입고: ${order.deliveryDate.substring(5)}]` : '';
-                        text += `${order.bulkBin}번 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤${deliveryStr}\n`;
+                        // 개별 라인 뒤에 붙던 입고 날짜 꼬리표를 제거하여 가독성 강화
+                        text += `${order.bulkBin}번 [${order.feedType}] ${parseFloat(order.quantity).toFixed(1)}톤\n`;
                     });
                 }
 
