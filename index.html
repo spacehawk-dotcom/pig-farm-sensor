@@ -495,7 +495,7 @@
                 getExpectedFarrow: (m) => {
                     const d = utils.parseDate(m);
                     if (!d) return null;
-                    d.setDate(d.getDate() + 114);
+                    d.setDate(d.getDate() + 116);
                     const yy = d.getFullYear();
                     const mm = String(d.getMonth() + 1).padStart(2, '0');
                     const dd = String(d.getDate()).padStart(2, '0');
@@ -1374,7 +1374,7 @@
                 }
                 const d = utils.parseDate(val);
                 if (d) {
-                    d.setDate(d.getDate() + 114);
+                    d.setDate(d.getDate() + 116);
                     const mm = String(d.getMonth() + 1).padStart(2, '0');
                     const dd = String(d.getDate()).padStart(2, '0');
                     farrowInput.value = `${mm}/${dd}`;
@@ -1405,7 +1405,7 @@
                 const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
                 const numCls = "bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all";
                 const txtCls = "bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all";
-                const ocMating = "if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}";
+                const ocMating = "if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+116);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}";
                 const ocFarrow = "if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}";
                 const html = `
                 <div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors">
