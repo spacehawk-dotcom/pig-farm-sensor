@@ -1,0 +1,1620 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>축산물원패스 판정 데이터 분석기</title>
+    <!-- Tailwind CSS 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js 로드 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS (Excel 파서) 로드 -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Google Fonts Inter & Noto Sans KR -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Inter', sans-serif;
+        }
+        /* 스크롤바 미려하게 가공 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+<header class="bg-slate-900 text-white shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="bg-emerald-500 text-white p-2 rounded-lg flex items-center justify-center">
+                <!-- 돼지 아이콘 SVG -->
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-lg font-bold tracking-tight">PIG-ONEPASS</h1>
+                <p class="text-xs text-slate-400 font-medium">축산물원패스 판정 데이터 자동 정산 & 분석기</p>
+            </div>
+        </div>
+        
+        <!-- 네비게이션 탭 버튼 -->
+        <nav class="hidden md:flex space-x-1 bg-slate-800 p-1 rounded-xl">
+            <button onclick="switchTab('upload')" id="tab-btn-upload" class="tab-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 bg-emerald-500 text-white shadow">
+                📂 엑셀 업로드
+            </button>
+            <button onclick="switchTab('dashboard')" id="tab-btn-dashboard" class="tab-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 text-slate-300 hover:text-white">
+                📊 종합 분석 대시보드
+            </button>
+            <button onclick="switchTab('history')" id="tab-btn-history" class="tab-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 text-slate-300 hover:text-white">
+                🗂️ 출하 기록 내역
+            </button>
+            <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 text-slate-300 hover:text-white">
+                ⚙️ 단가 및 시스템 설정
+            </button>
+        </nav>
+
+        <!-- 모바일 탭 메뉴 트리거 -->
+        <div class="md:hidden flex items-center">
+            <select id="mobile-tab-select" onchange="switchTab(this.value)" class="bg-slate-800 text-white text-sm rounded-lg block w-full p-2 border-none focus:ring-2 focus:ring-emerald-500">
+                <option value="upload">📂 엑셀 업로드</option>
+                <option value="dashboard">📊 분석 대시보드</option>
+                <option value="history">🗂️ 출하 기록 내역</option>
+                <option value="settings">⚙️ 단가/시스템 설정</option>
+            </select>
+        </div>
+    </div>
+</header>
+
+<!-- 메인 컨텐츠 영역 -->
+<main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- 커스텀 토스트 알림창 -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- 커스텀 컨펌 모달 (confirm 제거 가이드 준수) -->
+    <div id="custom-confirm-modal" class="fixed inset-0 z-[100] hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 transform transition-all scale-95 duration-200">
+            <div class="flex items-center space-x-3 text-rose-600">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                <h3 class="text-base font-bold text-slate-900">작업 확인</h3>
+            </div>
+            <p id="custom-confirm-text" class="text-sm text-slate-600 leading-relaxed"></p>
+            <div class="flex justify-end space-x-2 pt-2">
+                <button id="custom-confirm-cancel" class="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors">취소</button>
+                <button id="custom-confirm-ok" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg transition-colors">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 커스텀 경고 모달 (alert 제거 가이드 준수) -->
+    <div id="custom-alert-modal" class="fixed inset-0 z-[100] hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-sm w-full p-6 space-y-4 text-center">
+            <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-full flex items-center justify-center mx-auto">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            </div>
+            <h3 class="text-base font-bold text-slate-900">안내</h3>
+            <p id="custom-alert-text" class="text-sm text-slate-600 leading-relaxed"></p>
+            <button id="custom-alert-ok" class="w-full bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold py-2.5 rounded-lg transition-colors">확인</button>
+        </div>
+    </div>
+
+    <!-- Tab 1: 엑셀 업로드 및 실시간 정산 화면 -->
+    <section id="tab-upload" class="space-y-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- 왼쪽: 파일 업로드 및 핵심 세팅 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- 드롭존 영역 -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                        <span class="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full mr-2">Step 1</span>
+                        원패스 판정 엑셀 업로드
+                    </h3>
+                    
+                    <div id="dropzone" class="border-3 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-slate-50 transition-all rounded-xl p-10 flex flex-col items-center justify-center cursor-pointer text-center relative group">
+                        <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                        <svg class="w-12 h-12 text-slate-400 group-hover:text-emerald-500 transition-colors duration-200 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p class="text-slate-700 font-medium mb-1">여기로 엑셀 파일을 드래그하여 놓거나 클릭하세요.</p>
+                        <p class="text-slate-400 text-xs">지원되는 파일 형식: .xlsx, .xls, .csv (돼지도체 등급판정결과)</p>
+                    </div>
+
+                    <!-- 즉시 체험용 데모 기능 버튼 -->
+                    <div class="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 bg-indigo-50 border border-indigo-100 p-4 rounded-xl">
+                        <div class="flex items-center space-x-3">
+                            <span class="flex h-3 w-3 relative">
+                              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                              <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                            </span>
+                            <p class="text-sm text-indigo-900 font-medium">원패스 엑셀 파일이 준비되지 않으셨나요?</p>
+                        </div>
+                        <button onclick="loadDemoBatch()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition-all">
+                            ✨ 테스트용 데모 데이터 불러오기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 업로드 후 로드된 목록 미리보기 테이블 -->
+                <div id="loaded-data-container" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden hidden transition-all duration-300">
+                    <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50">
+                        <div>
+                            <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                                <span class="bg-indigo-100 text-indigo-800 text-xs px-2.5 py-1 rounded-full mr-2">Step 2</span>
+                                파싱 완료된 축산 데이터 목록
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-1">이력 정보가 성공적으로 분석되었습니다. 단가를 적용하여 예상 판매액을 계산했습니다.</p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="saveCurrentBatch()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-sm flex items-center">
+                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                DB에 기록 저장하기
+                            </button>
+                            <button onclick="clearCurrentBatch()" class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-sm font-semibold px-3 py-2 rounded-lg">
+                                취소
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 계근 중량 기입란 추가 -->
+                    <div class="p-5 bg-indigo-50/50 border-b border-indigo-100 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                        <div>
+                            <label class="block text-xs font-bold text-indigo-700 uppercase mb-1.5">⚖️ 차량(배치) 총 생체중량 계근 입력 (선택사항)</label>
+                            <div class="flex items-center space-x-2">
+                                <input type="number" id="live-weight-input" placeholder="실제 계근중량 입력 (예: 5120)" oninput="updateLiveWeight(this.value)" class="w-full max-w-xs border border-indigo-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm" />
+                                <span class="text-sm font-bold text-indigo-800">kg</span>
+                            </div>
+                            <p class="text-xxs text-indigo-500 mt-1 leading-normal">* 총 생체중을 입력하면 전체 지육율이 계산되며, 개별 판매금액 정산 공식이 <strong>[지육중량/지육율]</strong>로 정합하게 자동 가동됩니다.</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-slate-500 font-semibold block">산출된 배치 지육율</span>
+                            <span id="summary-yield-rate" class="text-2xl font-black text-indigo-600 mt-1 block">76.500% <span class="text-xs font-bold text-slate-400">(기본값)</span></span>
+                        </div>
+                    </div>
+
+                    <div class="p-5 bg-emerald-50/50 border-b border-emerald-100 grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="text-center p-3 bg-white rounded-xl shadow-sm border border-emerald-100">
+                            <p class="text-xs text-slate-500 font-medium">총 출하 두수</p>
+                            <p id="calc-summary-count" class="text-xl font-bold text-slate-800 mt-1">- 두</p>
+                        </div>
+                        <div class="text-center p-3 bg-white rounded-xl shadow-sm border border-emerald-100">
+                            <p class="text-xs text-slate-500 font-medium">총 지육 중량</p>
+                            <p id="calc-summary-weight" class="text-xl font-bold text-slate-800 mt-1">- kg</p>
+                        </div>
+                        <div class="text-center p-3 bg-white rounded-xl shadow-sm border border-emerald-100">
+                            <p class="text-xs text-slate-500 font-medium">평균 등지방 두께</p>
+                            <p id="calc-summary-fat" class="text-xl font-bold text-slate-800 mt-1">- mm</p>
+                        </div>
+                        <div class="text-center p-3 bg-emerald-500 rounded-xl shadow-sm border border-emerald-600 text-white">
+                            <p class="text-xs text-emerald-100 font-medium">총 예상 정산액</p>
+                            <p id="calc-summary-price" class="text-xl font-bold mt-1">- 원</p>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto max-h-96">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-100 border-b border-slate-200 text-slate-600 font-semibold sticky top-0">
+                                    <th class="p-3 text-center">번호</th>
+                                    <th class="p-3">식별/도축번호</th>
+                                    <th class="p-3 text-center">성별</th>
+                                    <th class="p-3 text-center">육질등급</th>
+                                    <th class="p-3 text-right">도체중량(kg)</th>
+                                    <th class="p-3 text-right">적용지급율</th>
+                                    <th class="p-3 text-right">가감액(원)</th>
+                                    <th class="p-3 text-right font-semibold text-emerald-700">예상 판매금액</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loaded-data-tbody" class="divide-y divide-slate-200">
+                                <!-- JS 파싱 데이터 삽입 영역 -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 실시간 단가 기준 조정 판넬 -->
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                            📈 적용 시세 (전국 탕박 평균)
+                        </h3>
+                        <span class="text-xs text-indigo-600 font-semibold bg-indigo-50 px-2 py-1 rounded">실시간 반영</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-4 leading-relaxed">
+                        금주 출하에 적용될 도매시장 경매 시세(원/kg)를 입력하세요. 입력 즉시 하단 계약 합의서 기준에 따라 개별 지급율과 페널티가 자동 정산됩니다.
+                    </p>
+
+                    <div class="flex items-center space-x-2 mb-6">
+                        <input type="number" id="market-price-input" value="5300" oninput="updateMarketPrice(this.value)" class="w-full text-right border border-emerald-300 rounded-lg p-3 text-xl font-bold text-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-inner" />
+                        <span class="text-base text-slate-600 font-semibold">원/kg</span>
+                    </div>
+
+                    <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2.5">
+                        <h4 class="text-sm font-bold text-slate-700 mb-2 flex items-center">
+                            <svg class="w-4 h-4 mr-1 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                            적용중인 정산 계약 조건 (합의서)
+                        </h4>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-500">기준 지급율</span>
+                            <span class="font-bold text-emerald-600">76.5%</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-500">1+,1등급 출현율 보정</span>
+                            <span class="font-semibold text-slate-700">배치당 +1.0% ~ -3.0%</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-500">지육율 보정 (생체중량)</span>
+                            <span class="font-semibold text-slate-700">0.1%당 지급율 ±0.1%</span>
+                        </div>
+                        <div class="flex justify-between text-xs pt-1 border-t border-slate-200">
+                            <span class="text-slate-500">중량/등지방 페널티</span>
+                            <span class="font-semibold text-rose-600">개별 자동 감액</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-500">1+등급 장려금</span>
+                            <span class="font-semibold text-indigo-600">+5,000원/두</span>
+                        </div>
+                        <div class="flex justify-between text-xs">
+                            <span class="text-slate-500">자조금/수수료 고정공제</span>
+                            <span class="font-semibold text-rose-600">-1,500원/두</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 원패스 엑셀 활용 팁 가이드 -->
+                <div class="bg-gradient-to-br from-slate-800 to-slate-900 text-white p-6 rounded-2xl shadow-md border border-slate-700">
+                    <h4 class="font-bold text-sm text-emerald-400 mb-2 flex items-center">
+                        💡 알아두면 유용한 팁
+                    </h4>
+                    <ul class="text-xs text-slate-300 space-y-2.5 list-disc pl-4">
+                        <li>축산물원패스(LIMS 또는 통합정보망) 로그인 후 <strong>[돼지 판정 내역 및 성적 분석]</strong> 메뉴에서 당일/기간별 판정성적 조회가 가능합니다.</li>
+                        <li>조회 결과를 <strong>[엑셀 다운로드]</strong>한 다음 변환 없이 그대로 이 화면에 드래그하시면 됩니다.</li>
+                        <li>등급별 단가를 본인의 유통 출하 계약 조건에 맞추어 수정하면 오차 없는 완벽한 원가 및 매출 추정이 가능해집니다.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab 2: 종합 분석 대시보드 화면 -->
+    <section id="tab-dashboard" class="space-y-6 hidden">
+        <!-- 대시보드 타이틀 및 날짜 필터 -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800">📊 축산 분석 인텔리전스</h2>
+                <p class="text-sm text-slate-500 mt-1">누적된 출하 데이터를 바탕으로 정밀 등급 분석 및 판매 트렌드를 시각화합니다.</p>
+            </div>
+            
+            <div class="flex space-x-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200">
+                <button onclick="filterDashboardData(0)" class="dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white shadow-sm">전체</button>
+                <button onclick="filterDashboardData(30)" class="dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100">최근 30일</button>
+                <button onclick="filterDashboardData(90)" class="dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100">최근 90일</button>
+            </div>
+        </div>
+
+        <!-- 데이터 부재 안내 경고창 -->
+        <div id="no-db-data-warning" class="bg-amber-50 border border-amber-200 rounded-2xl p-8 text-center hidden">
+            <svg class="w-12 h-12 text-amber-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            <h3 class="text-lg font-bold text-amber-800">분석을 위한 누적 데이터가 부족합니다!</h3>
+            <p class="text-sm text-amber-600 mt-1">첫 번째 탭에서 엑셀 파일을 업로드하거나 [데모 데이터 불러오기]를 실행해 데이터베이스에 저장해 주세요.</p>
+            <button onclick="switchTab('upload')" class="mt-4 bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-all">
+                데이터 등록하러 가기
+            </button>
+        </div>
+
+        <!-- 대시보드 위젯 그리드 -->
+        <div id="dashboard-widgets" class="space-y-6">
+            <!-- 핵심 성과 지표 (KPI) 카드 모음 -->
+            <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">누적 총 출하두수</p>
+                    <p id="kpi-total-head" class="text-2xl font-bold text-slate-800 mt-2">- 두</p>
+                    <p class="text-xs text-emerald-600 font-medium mt-1">✔ 판정 기록 전체 기준</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">평균 지육 중량</p>
+                    <p id="kpi-avg-weight" class="text-2xl font-bold text-slate-800 mt-2">- kg</p>
+                    <p class="text-xs text-slate-400 mt-1">두당 평균 판정무게</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">상위등급 비율 (1등급 이상)</p>
+                    <p id="kpi-top-ratio" class="text-2xl font-bold text-indigo-600 mt-2">- %</p>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2 overflow-hidden">
+                        <div id="kpi-top-bar" class="bg-indigo-500 h-full transition-all" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">평균 등지방 두께</p>
+                    <p id="kpi-avg-fat" class="text-2xl font-bold text-slate-800 mt-2">- mm</p>
+                    <p class="text-xs text-slate-400 mt-1">지방 조절 상태 모니터링</p>
+                </div>
+                <div class="col-span-2 lg:col-span-1 bg-emerald-600 p-5 rounded-2xl shadow-md text-white">
+                    <p class="text-xs text-emerald-100 font-semibold uppercase tracking-wider">누적 총 정산액 (실입금)</p>
+                    <p id="kpi-total-revenue" class="text-2xl font-bold mt-2">- 원</p>
+                    <p class="text-xs text-emerald-100 mt-1">수기 기입 및 예상금 보정</p>
+                </div>
+            </div>
+
+            <!-- 대시보드 시각화 차트 그리드 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 1. 등급 분포 현황 차트 -->
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center">
+                        <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full mr-2"></span>
+                        돼지 등급 분포 (육질 등급)
+                    </h3>
+                    <div class="flex-grow flex items-center justify-center h-64 relative">
+                        <canvas id="gradeDistributionChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 2. 출하일자별 실시간 출하성적 변동 트렌드 -->
+                <div class="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center">
+                        <span class="w-2.5 h-2.5 bg-indigo-500 rounded-full mr-2"></span>
+                        일자별 출하 성적 및 평균 중량 추이
+                    </h3>
+                    <div class="flex-grow h-64">
+                        <canvas id="weightTrendChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- 3. 평균 판매 가격대별 매출 기여 분석 -->
+                <div class="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
+                        <h3 class="text-base font-bold text-slate-800 flex items-center">
+                            <span class="w-2.5 h-2.5 bg-sky-500 rounded-full mr-2"></span>
+                            출하 일자별 총 정산 대금 분석
+                        </h3>
+                        <p class="text-xs text-slate-400">출하 차수별 실입금 및 정산 현황</p>
+                    </div>
+                    <div class="h-72">
+                        <canvas id="revenueBarChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab 3: 출하 기록 데이터베이스 관리 -->
+    <section id="tab-history" class="space-y-6 hidden">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-slate-800">🗂️ 출하 이력 일괄 기록 및 관리</h2>
+                    <p class="text-xs text-slate-500 mt-1">업로드되어 데이터베이스에 누적된 출하 배치 목록입니다. 총 출하량, 지육율, 적용 시세와 실 정산액(수기 기입)을 정교하게 제어합니다.</p>
+                </div>
+                
+                <button onclick="clearAllHistory()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-4 py-2 rounded-lg border border-rose-200 transition-all flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                    모든 누적 데이터 완전 초기화
+                </button>
+            </div>
+
+            <!-- 기록 부재 시 메시지 -->
+            <div id="no-history-placeholder" class="p-12 text-center text-slate-500">
+                <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                <p class="text-sm font-medium">저장된 출하 배치 기록이 존재하지 않습니다.</p>
+                <p class="text-xs text-slate-400 mt-1">원패스 엑셀 파일을 업로드한 다음 "DB에 기록 저장하기"를 클릭해 주세요.</p>
+            </div>
+
+            <!-- 역사적인 출하 일괄 등록 리스트 테이블 (요구사항 완벽 반영) -->
+            <div id="history-table-container" class="hidden overflow-x-auto">
+                <table class="w-full text-left border-collapse text-sm min-w-[950px]">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-100 text-slate-600 font-semibold text-center">
+                            <th class="p-4 text-left">저장 및 출하 일자</th>
+                            <th class="p-4">출하량(두)</th>
+                            <th class="p-4 text-right">총 생체중(kg)<br><span class="text-[10px] text-slate-400">(총 출하중량)</span></th>
+                            <th class="p-4 text-right">총 지육중량 / 지육율</th>
+                            <th class="p-4 text-right">경락 적용시세</th>
+                            <th class="p-4 text-right">예상 정산액(원)</th>
+                            <th class="p-4 w-44">실 정산금액 입력 (수기)</th>
+                            <th class="p-4">작업</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-tbody" class="divide-y divide-slate-100 text-center">
+                        <!-- JS에서 동적 생성 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tab 4: 가격 및 시스템(Firebase) 설정 -->
+    <section id="tab-settings" class="space-y-6 hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- 단가 및 가중치 정밀 제어 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center">
+                    🥩 비육돈 정산조건 환경 설정
+                </h3>
+                <p class="text-xs text-slate-500 mb-6">합의서에 기반한 기준 지급율과 고정 공제액을 관리합니다. (나머지 변동 공제 조건은 시스템에 내장되어 있습니다.)</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1.5">기본 기준 지급율 (%)</label>
+                        <input type="number" id="setting-base-ratio" value="76.5" step="0.1" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-slate-50" readonly title="현재 하드코딩 기준" />
+                        <p class="text-xs text-slate-400 mt-1">합의서 기준지급율입니다. 출현율 및 지육율에 따라 이 수치가 베이스로 가감됩니다.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1.5">1+ 등급 장려금 (원/두)</label>
+                        <input type="number" id="setting-bonus" value="5000" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <p class="text-xs text-slate-400 mt-1">1+ 등급 달성 시 개별 돼지에 부여되는 추가 장려금입니다.</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 uppercase mb-1.5">농가부담 등판수수료/자조금 합산 (원/두)</label>
+                        <input type="number" id="setting-expense" value="1500" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <p class="text-xs text-slate-400 mt-1">등판수수료(400원) 및 한돈자조금(1100원) 등 무조건 차감되는 기본 세금/수수료입니다.</p>
+                    </div>
+
+                    <button onclick="saveFormulaSettings()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-all shadow-sm">
+                        정산 산출방식 환경 저장
+                    </button>
+                </div>
+            </div>
+
+            <!-- Firebase 연동 설정 패널 -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-bold text-slate-800 flex items-center">
+                        🔥 Firebase Realtime Database 실시간 연동
+                    </h3>
+                    <span id="db-mode-badge" class="bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-semibold">브라우저 로컬 저장소 활성</span>
+                </div>
+                <p class="text-xs text-slate-500 mb-6 leading-relaxed">
+                    본인의 Firebase 환경변수를 설정하면, 여러 디바이스(스마트폰, 태블릿, 사무실 PC 등)에서 공통된 출하 데이터를 동시에 열람하고 관리하는 완벽한 클라우드 관리 앱으로 업그레이드됩니다.
+                </p>
+
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1.5">Firebase Database URL</label>
+                        <input type="text" id="firebase-db-url" placeholder="https://your-project-id.firebaseio.com" class="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1.5">API KEY</label>
+                        <input type="password" id="firebase-api-key" placeholder="AIzaSyA..." class="w-full border border-slate-200 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 outline-none" />
+                    </div>
+
+                    <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                        <h4 class="font-bold text-xs text-slate-700 mb-1">💡 연동 안내</h4>
+                        <p class="text-xxs text-slate-500 leading-normal">
+                            설정하지 않으면 데이터가 웹 브라우저의 <span class="font-semibold text-slate-700">LocalStorage</span>에 안전하게 기록됩니다. 단, 쿠키나 사이트 데이터를 초기화하면 데이터가 삭제될 수 있으므로 장기적인 보관이 필요하다면 Firebase 연동을 적극 권장합니다.
+                        </p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button onclick="saveFirebaseSettings()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-all shadow-sm">
+                            클라우드 연동 정보 확인 및 적용
+                        </button>
+                        <button onclick="disconnectFirebase()" class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 font-semibold px-3 rounded-lg text-sm transition-all">
+                            연동 해제
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+</main>
+
+<footer class="bg-slate-900 text-slate-400 border-t border-slate-800 text-xs py-6 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div>
+            <p class="font-semibold text-slate-300">PIG-ONEPASS 축산 스마트 분석 플랫폼</p>
+            <p class="mt-1 text-slate-500">© 2026 Pig-OnePass Auto Analytics. All rights reserved.</p>
+        </div>
+        <div class="flex space-x-4">
+            <a href="https://www.data.go.kr" target="_blank" class="hover:text-white transition-colors">공공데이터포털 바로가기</a>
+            <span>|</span>
+            <a href="http://www.ekape.or.kr" target="_blank" class="hover:text-white transition-colors">축산물품질평가원</a>
+        </div>
+    </div>
+</footer>
+
+<script>
+    // --- 글로벌 어플리케이션 상태 변수 ---
+    const STATE = {
+        activeTab: 'upload',
+        currentParsedData: null, // 현재 방금 불러온 엑셀 파싱 원본 데이터
+        database: [],            // 저장 완료된 출하 배치 기록 모음
+        batchLiveWeight: 0,      // 배치 총 생체중량(계근중량)
+        calculatedYieldRate: 76.5, // 최종 산출된 배치 지육율 (%) (소수점 셋째자리 정밀)
+        settings: {
+            marketPrice: 5300,   // 적용시세 (전국 탕박 평균)
+            formula: {
+                baseRatio: 76.5, // 기본 지급율
+                bonus: 5000,     // 1+ 장려금
+                expense: 1500    // 농가부담 자조금+수수료
+            },
+            firebase: {
+                url: '',
+                apiKey: ''
+            }
+        },
+        charts: {}               // Chart.js 인스턴스 저장소
+    };
+
+    // --- 앱 초기화 시동기 ---
+    window.onload = function() {
+        initApp();
+    };
+
+    function initApp() {
+        // 1. 로컬 저장소로부터 저장된 상태 로드
+        loadSettingsFromStorage();
+        loadHistoryFromStorage();
+
+        // 3. 드롭존 이벤트 리스너 설치
+        setupDragAndDrop();
+
+        // 4. 최초 탭 전환
+        switchTab('upload');
+        
+        // 5. 대시보드 및 통계 즉시 동기화
+        syncDatabaseUI();
+    }
+
+    // --- 로컬 데이터 로딩 & 동기화 ---
+    function loadSettingsFromStorage() {
+        const storedSettings = localStorage.getItem('pig_onepass_settings');
+        if (storedSettings) {
+            try {
+                const parsed = JSON.parse(storedSettings);
+                // 기존 구조 누락된 키 대비 방어 병합
+                STATE.settings = { ...STATE.settings, ...parsed };
+                
+                // 설정 UI 필드 값 동기화
+                if(document.getElementById('setting-bonus')) document.getElementById('setting-bonus').value = STATE.settings.formula.bonus;
+                if(document.getElementById('setting-expense')) document.getElementById('setting-expense').value = STATE.settings.formula.expense;
+                if(document.getElementById('firebase-db-url')) document.getElementById('firebase-db-url').value = STATE.settings.firebase.url || '';
+                if(document.getElementById('firebase-api-key')) document.getElementById('firebase-api-key').value = STATE.settings.firebase.apiKey || '';
+                if(document.getElementById('market-price-input')) document.getElementById('market-price-input').value = STATE.settings.marketPrice;
+                
+                updateDbBadge();
+            } catch (e) {
+                console.error("설정 로드 중 오류 발생:", e);
+            }
+        }
+    }
+
+    function saveSettingsToStorage() {
+        localStorage.setItem('pig_onepass_settings', JSON.stringify(STATE.settings));
+    }
+
+    function loadHistoryFromStorage() {
+        const storedHistory = localStorage.getItem('pig_onepass_history');
+        if (storedHistory) {
+            try {
+                STATE.database = JSON.parse(storedHistory);
+            } catch (e) {
+                console.error("출하 내역 로드 중 오류 발생:", e);
+            }
+        }
+    }
+
+    function saveHistoryToStorage() {
+        localStorage.setItem('pig_onepass_history', JSON.stringify(STATE.database));
+        syncDatabaseUI();
+    }
+
+    function updateDbBadge() {
+        const badge = document.getElementById('db-mode-badge');
+        if (STATE.settings.firebase.url) {
+            badge.innerText = '🔥 클라우드 연동 활성';
+            badge.className = 'bg-emerald-100 text-emerald-800 text-xs px-2.5 py-1 rounded-full font-semibold';
+        } else {
+            badge.innerText = '💾 브라우저 로컬 저장소';
+            badge.className = 'bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded-full font-semibold';
+        }
+    }
+
+    // --- 커스텀 대화 상자 모달 래퍼 (네이티브 alert/confirm 제거 수호 조항) ---
+    function showCustomConfirm(message, onConfirm) {
+        const modal = document.getElementById('custom-confirm-modal');
+        const textEl = document.getElementById('custom-confirm-text');
+        const btnOk = document.getElementById('custom-confirm-ok');
+        const btnCancel = document.getElementById('custom-confirm-cancel');
+
+        textEl.innerText = message;
+        modal.classList.remove('hidden');
+
+        // 이중 핸들러 부착 방지용 클론 노드 교체
+        const newBtnOk = btnOk.cloneNode(true);
+        btnOk.parentNode.replaceChild(newBtnOk, btnOk);
+
+        newBtnOk.onclick = function() {
+            modal.classList.add('hidden');
+            if (onConfirm) onConfirm();
+        };
+
+        btnCancel.onclick = function() {
+            modal.classList.add('hidden');
+        };
+    }
+
+    function showCustomAlert(message) {
+        const modal = document.getElementById('custom-alert-modal');
+        const textEl = document.getElementById('custom-alert-text');
+        const btnOk = document.getElementById('custom-alert-ok');
+
+        textEl.innerText = message;
+        modal.classList.remove('hidden');
+
+        btnOk.onclick = function() {
+            modal.classList.add('hidden');
+        };
+    }
+
+    // --- 커스텀 Toast 알림 제어기 ---
+    function showToast(message, type = 'success') {
+        const container = document.getElementById('toast-container');
+        const toast = document.createElement('div');
+        
+        let bgStyle = 'bg-slate-800 text-white';
+        if (type === 'success') bgStyle = 'bg-emerald-600 text-white shadow-emerald-200';
+        if (type === 'error') bgStyle = 'bg-rose-600 text-white shadow-rose-200';
+        if (type === 'info') bgStyle = 'bg-indigo-600 text-white shadow-indigo-200';
+
+        toast.className = `${bgStyle} px-4 py-3 rounded-xl shadow-lg flex items-center space-x-2.5 text-xs font-semibold tracking-wide transition-all duration-300 transform translate-y-5 opacity-0 pointer-events-auto`;
+        toast.innerHTML = `
+            <span>${type === 'success' ? '✔' : type === 'error' ? '❌' : 'ℹ'}</span>
+            <span>${message}</span>
+        `;
+        
+        container.appendChild(toast);
+        
+        // 트리거 애니메이션 효과
+        setTimeout(() => {
+            toast.classList.remove('translate-y-5', 'opacity-0');
+        }, 10);
+
+        // 일정 시간 후 자동 페이드아웃 및 제거
+        setTimeout(() => {
+            toast.classList.add('opacity-0', 'translate-y-[-10px]');
+            setTimeout(() => {
+                toast.remove();
+            }, 300);
+        }, 3500);
+    }
+
+    // --- 단가 가격 편집 UI 핸들링 ---
+    function updateMarketPrice(value) {
+        const numVal = parseInt(value) || 0;
+        STATE.settings.marketPrice = numVal;
+        saveSettingsToStorage();
+        
+        if (STATE.currentParsedData) {
+            processExcelRows(STATE.currentParsedData);
+        }
+    }
+
+    function updateLiveWeight(value) {
+        const val = parseFloat(value) || 0;
+        STATE.batchLiveWeight = val;
+        
+        if (STATE.currentParsedData) {
+            // 배치 지육율 재산출
+            let totalCarcassWeight = 0;
+            STATE.currentParsedData.forEach(r => { totalCarcassWeight += r.weight; });
+            
+            if (val > 0) {
+                // 지육율 소수점 셋째자리까지 정확하게 계산 (반올림)
+                STATE.calculatedYieldRate = Math.round((totalCarcassWeight / val) * 100000) / 1000;
+                document.getElementById('summary-yield-rate').innerHTML = `${STATE.calculatedYieldRate.toFixed(3)}%`;
+            } else {
+                STATE.calculatedYieldRate = 76.5; // 기본값 회귀
+                document.getElementById('summary-yield-rate').innerHTML = `76.500% <span class="text-xs font-bold text-slate-400">(기본값)</span>`;
+            }
+            processExcelRows(STATE.currentParsedData);
+        }
+    }
+
+    function resetDefaultPrices() {
+        STATE.settings.marketPrice = 5300;
+        document.getElementById('market-price-input').value = 5300;
+        saveSettingsToStorage();
+        if (STATE.currentParsedData) {
+            processExcelRows(STATE.currentParsedData);
+        }
+        showToast("시세가 기본값(5,300원)으로 재설정 되었습니다.", "info");
+    }
+
+    function getGradeColorClass(grade) {
+        if (grade.includes('1+')) return 'bg-emerald-100 text-emerald-800';
+        if (grade.includes('1')) return 'bg-indigo-100 text-indigo-800';
+        if (grade.includes('2')) return 'bg-amber-100 text-amber-800';
+        if (grade.includes('등외')) return 'bg-rose-100 text-rose-800';
+        return 'bg-slate-100 text-slate-700';
+    }
+
+    // --- 엑셀 드롭존 및 드래그 앤 드롭 구현 ---
+    function setupDragAndDrop() {
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('excelFile');
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropzone.classList.add('border-emerald-500', 'bg-emerald-50/50');
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropzone.addEventListener(eventName, (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('border-emerald-500', 'bg-emerald-50/50');
+            }, false);
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            if (files.length) {
+                fileInput.files = files;
+                handleExcelUpload(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleExcelUpload(e.target.files[0]);
+            }
+        });
+    }
+
+    // --- 엑셀 파서 및 2차원 파싱 메커니즘 (헤더/데이터 강력 스캐너) ---
+    function handleExcelUpload(file) {
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const arrayBuffer = e.target.result;
+
+            try {
+                let workbook;
+                try {
+                    // 1순위: ArrayBuffer로 바로 읽기 (일반 xlsx, xls, 정상 포맷 대응)
+                    workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                } catch (err1) {
+                    // 2순위: 파싱 실패 시 EUC-KR 텍스트로 디코딩 후 파싱 (관공서 위장 CSV 파일 대응)
+                    const decoder = new TextDecoder('euc-kr');
+                    const text = decoder.decode(arrayBuffer);
+                    workbook = XLSX.read(text, { type: 'string' });
+                }
+                
+                const sheetName = workbook.SheetNames[0];
+                const sheet = workbook.Sheets[sheetName];
+                const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+                
+                if (!rawRows || rawRows.length === 0) {
+                    showCustomAlert("선택된 파일에 유효한 데이터가 비어있습니다.");
+                    return;
+                }
+
+                interpretAndProcessData(rawRows);
+            } catch (err) {
+                console.error("Excel Parsing Error:", err);
+                showCustomAlert("엑셀 파일을 파싱하는 과정에서 에러가 발생했습니다. 파일 양식을 확인해 주세요.\n(상세 오류: " + err.message + ")");
+            }
+        };
+        
+        reader.onerror = function() {
+            showCustomAlert("파일을 브라우저로 읽어오는 중 에러가 발생했습니다.");
+        };
+        
+        reader.readAsArrayBuffer(file);
+    }
+
+    // 오늘 날짜를 YYYY-MM-DD 포맷으로 반환하는 유틸리티 함수 (누락 복구)
+    function getTodayFormatted() {
+        const d = new Date();
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    // 축산물원패스 헤더 지능형 스캐너 (역추적 AI 패턴 매칭 도입)
+    function interpretAndProcessData(rawRows) {
+        try {
+            // 공통 날짜 추출 (보고서 상단의 "판정일자 : 2026-07-07" 같은 텍스트에서 연도/월/일 추출 목적)
+            let globalDate = getTodayFormatted();
+            for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
+                if (!rawRows[i] || !Array.isArray(rawRows[i])) continue; // 배열 유효성 1차 안전망
+                const rowStr = rawRows[i].join(' ');
+                const match = rowStr.match(/(20\d{2})[-.년 ]+(0[1-9]|1[0-2])[-.월 ]+(0[1-9]|[12]\d|3[01])/);
+                if (match) {
+                    globalDate = `${match[1]}-${match[2]}-${match[3]}`;
+                    break;
+                }
+            }
+
+            const processedList = [];
+
+            // 데이터 패턴 추론 방식 (인덱스/열 변동 완벽 방어)
+            for (let i = 0; i < rawRows.length; i++) {
+                const row = rawRows[i];
+                if (!row || !Array.isArray(row) || row.length < 5) continue; // 배열 유효성 2차 안전망
+
+                const textRow = row.map(cell => String(cell || '').trim());
+
+                // 1. 등급 열(최종등급/1차등급) 찾기
+                let gradeIdx = -1;
+                let grade = '기타';
+                for (let j = 3; j < textRow.length; j++) {
+                    if (['1+', '1', '2', '등외'].includes(textRow[j])) {
+                        grade = textRow[j];
+                        gradeIdx = j;
+                        break;
+                    }
+                }
+
+                if (gradeIdx === -1) continue;
+
+                // 2. 중량, 등지방, 생체중 추출 (등급의 왼쪽 셀들을 스캔하여 도출)
+                let numsBefore = [];
+                for (let j = gradeIdx - 1; j >= Math.max(0, gradeIdx - 15); j--) { // 탐색 범위 15칸으로 확장
+                    if (!textRow[j]) continue;
+                    const valRaw = textRow[j].replace(/,/g, '');
+                    const val = parseFloat(valRaw);
+                    if (!isNaN(val) && val > 0 && val < 400) { // 비정상적인 값 무시 안전망 확장
+                        numsBefore.push(val);
+                    }
+                }
+
+                let weight = 0, fat = 0, liveWeight = 0;
+                numsBefore.forEach(val => {
+                    if (val >= 45 && val <= 200) {
+                        if (weight === 0) weight = val;
+                        else if (val > weight) liveWeight = val;
+                        else {
+                            liveWeight = weight;
+                            weight = val;
+                        }
+                    } else if (val >= 5 && val < 45) {
+                        if (fat === 0) fat = val;
+                    }
+                });
+
+                if (weight === 0) continue; // 유효 중량이 없으면 돼지 데이터가 아님
+
+                // 3. 성별 추출
+                let gender = '기타';
+                for (let j = Math.max(0, gradeIdx - 15); j < gradeIdx; j++) {
+                    if (['암', '수', '거세'].includes(textRow[j])) {
+                        gender = textRow[j];
+                        break;
+                    }
+                }
+
+                // 4. 아이디/도축번호 추출
+                let pigId = '';
+                for (let j = Math.max(0, gradeIdx - 15); j < gradeIdx; j++) {
+                    const val = textRow[j].replace(/[^0-9A-Za-z]/g, '');
+                    if (val.length >= 4 && val.length <= 15 && !textRow[j].includes('.')) {
+                        pigId = textRow[j];
+                        break;
+                    }
+                }
+                if (!pigId) pigId = `ID-임시-${i}`;
+
+                // 5. 판정/도축 일자 추출
+                let finalDate = globalDate;
+                for (let j = Math.max(0, gradeIdx - 15); j < gradeIdx; j++) {
+                    if (!textRow[j]) continue;
+                    const val = textRow[j].replace(/[^0-9]/g, '');
+                    if (val.length === 8) {
+                        finalDate = `${val.substring(0,4)}-${val.substring(4,6)}-${val.substring(6,8)}`;
+                        break;
+                    } else if (val.length === 4 && /^(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])$/.test(val)) {
+                        finalDate = `${globalDate.substring(0,4)}-${val.substring(0,2)}-${val.substring(2,4)}`;
+                        break;
+                    }
+                }
+
+                processedList.push({
+                    date: finalDate,
+                    grade: grade,
+                    weight: weight,
+                    fat: fat,
+                    id: pigId,
+                    gender: gender,
+                    liveWeight: liveWeight
+                });
+            }
+
+            if (processedList.length === 0) {
+                showCustomAlert("유효한 판정 데이터 행을 찾을 수 없습니다. 양식을 확인해 주세요.");
+                return;
+            }
+
+            STATE.currentParsedData = processedList;
+            
+            // 계근 및 지육율 초기 리셋 적용 (DOM 존재 여부 체크)
+            const liveInput = document.getElementById('live-weight-input');
+            if(liveInput) liveInput.value = '';
+            STATE.batchLiveWeight = 0;
+            STATE.calculatedYieldRate = 76.5; 
+            const yieldSummary = document.getElementById('summary-yield-rate');
+            if(yieldSummary) yieldSummary.innerHTML = `76.500% <span class="text-xs font-bold text-slate-400">(기본값)</span>`;
+
+            processExcelRows(processedList);
+            showToast(`AI 패턴 매칭 성공! 총 ${processedList.length}마리의 데이터를 연동했습니다.`, "success");
+
+        } catch (innerErr) {
+            console.error("데이터 매칭 처리 중 오류 발생:", innerErr);
+            throw innerErr; // 상위 handleExcelUpload의 catch문으로 에러 던지기
+        }
+    }
+
+    // --- 정산 금액 파싱 및 실시간 산식 처리 (합의서 로직 적용) ---
+    function processExcelRows(rows) {
+        const tbody = document.getElementById('loaded-data-tbody');
+        tbody.innerHTML = '';
+
+        let totalWeight = 0;
+        let totalFat = 0;
+        let totalEstimatedPrice = 0;
+
+        // 1. 1+, 1등급 출현율 계산 (배치 전체 기준, 둘째자리 반올림)
+        let topGradeCount = 0;
+        rows.forEach(row => {
+            if (row.grade === '1+' || row.grade === '1') topGradeCount++;
+        });
+        const appearanceRate = Math.round((topGradeCount / rows.length) * 1000) / 10; // 소수 둘째자리 반올림
+        
+        let appearanceRatioBonus = 0;
+        if (appearanceRate >= 80.0) appearanceRatioBonus = 1.0;
+        else if (appearanceRate >= 65.0) appearanceRatioBonus = 0.0;
+        else if (appearanceRate >= 55.0) appearanceRatioBonus = -1.0;
+        else if (appearanceRate >= 45.0) appearanceRatioBonus = -1.5;
+        else appearanceRatioBonus = -3.0;
+
+        const marketPrice = STATE.settings.marketPrice;
+        const baseRatio = STATE.settings.formula.baseRatio;
+        const extraBonus = STATE.settings.formula.bonus;
+        const fixedExpense = STATE.settings.formula.expense;
+
+        // 지육율 보정치 계산 (소수 셋째자리 반올림 정산)
+        let yieldRatioBonus = 0;
+        const finalYieldRate = STATE.calculatedYieldRate; // 소수 셋째자리 정밀 지육율
+
+        if (STATE.batchLiveWeight > 0) {
+            if (finalYieldRate >= 78.0) {
+                // +0.1%당 지급율 +0.1% 인상
+                yieldRatioBonus = Math.round((finalYieldRate - 78.0) * 10) / 10;
+            } else if (finalYieldRate < 77.0) {
+                // -0.1%당 지급율 -0.1% 인하
+                yieldRatioBonus = - (Math.round((77.0 - finalYieldRate) * 10) / 10);
+            }
+        }
+
+        rows.forEach((row, index) => {
+            let isSpecial50 = false; // 지급율 50% 적용 대상 여부 플래그
+
+            // [기타공제] 비거세(수) / 등외 등급 -> 지급율 50%
+            if (row.gender === '수' || row.grade === '등외') isSpecial50 = true;
+            
+            // [중량공제] 71kg 미만, 110kg 이상 -> 지급율 50%
+            if (row.weight < 71.0 || row.weight >= 110.0) isSpecial50 = true;
+
+            // [지급율 확정, 소수점 둘째자리 반올림]
+            let finalRatio = Math.round((baseRatio + appearanceRatioBonus + yieldRatioBonus) * 10) / 10;
+            if (isSpecial50) finalRatio = 50.0; // 특수 조건시 50% 고정 덮어쓰기
+
+            // [지육중량/지육율 기반 대금 계산식 적용]
+            // 수식: (지육중량 / (지육율/100)) * 시세 * (지급율/100)
+            const divisorRate = finalYieldRate / 100;
+            const estimatedLiveWeight = divisorRate > 0 ? (row.weight / divisorRate) : row.weight;
+            const basePrice = Math.round(estimatedLiveWeight * marketPrice * (finalRatio / 100));
+
+            // [페널티 및 장려금 (가감액) 합산]
+            let bonusPenalty = 0;
+            
+            // 장려금 (1+ 등급)
+            if (row.grade === '1+') bonusPenalty += extraBonus;
+
+            // 특수지급율(50%) 대상이 아닌 경우에만 중량 및 등지방 금액 페널티 적용 
+            if (!isSpecial50) {
+                if (row.weight >= 71.0 && row.weight < 75.0) bonusPenalty -= 40000;
+                else if (row.weight >= 75.0 && row.weight < 80.0) bonusPenalty -= 20000;
+                // 80~99 는 규격구간 (0원)
+                else if (row.weight >= 99.0 && row.weight < 106.0) bonusPenalty -= 20000;
+                else if (row.weight >= 106.0 && row.weight < 110.0) bonusPenalty -= 40000;
+
+                // 등지방 공제
+                if (row.fat > 0) {
+                    if (row.fat < 15) bonusPenalty -= 20000;
+                    else if (row.fat >= 30) bonusPenalty -= 10000;
+                }
+            }
+
+            // 기타사항 (수수료/자조금 등 고정 차감)
+            bonusPenalty -= fixedExpense;
+
+            // [개별 최종 금액]
+            const salePrice = Math.max(0, basePrice + bonusPenalty);
+
+            totalWeight += row.weight;
+            totalFat += row.fat;
+            totalEstimatedPrice += salePrice;
+
+            // 로우 데이터 테이블 드로잉
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50 transition-colors';
+            
+            // 지급율 포맷팅
+            const ratioStr = isSpecial50 ? `<span class="text-rose-500 font-bold">50.0%</span>` : `${finalRatio.toFixed(1)}%`;
+            
+            // 가감액 뱃지 색상
+            let bpClass = 'text-slate-500';
+            if(bonusPenalty > 0) bpClass = 'text-indigo-600 font-semibold';
+            if(bonusPenalty < 0) bpClass = 'text-rose-600 font-semibold';
+
+            tr.innerHTML = `
+                <td class="p-3 text-center text-slate-400 font-medium">${index + 1}</td>
+                <td class="p-3 font-semibold text-slate-700">${row.id}</td>
+                <td class="p-3 text-center text-slate-600 text-xs">${row.gender}</td>
+                <td class="p-3 text-center">
+                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${getGradeColorClass(row.grade)}">
+                        ${row.grade}
+                    </span>
+                </td>
+                <td class="p-3 text-right font-medium">${row.weight.toFixed(1)} kg</td>
+                <td class="p-3 text-right text-slate-600 text-xs">${ratioStr}</td>
+                <td class="p-3 text-right text-xs ${bpClass}">${bonusPenalty > 0 ? '+' : ''}${bonusPenalty.toLocaleString()}</td>
+                <td class="p-3 text-right font-bold text-emerald-600">${salePrice.toLocaleString()} 원</td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // 요약 위젯 갱신
+        const avgFat = totalFat / rows.length;
+
+        document.getElementById('calc-summary-count').innerText = `${rows.length} 두`;
+        document.getElementById('calc-summary-weight').innerText = `${totalWeight.toFixed(1)} kg`;
+        document.getElementById('calc-summary-fat').innerText = `${avgFat.toFixed(1)} mm`;
+        document.getElementById('calc-summary-price').innerText = `${totalEstimatedPrice.toLocaleString()} 원`;
+
+        // 테이블 컨테이너 보이게 전환
+        const container = document.getElementById('loaded-data-container');
+        container.classList.remove('hidden');
+    }
+
+    // --- 데모 데이터 수집 및 템플릿 로드 ---
+    function loadDemoBatch() {
+        const demoDate = '2026-07-08';
+        const numPigs = 45;
+        const demoList = [];
+
+        for (let i = 0; i < numPigs; i++) {
+            const weight = Math.round((70 + Math.random() * 45) * 10) / 10; // 70~115kg
+            const fat = Math.round((12 + Math.random() * 22) * 10) / 10;
+            const liveWeight = Math.round((weight / 0.77) + (Math.random() * 5 - 2)); // 지육율 77% 내외
+            
+            let grade = '1';
+            const rnd = Math.random();
+            if (rnd < 0.30) grade = '1+';
+            else if (rnd < 0.65) grade = '1';
+            else if (rnd < 0.90) grade = '2';
+            else grade = '등외';
+
+            let gender = '거세';
+            const grnd = Math.random();
+            if(grnd < 0.45) gender = '암';
+            else if(grnd > 0.95) gender = '수';
+
+            const randomId = '002' + Math.floor(100000000 + Math.random() * 900000000);
+
+            demoList.push({
+                date: demoDate,
+                grade: grade,
+                weight: weight,
+                fat: fat,
+                id: randomId,
+                gender: gender,
+                liveWeight: liveWeight
+            });
+        }
+
+        STATE.currentParsedData = demoList;
+        processExcelRows(demoList);
+        showToast("합의서 테스트용 출하 리스트가 적재되었습니다.", "info");
+    }
+
+    // --- 로컬 DB 영구 등록 및 초기화 ---
+    function saveCurrentBatch() {
+        if (!STATE.currentParsedData || STATE.currentParsedData.length === 0) {
+            showCustomAlert("저장할 데이터가 존재하지 않습니다.");
+            return;
+        }
+
+        const batchDate = STATE.currentParsedData[0].date;
+        
+        let batchTotalWeight = 0;
+        let batchTotalEstimatedPrice = 0;
+        let topGradeCount = 0;
+
+        // DB 저장을 위한 재계산 래퍼
+        const marketPrice = STATE.settings.marketPrice;
+        const baseRatio = STATE.settings.formula.baseRatio;
+        
+        let batchTopGradeCount = 0;
+        STATE.currentParsedData.forEach(r => { if(r.grade === '1+' || r.grade === '1') batchTopGradeCount++; });
+        const appRate = (batchTopGradeCount / STATE.currentParsedData.length) * 100;
+        let appRatioBonus = 0;
+        if(appRate>=80) appRatioBonus=1.0; else if(appRate>=65) appRatioBonus=0.0; else if(appRate>=55) appRatioBonus=-1.0; else if(appRate>=45) appRatioBonus=-1.5; else appRatioBonus=-3.0;
+
+        const finalYieldRate = STATE.calculatedYieldRate;
+        let yieldRatioBonus = 0;
+        if (STATE.batchLiveWeight > 0) {
+            if (finalYieldRate >= 78.0) yieldRatioBonus = Math.round((finalYieldRate - 78.0) * 10) / 10;
+            else if (finalYieldRate < 77.0) yieldRatioBonus = - (Math.round((77.0 - finalYieldRate) * 10) / 10);
+        }
+
+        const dataDetails = STATE.currentParsedData.map(row => {
+            let isSpecial50 = false;
+            if (row.gender === '수' || row.grade === '등외') isSpecial50 = true;
+            if (row.weight < 71.0 || row.weight >= 110.0) isSpecial50 = true;
+
+            let finalRatio = baseRatio + appRatioBonus + yieldRatioBonus;
+            if (isSpecial50) finalRatio = 50.0;
+
+            const divisorRate = finalYieldRate / 100;
+            const estimatedLiveWeight = divisorRate > 0 ? (row.weight / divisorRate) : row.weight;
+            const basePrice = Math.round(estimatedLiveWeight * marketPrice * (finalRatio / 100));
+            
+            let bonusPenalty = 0;
+            if (row.grade === '1+') bonusPenalty += STATE.settings.formula.bonus;
+
+            if (!isSpecial50) {
+                if (row.weight >= 71.0 && row.weight < 75.0) bonusPenalty -= 40000;
+                else if (row.weight >= 75.0 && row.weight < 80.0) bonusPenalty -= 20000;
+                else if (row.weight >= 99.0 && row.weight < 106.0) bonusPenalty -= 20000;
+                else if (row.weight >= 106.0 && row.weight < 110.0) bonusPenalty -= 40000;
+            }
+
+            if (row.fat > 0) {
+                if (row.fat < 15) bonusPenalty -= 20000;
+                else if (row.fat >= 30) bonusPenalty -= 10000;
+            }
+            bonusPenalty -= STATE.settings.formula.expense;
+            const calculatedPrice = Math.max(0, basePrice + bonusPenalty);
+
+            batchTotalWeight += row.weight;
+            batchTotalEstimatedPrice += calculatedPrice;
+            if (row.grade === '1+' || row.grade === '1') {
+                topGradeCount++;
+            }
+
+            return {
+                id: row.id,
+                grade: row.grade,
+                weight: row.weight,
+                fat: row.fat,
+                price: calculatedPrice
+            };
+        });
+
+        // 역사 기록 구조 확장 보강 (총 출하중량, 실시간지육율, 적용시세 완벽 보존)
+        const newBatchRecord = {
+            id: `BATCH-${Date.now()}`,
+            date: batchDate,
+            headCount: STATE.currentParsedData.length,
+            totalWeight: batchTotalWeight,                  // 총 지육중량
+            liveWeight: STATE.batchLiveWeight,               // 총 출하중량 (수기 기입 생체중량)
+            yieldRate: finalYieldRate,                      // 실시간 지육율 (%)
+            marketPrice: marketPrice,                       // 적용 경락시세
+            totalPrice: batchTotalEstimatedPrice,           // 계산된 예상 정산액
+            realPrice: batchTotalEstimatedPrice,            // 수기 실 정산금액 (최초값은 예상액 동치)
+            topRatio: Math.round((topGradeCount / STATE.currentParsedData.length) * 100),
+            details: dataDetails
+        };
+
+        STATE.database.push(newBatchRecord);
+        STATE.database.sort((a,b) => new Date(a.date) - new Date(b.date));
+        
+        saveHistoryToStorage();
+        showToast(`${batchDate} 출하건 (${STATE.currentParsedData.length}두) 기록이 안전하게 데이터베이스에 병합되었습니다.`, "success");
+
+        clearCurrentBatch();
+        switchTab('dashboard');
+    }
+
+    function clearCurrentBatch() {
+        STATE.currentParsedData = null;
+        document.getElementById('loaded-data-container').classList.add('hidden');
+        document.getElementById('excelFile').value = '';
+    }
+
+    // --- 출하 기록 내역 수기 실 정산금 업데이트 및 포맷팅 ---
+    function formatRealPriceInput(inputEl) {
+        // 숫자 이외의 문자 제거 후 천 단위 콤마 추가
+        let val = inputEl.value.replace(/[^0-9]/g, '');
+        if (val !== '') {
+            inputEl.value = parseInt(val, 10).toLocaleString();
+        } else {
+            inputEl.value = '';
+        }
+    }
+
+    function updateRealPrice(batchId, val) {
+        // 저장 시에는 콤마를 제거한 순수 숫자로 변환
+        const rawVal = String(val).replace(/[^0-9]/g, '');
+        const numVal = parseInt(rawVal, 10) || 0;
+        
+        const index = STATE.database.findIndex(b => b.id === batchId);
+        if (index !== -1) {
+            STATE.database[index].realPrice = numVal;
+            // 로컬 디바이스에 상시 영구 동기화
+            localStorage.setItem('pig_onepass_history', JSON.stringify(STATE.database));
+            showToast("실 정산 대금이 데이터베이스에 즉각 수정 반영되었습니다.", "success");
+            // 통계 차트 및 대시보드 위젯 동시 동기화 가동
+            renderDashboardCharts();
+        }
+    }
+
+    function syncDatabaseUI() {
+        const tbody = document.getElementById('history-tbody');
+        const placeholder = document.getElementById('no-history-placeholder');
+        const container = document.getElementById('history-table-container');
+
+        if (STATE.database.length === 0) {
+            placeholder.classList.remove('hidden');
+            container.classList.add('hidden');
+            document.getElementById('no-db-data-warning').classList.remove('hidden');
+            document.getElementById('dashboard-widgets').classList.add('hidden');
+            return;
+        }
+
+        placeholder.classList.add('hidden');
+        container.classList.remove('hidden');
+        document.getElementById('no-db-data-warning').classList.add('hidden');
+        document.getElementById('dashboard-widgets').classList.remove('hidden');
+
+        tbody.innerHTML = '';
+        STATE.database.forEach(batch => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-slate-50 transition-colors text-center';
+
+            // 생체중 표시 가공
+            const liveWeightStr = batch.liveWeight > 0 ? `${batch.liveWeight.toLocaleString()} kg` : `<span class="text-slate-300 font-medium">미입력</span>`;
+            // 지육율 표시 가공
+            const yieldRateStr = batch.yieldRate > 0 ? `${batch.yieldRate.toFixed(3)}%` : `76.500% <span class="text-[10px] text-slate-400 font-bold">(기본)</span>`;
+            // 적용 시세 표시 가공
+            const marketPriceStr = batch.marketPrice > 0 ? `${batch.marketPrice.toLocaleString()} 원` : `${STATE.settings.marketPrice.toLocaleString()} 원`;
+            // 실 정산액 인풋 필드
+            const realPriceVal = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
+
+            tr.innerHTML = `
+                <td class="p-4 font-bold text-slate-700 text-left">${batch.date}</td>
+                <td class="p-4 font-semibold text-slate-600">${batch.headCount} 두</td>
+                <td class="p-4 text-right font-medium text-indigo-700">${liveWeightStr}</td>
+                <td class="p-4 text-right text-slate-500 font-semibold">
+                    ${batch.totalWeight.toLocaleString()} kg <br>
+                    <span class="text-xs text-indigo-500">${yieldRateStr}</span>
+                </td>
+                <td class="p-4 text-right text-slate-600 font-medium">${marketPriceStr}</td>
+                <td class="p-4 text-right font-bold text-slate-400">${batch.totalPrice.toLocaleString()} 원</td>
+                <td class="p-4 text-center">
+                    <div class="flex items-center space-x-1 justify-center">
+                        <input type="text" value="${Number(realPriceVal).toLocaleString()}" oninput="formatRealPriceInput(this)" onchange="updateRealPrice('${batch.id}', this.value)" class="w-36 text-right border border-emerald-300 rounded-lg p-1.5 text-xs font-black text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm bg-emerald-50/30" />
+                        <span class="text-xxs text-slate-400 font-black">원</span>
+                    </div>
+                </td>
+                <td class="p-4 text-center">
+                    <button onclick="deleteBatch('${batch.id}')" class="text-rose-500 hover:text-rose-700 text-xs font-semibold px-2.5 py-1.5 rounded hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-all">
+                        기록삭제
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        renderDashboardCharts();
+    }
+
+    function deleteBatch(batchId) {
+        showCustomConfirm('해당 일자의 출하 기록을 완전히 삭제하시겠습니까? 관련 통계 차트에서도 즉시 제거됩니다.', function() {
+            STATE.database = STATE.database.filter(b => b.id !== batchId);
+            saveHistoryToStorage();
+            showToast("해당 배치 기록이 데이터베이스에서 소거되었습니다.", "info");
+        });
+    }
+
+    function clearAllHistory() {
+        showCustomConfirm('경고: 누적된 돼지 판정 내역 및 엑셀 출하 기록이 완전히 초기화됩니다. 이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?', function() {
+            STATE.database = [];
+            saveHistoryToStorage();
+            showToast("모든 누적 역사가 초기화되었습니다.", "error");
+        });
+    }
+
+    // --- Chart.js를 이용한 데이터 시각화 렌더링 ---
+    function renderDashboardCharts() {
+        if (STATE.database.length === 0) return;
+
+        let totalHead = 0;
+        let totalWeight = 0;
+        let totalRev = 0;
+        let topGradeCount = 0;
+        let totalFat = 0;
+        let totalGradeCount = 0;
+
+        const dateLabels = [];
+        const averageWeights = [];
+        const batchRevenues = [];
+        const headCounts = [];
+        
+        const gradeCounts = { '1+': 0, '1': 0, '2': 0, '등외': 0, '기타': 0 };
+
+        STATE.database.forEach(batch => {
+            totalHead += batch.headCount;
+            totalWeight += batch.totalWeight;
+            
+            // 실 정산액(수기 기입액)이 존재할 경우 실정산액을 대시보드 지표에 우선 합산
+            const currentRevenueVal = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
+            totalRev += currentRevenueVal;
+
+            dateLabels.push(batch.date);
+            averageWeights.push((batch.totalWeight / batch.headCount).toFixed(1));
+            batchRevenues.push(currentRevenueVal);
+            headCounts.push(batch.headCount);
+
+            batch.details.forEach(p => {
+                totalGradeCount++;
+                totalFat += p.fat;
+                if (gradeCounts[p.grade] !== undefined) {
+                    gradeCounts[p.grade]++;
+                } else {
+                    gradeCounts['기타']++;
+                }
+
+                if (p.grade === '1+' || p.grade === '1') {
+                    topGradeCount++;
+                }
+            });
+        });
+
+        const overallAvgWeight = totalWeight / totalHead;
+        const overallAvgFat = totalFat / totalGradeCount;
+        const overallTopRatio = Math.round((topGradeCount / totalGradeCount) * 100);
+
+        document.getElementById('kpi-total-head').innerText = `${totalHead.toLocaleString()} 두`;
+        document.getElementById('kpi-avg-weight').innerText = `${overallAvgWeight.toFixed(1)} kg`;
+        document.getElementById('kpi-avg-fat').innerText = `${overallAvgFat.toFixed(1)} mm`;
+        document.getElementById('kpi-total-revenue').innerText = `${totalRev.toLocaleString()} 원`;
+        document.getElementById('kpi-top-ratio').innerText = `${overallTopRatio}%`;
+        document.getElementById('kpi-top-bar').style.width = `${overallTopRatio}%`;
+
+        // 1. 등급 분포 차트 (Donut)
+        if (STATE.charts.grade) STATE.charts.grade.destroy();
+        const ctxGrade = document.getElementById('gradeDistributionChart').getContext('2d');
+        STATE.charts.grade = new Chart(ctxGrade, {
+            type: 'doughnut',
+            data: {
+                labels: ['1+ 등급', '1 등급', '2 등급', '등외', '기타'],
+                datasets: [{
+                    data: [gradeCounts['1+'], gradeCounts['1'], gradeCounts['2'], gradeCounts['등외'], gradeCounts['기타']],
+                    backgroundColor: ['#10b981', '#6366f1', '#f59e0b', '#f43f5e', '#94a3b8'],
+                    borderWidth: 2,
+                    borderColor: '#ffffff'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { boxWidth: 12, font: { family: 'Noto Sans KR', size: 11 } }
+                    }
+                },
+                cutout: '65%'
+            }
+        });
+
+        // 2. 출하일자별 등지방/중량 추이 차트 (Line + Bar 콤보)
+        if (STATE.charts.weightTrend) STATE.charts.weightTrend.destroy();
+        const ctxWeight = document.getElementById('weightTrendChart').getContext('2d');
+        STATE.charts.weightTrend = new Chart(ctxWeight, {
+            type: 'bar',
+            data: {
+                labels: dateLabels,
+                datasets: [
+                    {
+                        label: '두당 평균 중량 (kg)',
+                        type: 'line',
+                        data: averageWeights,
+                        borderColor: '#6366f1',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#6366f1',
+                        tension: 0.3,
+                        yAxisID: 'y-weight',
+                        zIndex: 10
+                    },
+                    {
+                        label: '출하 두수 (두)',
+                        type: 'bar',
+                        data: headCounts,
+                        backgroundColor: '#e2e8f0',
+                        borderRadius: 6,
+                        yAxisID: 'y-head',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } }
+                },
+                scales: {
+                    'y-weight': {
+                        type: 'linear',
+                        position: 'left',
+                        title: { display: true, text: '중량 (kg)', font: { size: 11 } },
+                        min: 60,
+                        max: 110
+                    },
+                    'y-head': {
+                        type: 'linear',
+                        position: 'right',
+                        title: { display: true, text: '출하 두수 (두)', font: { size: 11 } },
+                        grid: { drawOnChartArea: false }
+                    }
+                }
+            }
+        });
+
+        // 3. 차수별 매출 추이 차트 (Bar) - 실 정산액 기입 실시간 연동
+        if (STATE.charts.revenue) STATE.charts.revenue.destroy();
+        const ctxRev = document.getElementById('revenueBarChart').getContext('2d');
+        STATE.charts.revenue = new Chart(ctxRev, {
+            type: 'bar',
+            data: {
+                labels: dateLabels,
+                datasets: [{
+                    label: '총 실정산 수령 대금 (원)',
+                    data: batchRevenues,
+                    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                    borderColor: '#10b981',
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    barThickness: 32
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        ticks: {
+                            callback: function(value) {
+                                return (value / 10000).toLocaleString() + '만';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // --- 탭 탐색 컨트롤러 ---
+    function switchTab(tabId) {
+        STATE.activeTab = tabId;
+        
+        document.querySelectorAll('section').forEach(sec => sec.classList.add('hidden'));
+        document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.className = 'tab-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 text-slate-300 hover:text-white';
+        });
+        const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+        if (activeBtn) {
+            activeBtn.className = 'tab-btn px-4 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 bg-emerald-500 text-white shadow-md';
+        }
+
+        const mobileSelect = document.getElementById('mobile-tab-select');
+        if(mobileSelect) mobileSelect.value = tabId;
+
+        if (tabId === 'dashboard') {
+            setTimeout(renderDashboardCharts, 50);
+        }
+    }
+
+    // --- 정산 공식 & Firebase 설정 저장 ---
+    function saveFormulaSettings() {
+        const bonus = parseInt(document.getElementById('setting-bonus').value) || 0;
+        const exp = parseInt(document.getElementById('setting-expense').value) || 0;
+
+        STATE.settings.formula.bonus = bonus;
+        STATE.settings.formula.expense = exp;
+
+        saveSettingsToStorage();
+        
+        if (STATE.currentParsedData) {
+            processExcelRows(STATE.currentParsedData);
+        }
+        
+        showToast("합의서 고정 변수가 정상 기록 및 반영되었습니다.", "success");
+    }
+
+    function saveFirebaseSettings() {
+        const url = document.getElementById('firebase-db-url').value.trim();
+        const apiKey = document.getElementById('firebase-api-key').value.trim();
+
+        if (!url.startsWith('https://') && url !== '') {
+            showToast("유효한 Firebase Database URL 형식이 아닙니다.", "error");
+            return;
+        }
+
+        STATE.settings.firebase = { url, apiKey };
+        saveSettingsToStorage();
+        updateDbBadge();
+        
+        showToast("Firebase 자격 증명이 임시 바인딩 되었습니다. (현재 로컬 우선 작동)", "info");
+    }
+
+    function disconnectFirebase() {
+        document.getElementById('firebase-db-url').value = '';
+        document.getElementById('firebase-api-key').value = '';
+        STATE.settings.firebase = { url: '', apiKey: '' };
+        saveSettingsToStorage();
+        updateDbBadge();
+        showToast("Firebase 연동이 완전히 비활성화되었습니다.", "info");
+    }
+
+    // 대시보드 필터 컨트롤러
+    function filterDashboardData(days) {
+        const buttons = document.querySelectorAll('.dash-filter-btn');
+        buttons.forEach(btn => btn.className = 'dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100');
+        
+        event.target.className = 'dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white shadow-sm';
+        
+        if (days === 0) {
+            loadHistoryFromStorage();
+            syncDatabaseUI();
+            showToast("모든 누적 연도 데이터 범위로 초기화됨", "info");
+        } else {
+            const now = Date.now();
+            const limit = days * 24 * 60 * 60 * 1000;
+            const originalDb = [...STATE.database];
+            
+            STATE.database = STATE.database.filter(b => {
+                const bTime = new Date(b.date).getTime();
+                return (now - bTime) <= limit;
+            });
+            
+            renderDashboardCharts();
+            STATE.database = originalDb;
+            showToast(`최근 ${days}일 구간으로 보기 필터 적용됨`, "info");
+        }
+    }
+</script>
+</body>
+</html>
