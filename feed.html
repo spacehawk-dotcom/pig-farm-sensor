@@ -176,6 +176,11 @@
             const [stockF2, setStockF2] = useState('');
             const [stockF3, setStockF3] = useState('');
 
+            // 실주문량 수동 입력/자동 계산 연동 상태
+            const [netF1, setNetF1] = useState(0);
+            const [netF2, setNetF2] = useState(0);
+            const [netF3, setNetF3] = useState(0);
+
             // 계산기 지대 입고 날짜 입력창 상태 (추가됨)
             const [calcDeliveryDate, setCalcDeliveryDate] = useState(getTomorrowDateString());
 
@@ -493,8 +498,8 @@
                 };
             }, [weanCountsForCalc]);
 
-            // Computing stock and net order values memo
-            const { netF1, netF2, netF3 } = useMemo(() => {
+            // 재고 및 실주문량 산출 (수기 입력이 가능하도록 자동 계산값을 상태에 반영)
+            useEffect(() => {
                 const s1 = parseFloat(stockF1) || 0;
                 const s2 = parseFloat(stockF2) || 0;
                 const s3 = parseFloat(stockF3) || 0;
@@ -508,11 +513,9 @@
                     return Math.max(0, rounded);
                 };
 
-                return {
-                    netF1: roundTo5Unit(rawNet1),
-                    netF2: roundTo5Unit(rawNet2),
-                    netF3: roundTo5Unit(rawNet3)
-                };
+                setNetF1(roundTo5Unit(rawNet1));
+                setNetF2(roundTo5Unit(rawNet2));
+                setNetF3(roundTo5Unit(rawNet3));
             }, [calcProgramResults.totalF1, calcProgramResults.totalF2, calcProgramResults.totalF3, stockF1, stockF2, stockF3]);
 
             // 실시간 돈사 배치 입력 누계 검산
@@ -527,7 +530,11 @@
             }, [alloc]);
 
             const handleAddCalculatorToOrders = () => {
-                showConfirm(`재고 차감 및 5단위로 보정된 최종 실주문량 1호(${netF1}포), 2호(${netF2}포), 3호(${netF3}포)를 당일 주문에 즉시 추가하시겠습니까?`, async () => {
+                const nF1 = parseInt(netF1) || 0;
+                const nF2 = parseInt(netF2) || 0;
+                const nF3 = parseInt(netF3) || 0;
+
+                showConfirm(`재고 차감 및 확인된 최종 실주문량 1호(${nF1}포), 2호(${nF2}포), 3호(${nF3}포)를 당일 주문에 즉시 추가하시겠습니까?`, async () => {
                     try {
                         const now = new Date();
                         const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -536,9 +543,9 @@
                         const batch = db.batch();
                         let count = 0;
 
-                        if (netF1 > 0) {
+                        if (nF1 > 0) {
                             const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((netF1 * 10 / 1000).toFixed(3));
+                            const qtyTons = parseFloat((nF1 * 10 / 1000).toFixed(3));
                             batch.set(ref, {
                                 feedType: '젖돈',
                                 bulkBin: '지대 1',
@@ -549,9 +556,9 @@
                             });
                             count++;
                         }
-                        if (netF2 > 0) {
+                        if (nF2 > 0) {
                             const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((netF2 * 20 / 1000).toFixed(3));
+                            const qtyTons = parseFloat((nF2 * 20 / 1000).toFixed(3));
                             batch.set(ref, {
                                 feedType: '젖돈',
                                 bulkBin: '지대 2',
@@ -562,9 +569,9 @@
                             });
                             count++;
                         }
-                        if (netF3 > 0) {
+                        if (nF3 > 0) {
                             const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((netF3 * 20 / 1000).toFixed(3));
+                            const qtyTons = parseFloat((nF3 * 20 / 1000).toFixed(3));
                             batch.set(ref, {
                                 feedType: '젖돈',
                                 bulkBin: '지대 3',
@@ -1147,9 +1154,30 @@
                                                         <tr className="bg-amber-50/60 font-black text-slate-900 border-t border-b-2 border-slate-300">
                                                             <td className="p-3 text-center text-amber-800">실주문량</td>
                                                             <td colSpan="2" className="p-3 text-right text-[11px] text-amber-700 font-bold pr-4">최종 발주 포대 수:</td>
-                                                            <td className="p-3 text-amber-600 text-[13px]">{netF1} 포</td>
-                                                            <td className="p-3 text-emerald-600 text-[13px]">{netF2} 포</td>
-                                                            <td className="p-3 text-purple-600 text-[13px]">{netF3} 포</td>
+                                                            <td className="p-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={netF1} 
+                                                                    onChange={(e) => setNetF1(e.target.value)} 
+                                                                    className="w-full text-center py-1.5 bg-white border border-amber-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 focus:outline-none font-black text-amber-700 rounded shadow-sm" 
+                                                                />
+                                                            </td>
+                                                            <td className="p-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={netF2} 
+                                                                    onChange={(e) => setNetF2(e.target.value)} 
+                                                                    className="w-full text-center py-1.5 bg-white border border-emerald-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 focus:outline-none font-black text-emerald-700 rounded shadow-sm" 
+                                                                />
+                                                            </td>
+                                                            <td className="p-1">
+                                                                <input 
+                                                                    type="number" 
+                                                                    value={netF3} 
+                                                                    onChange={(e) => setNetF3(e.target.value)} 
+                                                                    className="w-full text-center py-1.5 bg-white border border-purple-300 focus:border-purple-500 focus:ring-2 focus:ring-purple-200 focus:outline-none font-black text-purple-700 rounded shadow-sm" 
+                                                                />
+                                                            </td>
                                                             <td className="p-3"></td>
                                                         </tr>
                                                     </tbody>
@@ -1206,14 +1234,14 @@
                                                         <span>🏡</span> 돈사별 지대 배치 메모 계획표 (자돈 A, B, C)
                                                     </h4>
                                                     <div className="flex flex-wrap gap-2 text-[10px] font-bold">
-                                                        <span className={`px-2 py-0.5 rounded border ${allocTotals.f1 === netF1 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
-                                                            1호: {allocTotals.f1} / {netF1}포 {allocTotals.f1 === netF1 ? '✓' : '⚠️'}
+                                                        <span className={`px-2 py-0.5 rounded border ${allocTotals.f1 === (parseInt(netF1) || 0) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                                                            1호: {allocTotals.f1} / {parseInt(netF1) || 0}포 {allocTotals.f1 === (parseInt(netF1) || 0) ? '✓' : '⚠️'}
                                                         </span>
-                                                        <span className={`px-2 py-0.5 rounded border ${allocTotals.f2 === netF2 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
-                                                            2호: {allocTotals.f2} / {netF2}포 {allocTotals.f2 === netF2 ? '✓' : '⚠️'}
+                                                        <span className={`px-2 py-0.5 rounded border ${allocTotals.f2 === (parseInt(netF2) || 0) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                                                            2호: {allocTotals.f2} / {parseInt(netF2) || 0}포 {allocTotals.f2 === (parseInt(netF2) || 0) ? '✓' : '⚠️'}
                                                         </span>
-                                                        <span className={`px-2 py-0.5 rounded border ${allocTotals.f3 === netF3 ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
-                                                            3호: {allocTotals.f3} / {netF3}포 {allocTotals.f3 === netF3 ? '✓' : '⚠️'}
+                                                        <span className={`px-2 py-0.5 rounded border ${allocTotals.f3 === (parseInt(netF3) || 0) ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-amber-50 text-amber-600 border-amber-200'}`}>
+                                                            3호: {allocTotals.f3} / {parseInt(netF3) || 0}포 {allocTotals.f3 === (parseInt(netF3) || 0) ? '✓' : '⚠️'}
                                                         </span>
                                                     </div>
                                                 </div>

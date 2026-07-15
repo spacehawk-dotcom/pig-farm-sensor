@@ -63,7 +63,6 @@
     const Download = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
     const TableIcon = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="M15 3v18"/><path d="M3 9h18"/><path d="M3 15h18"/></svg>;
 
-    // --- 실시간 DB 연동 온도 표 컴포넌트 ---
     const TempTable = ({ shipment, onAvgCalculated }) => {
       const [tableData, setTableData] = useState([]);
       const [loading, setLoading] = useState(true);
@@ -231,6 +230,51 @@
     const WEANING_PATH = 'farms/sungamfarm/weaning';
     const ACCIDENTS_PATH = 'farms/sungamfarm/accidents';
     const FEEDS_COLLECTION_PATH = 'farms/sungamfarm/feed_orders';
+    const ONEPASS_COLLECTION_PATH = 'pig_onepass_batches'; // 원패스 앱 출하 정산 연동 컬렉션
+
+    // 알림창 컴포넌트
+    const CustomAlert = ({ message, onClose }) => (
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
+          <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span className="text-amber-500 text-xl font-bold">!</span>
+          </div>
+          <p className="text-sm font-bold text-slate-700 mb-5">{message}</p>
+          <button 
+            onClick={onClose}
+            className="w-full bg-slate-800 text-white font-black py-3 rounded-xl hover:bg-slate-700 active:scale-95 transition-all"
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    );
+
+    // 확인창 컴포넌트
+    const CustomConfirm = ({ message, onConfirm, onCancel }) => (
+      <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-5 text-center animate-[slideUp_0.2s_ease-out]">
+          <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <span className="text-rose-500 text-xl font-bold">?</span>
+          </div>
+          <p className="text-sm font-bold text-slate-700 mb-5">{message}</p>
+          <div className="flex gap-2">
+            <button 
+              onClick={onCancel}
+              className="flex-1 bg-slate-100 text-slate-600 font-black py-3 rounded-xl hover:bg-slate-200 active:scale-95 transition-all"
+            >
+              취소
+            </button>
+            <button 
+              onClick={onConfirm}
+              className="flex-1 bg-rose-500 text-white font-black py-3 rounded-xl hover:bg-rose-600 active:scale-95 transition-all"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      </div>
+    );
 
     function App() {
       const [user, setUser] = useState(null);
@@ -243,6 +287,7 @@
       const [wBatches, setWBatches] = useState([]); 
       const [accidents, setAccidents] = useState([]); 
       const [feedRecords, setFeedRecords] = useState([]); 
+      const [onepassBatches, setOnepassBatches] = useState([]); // 원패스 정산 데이터
       const [loading, setLoading] = useState(true);
       
       const [alertMsg, setAlertMsg] = useState(null);
@@ -284,6 +329,11 @@
       const [selectedFeedMonth, setSelectedFeedMonth] = useState(null);
       
       const [selectedMortalityDetail, setSelectedMortalityDetail] = useState(null);
+      const [isFeedSummaryOpen, setIsFeedSummaryOpen] = useState(false); // 아코디언 상태 추가 (기본 닫힘)
+      const [isShipmentScheduleOpen, setIsShipmentScheduleOpen] = useState(false); // 출하 예정 아코디언 상태 추가 (기본 닫힘)
+      
+      // FIXED: Added missing state definition for Shipment Settlement modal
+      const [selectedShipmentMonth, setSelectedShipmentMonth] = useState(null);
 
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
       const [newRecord, setNewRecord] = useState({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
@@ -402,10 +452,18 @@
           (error) => console.error("Error fetching feeds:", error)
         );
 
+        const unsubOnePass = db.collection(ONEPASS_COLLECTION_PATH).onSnapshot(
+          (snapshot) => {
+            const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            setOnepassBatches(records);
+          },
+          (error) => console.error("Error fetching onepass batches:", error)
+        );
+
         return () => { 
           unsubSows(); unsubWeaning(); unsubSettings(); 
           unsubShipments(); unsubShipmentSummaries(); unsubGrower(); 
-          unsubWeaningBatches(); unsubAccidents(); unsubFeeds(); 
+          unsubWeaningBatches(); unsubAccidents(); unsubFeeds(); unsubOnePass();
         };
       }, [user]);
 
@@ -485,7 +543,6 @@
         return formatDate(d);
       };
 
-      // 누락된 getStatusColor 함수 정의 복구
       const getStatusColor = (status) => {
         switch(status) {
           case '포유': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
@@ -559,13 +616,13 @@
         return sows.find(s => s && (s || {}).id === selectedSowId) || null;
       }, [sows, selectedSowId]);
 
-      // 대시보드 통계 계산 (상시 모돈수 계산 시 후보돈 제외 필터 보강 및 FCR 사료 수합 입고일 기준 전환)
+      // 대시보드 통계 연산 (원패스 앱 정산 데이터 `onepassBatches` 기반 고도화)
       const dashboardStats = useMemo(() => {
         const stats = {
           total: sows.filter(Boolean).filter(s => {
             const parity = Number(s.parity) || 0;
             return parity >= 1 || (parity === 0 && s.currentStatus === '임신');
-          }).length, // 후보돈(미경산 대기돈) 제외한 상시 모돈수
+          }).length, 
           status: { '이유': 0, '임신': 0, '포유': 0, '재발': 0 },
           parity: {},
           monthlyFarrowing: {}
@@ -579,7 +636,6 @@
           const s = sow || {};
           const parity = Number(s.parity) || 0;
           
-          // 후보돈(산차 0이고 임신 상태가 아닌 대기돈) 제외 필터링
           const isReplacement = (parity === 0 && s.currentStatus !== '임신');
           if (isReplacement) return;
 
@@ -610,20 +666,21 @@
         let yearlyWeightGainKg = 0; 
         let yearlyTotalShippedWeight = 0; 
 
-        shipments.forEach(record => {
-          if (record && record.date && record.date >= oneYearAgoStr) {
-            const count = Number(record.count || 0);
+        // 출하두수 및 체중 연산 (원패스 정산 데이터 기준 동기화)
+        onepassBatches.forEach(batch => {
+          if (batch && batch.date && batch.date >= oneYearAgoStr) {
+            const count = Number(batch.headCount) || 0;
             dbYearlyShipped += count;
 
-            const summary = shipmentSummaries[record.date];
-            const avgWeight = summary && summary.avgWeight && !isNaN(Number(summary.avgWeight)) ? Number(summary.avgWeight) : 115;
+            // 원패스의 총 생체중(liveWeight)을 사용. 없으면 지육중량 / 지육율(yieldRate) 역산 적용
+            const yieldRate = batch.yieldRate > 0 ? (batch.yieldRate / 100) : 0.765;
+            const batchLiveWeight = batch.liveWeight > 0 ? batch.liveWeight : (batch.totalWeight / yieldRate);
             
-            const totalWeight = avgWeight * count;
-            yearlyTotalShippedWeight += totalWeight;
+            yearlyTotalShippedWeight += batchLiveWeight;
 
-            // 전입 자돈 6kg 보정 적용
-            const gain = Math.max(0, avgWeight - 6);
-            yearlyWeightGainKg += (gain * count);
+            // 전입 자돈 6kg(총량) 보정 적용
+            const gain = Math.max(0, batchLiveWeight - (6 * count));
+            yearlyWeightGainKg += gain;
           }
         });
 
@@ -631,7 +688,6 @@
         let yearlyMarketFeedKg = 0;  
         
         feedRecords.forEach(record => {
-          // ★ 중요: 입고 날짜(deliveryDate 또는 receivingDate) 기준으로 1년 이내 사료 합산
           const receiptDate = record.deliveryDate || record.receivingDate || record.date || '';
           if (receiptDate && receiptDate >= oneYearAgoStr) {
             const qtyTons = Number(record.quantity) || Number(record.amount) || Number(record.weight) || 0;
@@ -669,7 +725,7 @@
         stats.marketFcr = yearlyWeightGainKg > 0 ? (yearlyMarketFeedKg / yearlyWeightGainKg).toFixed(2) : "0.00";
 
         return stats;
-      }, [sows, weaningRecords, farmSettings, shipments, shipmentSummaries, feedRecords]);
+      }, [sows, weaningRecords, farmSettings, onepassBatches, feedRecords]);
 
       const sowStats = useMemo(() => {
         const s = currentSow || {};
@@ -765,7 +821,7 @@
                   statsMap[currentMonday].parity6Plus += 1;
                 }
                 if (!statsMap[currentMonday].sows.find(item => item && item.id === s.id)) {
-                   statsMap[currentMonday].sows.push(s);
+                  statsMap[currentMonday].sows.push(s);
                 }
              }
           }
@@ -859,10 +915,6 @@
 
         return stats;
       }, [accidents]);
-
-      const growerShipmentsFiltered = useMemo(() => {
-        return shipments;
-      }, [shipments]);
 
       const groupedShipments = useMemo(() => {
         const groups = {};
@@ -983,7 +1035,7 @@
         return Object.values(statsMap).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
       }, [sows]);
 
-      // ★ 올해 월별 사료 주문 요약 (입고 날짜 deliveryDate / receivingDate 기준으로 집계 고도화) ★
+      // 월별 사료량 통계 (사료 주문 내역으로 데이터 고도화 및 엑셀 확인 지원)
       const monthlyFeedStats = useMemo(() => {
         const currentYear = new Date().getFullYear().toString();
         const stats = {};
@@ -995,7 +1047,6 @@
         }
 
         feedRecords.forEach(record => {
-          // 사료 발주 전용 앱 구조의 입고일/배송 예정일 필드 우선 조회, 없으면 등록일 fallback
           const receiptDate = record.deliveryDate || record.receivingDate || record.date || '';
           if (!receiptDate || !receiptDate.startsWith(currentYear)) return;
 
@@ -1012,7 +1063,6 @@
           stats[ym].orders.push(record);
         });
 
-        // 각 월별 정렬 기준 역시 실제 입고일이 등록되어 있으면 입고일 순으로 역순 정렬
         Object.keys(stats).forEach(ym => {
           stats[ym].orders.sort((a, b) => {
             const dateA = a.deliveryDate || a.receivingDate || a.date || '';
@@ -1026,7 +1076,72 @@
           .sort((a, b) => String((b || {}).ym || '').localeCompare(String((a || {}).ym || '')));
       }, [feedRecords]);
 
-      // --- Handlers ---
+      // ★ 원패스 연동: 월별 출하 정산 실시간 분석 (지육율, 정산액, 1등급율 종합) ★
+      const monthlyShipmentSettlementStats = useMemo(() => {
+        const currentYear = new Date().getFullYear().toString();
+        const stats = {};
+        
+        // 올 해 1월부터 현재 월까지 초기화
+        const currentMonth = new Date().getMonth() + 1;
+        for (let i = 1; i <= currentMonth; i++) {
+          const mm = String(i).padStart(2, '0');
+          stats[`${currentYear}-${mm}`] = { ym: `${currentYear}-${mm}`, count: 0, revenue: 0, items: [] };
+        }
+
+        onepassBatches.forEach(batch => {
+          if (!batch.date || !batch.date.startsWith(currentYear)) return;
+          const ym = batch.date.substring(0, 7);
+          if (!stats[ym]) stats[ym] = { ym, count: 0, revenue: 0, items: [] };
+          
+          const count = Number(batch.headCount) || 0;
+          // 실정산금액(realPrice) 최우선 적용, 없으면 예상정산금액(totalPrice) 적용
+          const revenue = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
+          
+          stats[ym].count += count;
+          stats[ym].revenue += revenue;
+          stats[ym].items.push({
+            date: batch.date,
+            count: count,
+            totalWeight: batch.totalWeight,
+            yieldRate: batch.yieldRate,
+            topRatio: batch.topRatio,
+            revenue: revenue,
+            liveWeight: batch.liveWeight
+          });
+        });
+
+        // 각 월 내에서는 최신순으로 정렬
+        Object.values(stats).forEach(stat => {
+          stat.items.sort((a, b) => b.date.localeCompare(a.date));
+        });
+
+        return Object.values(stats).sort((a, b) => b.ym.localeCompare(a.ym));
+      }, [onepassBatches]);
+
+      // 매월 현재 모돈수 자동 기록
+      useEffect(() => {
+        if (!user || loading) return;
+        
+        const currentSowsCount = sows.filter(Boolean).filter(s => {
+          const parity = Number(s.parity) || 0;
+          return parity >= 1 || (parity === 0 && s.currentStatus === '임신');
+        }).length;
+        if (currentSowsCount === 0) return;
+
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const currentYM = `${yyyy}-${mm}`;
+
+        const savedCounts = (farmSettings || {}).monthlySowCounts || {};
+        
+        if (savedCounts[currentYM] !== currentSowsCount) {
+          const newCounts = { ...savedCounts, [currentYM]: currentSowsCount };
+          db.collection(SETTINGS_PATH).doc('main').set({ monthlySowCounts: newCounts }, { merge: true })
+            .catch(err => console.error("월별 모돈수 자동 기록 실패:", err));
+        }
+      }, [sows, farmSettings, user, loading]);
+
       const handleSaveSetting = (field, val) => {
         const numberVal = Number(val);
         db.collection(SETTINGS_PATH).doc('main').set({ [field]: numberVal }, { merge: true }).catch(err => {
@@ -1286,7 +1401,53 @@
         showToast(`📊 ${monthStat.ym} 사료 입고 엑셀 다운로드 완료!`);
       };
 
-      // --- View 2: 모돈 개별 상세 및 이력 추가 화면 ---
+      // ★ 월별 출하 정산 엑셀 다운로드 함수 ★
+      const downloadShipmentMonthExcel = (monthStat) => {
+        if (!monthStat || !monthStat.items || monthStat.items.length === 0) {
+          showAlert("다운로드할 출하 정산 데이터가 없습니다.");
+          return;
+        }
+        
+        const excelData = monthStat.items.map((item, idx) => {
+          return {
+            'No.': idx + 1,
+            '출하 일자': item.date || '-',
+            '출하 두수 (두)': Number(item.count) || 0,
+            '총 지육중량 (kg)': item.totalWeight,
+            '지육율 (%)': item.yieldRate,
+            '1등급 이상 (%)': item.topRatio,
+            '정산액 (원)': Math.round(item.revenue)
+          };
+        });
+
+        excelData.push({
+          'No.': '합계',
+          '출하 일자': '',
+          '출하 두수 (두)': monthStat.count,
+          '총 지육중량 (kg)': '',
+          '지육율 (%)': '',
+          '1등급 이상 (%)': '',
+          '정산액 (원)': Math.round(monthStat.revenue)
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const wscols = [{wch:10}, {wch:15}, {wch:15}, {wch:20}, {wch:15}, {wch:15}, {wch:20}];
+        worksheet['!cols'] = wscols;
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, `${monthStat.ym}_출하정산내역`);
+        XLSX.writeFile(workbook, `성암농장_출하정산내역_${monthStat.ym}.xlsx`);
+        showToast(`📊 ${monthStat.ym} 출하 정산 엑셀 다운로드 완료!`);
+      };
+
+      if (loading) {
+        return (
+          <div className="flex items-center justify-center h-screen bg-slate-50">
+            <p className="text-lg font-bold text-slate-500 animate-pulse">농장 데이터베이스 연결 중...</p>
+          </div>
+        );
+      }
+
       if (currentSow) {
         const s = currentSow || {};
         const historyList = (s.history || []).filter(Boolean); 
@@ -1310,10 +1471,10 @@
             </header>
 
             <main className="max-w-3xl mx-auto p-4 space-y-5">
-              <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
-                <div class="grid grid-cols-2 gap-3 mb-4">
-                  <div class="bg-slate-50 p-3 rounded-xl">
-                    <label class="text-[10px] font-bold text-slate-500 block mb-1">현재 상태</label>
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-slate-50 p-3 rounded-xl">
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">현재 상태</label>
                     <select 
                       value={s.currentStatus || '이유'} 
                       onChange={(e) => handleUpdateStatus('currentStatus', e.target.value)}
@@ -1325,23 +1486,23 @@
                       <option value="재발">재발</option>
                     </select>
                   </div>
-                  <div class="bg-slate-50 p-3 rounded-xl">
-                    <label class="text-[10px] font-bold text-slate-500 block mb-1">현재 산차</label>
-                    <div class="flex items-center">
+                  <div className="bg-slate-50 p-3 rounded-xl">
+                    <label className="text-[10px] font-bold text-slate-500 block mb-1">현재 산차</label>
+                    <div className="flex items-center">
                       <input 
                         type="number" 
                         value={s.parity || 0} 
                         onChange={(e) => handleUpdateStatus('parity', Number(e.target.value))}
                         className="w-full bg-transparent font-black text-slate-800 text-sm outline-none"
                       />
-                      <span class="text-xs font-bold text-slate-400 ml-1">산</span>
+                      <span className="text-xs font-bold text-slate-400 ml-1">산</span>
                     </div>
                   </div>
                 </div>
 
-                <div class="grid grid-cols-2 gap-3">
-                  <div class="bg-rose-50 p-3 rounded-xl border border-rose-100">
-                    <label class="text-[10px] font-bold text-rose-600 block mb-0.5">최근 종부일 (교배)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-rose-50 p-3 rounded-xl border border-rose-100">
+                    <label className="text-[10px] font-bold text-rose-600 block mb-0.5">최근 종부일 (교배)</label>
                     <input 
                       type="date" 
                       value={s.matingDate || ''} 
@@ -1349,62 +1510,62 @@
                       className="w-full bg-transparent font-black text-rose-700 text-[11px] outline-none" 
                     />
                   </div>
-                  <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center">
-                    <label class="text-[10px] font-bold text-rose-600 block mb-0.5">분만 예정일</label>
-                    <span class="font-black text-rose-700 text-sm">
+                  <div className="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center">
+                    <label className="text-[10px] font-bold text-rose-600 block mb-0.5">분만 예정일</label>
+                    <span className="font-black text-rose-700 text-sm">
                       {s.matingDate ? getExpectedFarrow(s.matingDate) : '미입력'}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div class="grid grid-cols-3 gap-2">
-                <div class="bg-white p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
-                  <span class="text-[10px] font-bold text-slate-500 mb-0.5">총 분만</span>
-                  <p class="text-xl font-black text-slate-800">{(sowStats || {}).totalLitters || 0}<span class="text-xs font-bold ml-0.5">회</span></p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-white p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-bold text-slate-500 mb-0.5">총 분만</span>
+                  <p className="text-xl font-black text-slate-800">{(sowStats || {}).totalLitters || 0}<span className="text-xs font-bold ml-0.5">회</span></p>
                 </div>
-                <div class="bg-white p-3 rounded-2xl border border-emerald-100 text-center flex flex-col justify-center shadow-sm">
-                  <span class="text-[10px] font-bold text-emerald-600 mb-0.5">평균 산자수</span>
-                  <p class="text-xl font-black text-emerald-700">{(sowStats || {}).avgBorn || '0.0'}<span class="text-xs font-bold ml-0.5">두</span></p>
+                <div className="bg-white p-3 rounded-2xl border border-emerald-100 text-center flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-bold text-emerald-600 mb-0.5">평균 산자수</span>
+                  <p className="text-xl font-black text-emerald-700">{(sowStats || {}).avgBorn || '0.0'}<span className="text-xs font-bold ml-0.5">두</span></p>
                 </div>
-                <div class="bg-white p-3 rounded-2xl border border-blue-100 text-center flex flex-col justify-center shadow-sm">
-                  <span class="text-[10px] font-bold text-blue-600 mb-0.5">평균 이유수</span>
-                  <p class="text-xl font-black text-blue-700">{(sowStats || {}).avgWeaned || '0.0'}<span class="text-xs font-bold ml-0.5">두</span></p>
+                <div className="bg-white p-3 rounded-2xl border border-blue-100 text-center flex flex-col justify-center shadow-sm">
+                  <span className="text-[10px] font-bold text-blue-600 mb-0.5">평균 이유수</span>
+                  <p className="text-xl font-black text-blue-700">{(sowStats || {}).avgWeaned || '0.0'}<span className="text-xs font-bold ml-0.5">두</span></p>
                 </div>
               </div>
 
-              <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div class="flex justify-between items-center p-4 border-b border-slate-100">
-                  <h2 class="text-sm font-black text-slate-800 leading-none">생산 기록</h2>
-                  <button onClick={() => setShowAddRecord(true)} class="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 active:scale-95 transition">
+              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                <div className="flex justify-between items-center p-4 border-b border-slate-100">
+                  <h2 className="text-sm font-black text-slate-800 leading-none">생산 기록</h2>
+                  <button onClick={() => setShowAddRecord(true)} className="bg-slate-800 text-white px-3 py-1.5 rounded-lg text-[11px] font-bold flex items-center gap-1 active:scale-95 transition">
                     <Plus className="w-3 h-3" /> 추가
                   </button>
                 </div>
 
                 {historyList.length === 0 ? (
-                  <div class="text-center p-10 bg-slate-50">
-                    <p class="text-slate-400 text-xs font-bold">등록된 번식 기록이 없습니다.</p>
+                  <div className="text-center p-10 bg-slate-50">
+                    <p className="text-slate-400 text-xs font-bold">등록된 번식 기록이 없습니다.</p>
                   </div>
                 ) : (
-                  <div class="divide-y divide-slate-50">
-                    <div class="flex items-center gap-2 px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-500 text-center">
-                      <span class="w-10">산차</span>
-                      <span class="flex-1">분만일</span>
-                      <span class="w-12">산자</span>
-                      <span class="w-12">이동</span>
-                      <span class="w-12">이유</span>
-                      <span class="w-6"></span>
+                  <div className="divide-y divide-slate-50">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 text-[10px] font-black text-slate-500 text-center">
+                      <span className="w-10">산차</span>
+                      <span className="flex-1">분만일</span>
+                      <span className="w-12">산자</span>
+                      <span className="w-12">이동</span>
+                      <span className="w-12">이유</span>
+                      <span className="w-6"></span>
                     </div>
                     {historyList.map((record, idx) => {
                       const r = record || {};
                       return (
-                        <div key={idx} class="flex items-center gap-2 px-4 py-3 text-sm font-bold text-slate-800 text-center hover:bg-slate-50 transition">
-                          <span class="w-10 bg-slate-100 py-1 rounded text-slate-600">{r.parity || 0}산</span>
-                          <span class="flex-1 text-[13px]">{r.date || r.expDate || '-'}</span>
-                          <span class="w-12 text-emerald-600">{r.born || 0}</span>
-                          <span class="w-12 text-slate-500">{r.move || 0}</span>
-                          <span class="w-12 text-blue-600">{r.weaned || 0}</span>
-                          <button onClick={() => handleDeleteRecord(idx)} class="w-6 flex justify-center text-rose-300 hover:text-rose-500 transition">
+                        <div key={idx} className="flex items-center gap-2 px-4 py-3 text-sm font-bold text-slate-800 text-center hover:bg-slate-50 transition">
+                          <span className="w-10 bg-slate-100 py-1 rounded text-slate-600">{r.parity || 0}산</span>
+                          <span className="flex-1 text-[13px]">{r.date || r.expDate || '-'}</span>
+                          <span className="w-12 text-emerald-600">{r.born || 0}</span>
+                          <span className="w-12 text-slate-500">{r.move || 0}</span>
+                          <span className="w-12 text-blue-600">{r.weaned || 0}</span>
+                          <button onClick={() => handleDeleteRecord(idx)} className="w-6 flex justify-center text-rose-300 hover:text-rose-500 transition">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -1416,38 +1577,38 @@
             </main>
 
             {showAddRecord && (
-              <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
-                <div class="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
-                  <div class="flex justify-between items-center mb-6">
-                    <h3 class="text-lg font-black text-slate-800">생산 기록 추가</h3>
-                    <button onClick={() => setShowAddRecord(false)} class="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
+                <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-lg font-black text-slate-800">생산 기록 추가</h3>
+                    <button onClick={() => setShowAddRecord(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
                   </div>
-                  <form onSubmit={handleAddRecord} class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
+                  <form onSubmit={handleAddRecord} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label class="text-[11px] font-bold text-slate-500 block mb-1">산차</label>
-                        <input type="number" required value={(newRecord || {}).parity || ''} onChange={e => setNewRecord({...newRecord, parity: e.target.value})} class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" placeholder={`예: ${Number(s.parity || 0) + 1}`} />
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">산차</label>
+                        <input type="number" required value={(newRecord || {}).parity || ''} onChange={e => setNewRecord({...newRecord, parity: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" placeholder={`예: ${Number(s.parity || 0) + 1}`} />
                       </div>
                       <div>
-                        <label class="text-[11px] font-bold text-slate-500 block mb-1">분만일</label>
-                        <input type="date" value={(newRecord || {}).date || ''} onChange={e => setNewRecord({...newRecord, date: e.target.value})} class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" />
-                      </div>
-                    </div>
-                    <div class="grid grid-cols-3 gap-3">
-                      <div>
-                        <label class="text-[11px] font-bold text-emerald-600 block mb-1">산자수</label>
-                        <input type="number" value={(newRecord || {}).born || ''} onChange={e => setNewRecord({...newRecord, born: e.target.value})} class="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300" placeholder="0" />
-                      </div>
-                      <div>
-                        <label class="text-[11px] font-bold text-slate-500 block mb-1">이동/도태</label>
-                        <input type="number" value={(newRecord || {}).move || ''} onChange={e => setNewRecord({...newRecord, move: e.target.value})} class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-slate-400" placeholder="0" />
-                      </div>
-                      <div>
-                        <label class="text-[11px] font-bold text-blue-600 block mb-1">이유두수</label>
-                        <input type="number" value={(newRecord || {}).weaned || ''} onChange={e => setNewRecord({...newRecord, weaned: e.target.value})} class="w-full bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm font-black text-blue-700 outline-none focus:border-blue-300" placeholder="0" />
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">분만일</label>
+                        <input type="date" value={(newRecord || {}).date || ''} onChange={e => setNewRecord({...newRecord, date: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" />
                       </div>
                     </div>
-                    <button type="submit" class="w-full mt-4 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg">저장하기</button>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold text-emerald-600 block mb-1">산자수</label>
+                        <input type="number" value={(newRecord || {}).born || ''} onChange={e => setNewRecord({...newRecord, born: e.target.value})} className="w-full bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm font-black text-emerald-700 outline-none focus:border-emerald-300" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 block mb-1">이동/도태</label>
+                        <input type="number" value={(newRecord || {}).move || ''} onChange={e => setNewRecord({...newRecord, move: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-slate-400" placeholder="0" />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-blue-600 block mb-1">이유두수</label>
+                        <input type="number" value={(newRecord || {}).weaned || ''} onChange={e => setNewRecord({...newRecord, weaned: e.target.value})} className="w-full bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm font-black text-blue-700 outline-none focus:border-blue-300" placeholder="0" />
+                      </div>
+                    </div>
+                    <button type="submit" className="w-full mt-4 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg">저장하기</button>
                   </form>
                 </div>
               </div>
@@ -1457,68 +1618,72 @@
       }
 
       return (
-        <div class="min-h-screen bg-slate-50 pb-24 font-sans">
+        <div className="min-h-screen bg-slate-50 pb-24 font-sans">
           {alertMsg && <CustomAlert message={alertMsg} onClose={() => setAlertMsg(null)} />}
           {confirmConfig && <CustomConfirm message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} />}
           
+          {/* 토스트 메세지 공지 */}
           {toastMsg && (
-            <div class="fixed bottom-6 left-6 z-[100] bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2.5 animate-[slideUp_0.2s_ease-out]">
+            <div className="fixed bottom-6 left-6 z-[100] bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2.5 animate-[slideUp_0.2s_ease-out]">
               <span>✔️</span>
-              <span class="text-xs font-bold">{toastMsg}</span>
+              <span className="text-xs font-bold">{toastMsg}</span>
             </div>
           )}
 
-          <header class="bg-white border-b border-slate-200 sticky top-0 z-10 p-4 shadow-sm">
-            <div class="max-w-3xl mx-auto flex justify-between items-center">
-              <h1 class="text-xl font-black text-slate-800 tracking-tight flex items-center">
-                <Baby className="w-6 h-6 mr-2 text-rose-500" /> 성적 분석 <span class="ml-2 text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold">LIVE</span>
+          <header className="bg-white border-b border-slate-200 sticky top-0 z-10 p-4 shadow-sm">
+            <div className="max-w-3xl mx-auto flex justify-between items-center">
+              <h1 className="text-xl font-black text-slate-800 tracking-tight flex items-center">
+                <Baby className="w-6 h-6 mr-2 text-rose-500" /> 성적 분석 <span className="ml-2 text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded-md font-bold">LIVE</span>
               </h1>
-              <div class="flex items-center gap-2">
-                <a href="index.html" class="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-lg shadow-sm text-[11px] font-bold flex items-center gap-1 active:scale-95 transition hover:bg-indigo-100">
+              <div className="flex items-center gap-2">
+                <a href="onepass.html" className="bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-1.5 rounded-lg shadow-sm text-[11px] font-bold flex items-center gap-1 active:scale-95 transition hover:bg-emerald-100">
+                  <TableIcon className="w-3.5 h-3.5" /> 원패스
+                </a>
+                <a href="index.html" className="bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1.5 rounded-lg shadow-sm text-[11px] font-bold flex items-center gap-1 active:scale-95 transition hover:bg-indigo-100">
                   <Activity className="w-3.5 h-3.5" /> 사육현황
                 </a>
-                <button onClick={openAllList} class="bg-slate-800 text-white px-2.5 py-1.5 rounded-lg shadow-sm text-[11px] font-bold flex items-center gap-1 active:scale-95 transition hover:bg-slate-700">
+                <button onClick={openAllList} className="bg-slate-800 text-white px-2.5 py-1.5 rounded-lg shadow-sm text-[11px] font-bold flex items-center gap-1 active:scale-95 transition hover:bg-slate-700">
                   <Search className="w-3.5 h-3.5" /> 검색/목록
                 </button>
               </div>
             </div>
           </header>
 
-          <main class="max-w-3xl mx-auto p-4">
+          <main className="max-w-3xl mx-auto p-4">
             {sows.length > 0 ? (
-              <div class="mb-6 space-y-5 animate-[slideUp_0.3s_ease-out]">
+              <div className="mb-6 space-y-5 animate-[slideUp_0.3s_ease-out]">
                 
                 {/* 생산성 주요 연산 카드 그리드 */}
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div 
                     onClick={() => setShowMonthlySowModal(true)}
                     className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md cursor-pointer hover:shadow-lg active:scale-95 transition-all relative overflow-hidden"
                   >
-                    <div class="flex flex-col mb-2 relative z-10">
-                      <div class="flex justify-between items-start">
-                        <span class="text-[11px] font-bold text-slate-300">연평균 상시 모돈수</span>
+                    <div className="flex flex-col mb-2 relative z-10">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[11px] font-bold text-slate-300">연평균 상시 모돈수</span>
                         <ChevronRight className="w-4 h-4 text-slate-500" />
                       </div>
-                      <span class="text-[9px] text-slate-500 mt-0.5">월말 기록 입력 및 평균 계산</span>
+                      <span className="text-[9px] text-slate-500 mt-0.5">월말 기록 입력 및 평균 계산</span>
                     </div>
-                    <div class="flex items-baseline relative z-10">
-                      <span class="text-3xl font-black text-white px-1">
+                    <div className="flex items-baseline relative z-10">
+                      <span className="text-3xl font-black text-white px-1">
                         {(farmSettings || {}).avgSowCount > 0 ? (farmSettings || {}).avgSowCount : ((dashboardStats || {}).total || 0)}
                       </span>
-                      <span class="text-xs ml-1 font-bold text-slate-400">두</span>
+                      <span className="text-xs ml-1 font-bold text-slate-400">두</span>
                     </div>
                   </div>
 
-                  <div class="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md">
-                    <div class="flex flex-col mb-2">
-                      <span class="text-[11px] font-bold text-slate-300">최근 1년 출하두수</span>
-                      <span class="text-[9px] text-slate-500">사육현황(실제 출하) 우선</span>
+                  <div className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md">
+                    <div className="flex flex-col mb-2">
+                      <span className="text-[11px] font-bold text-slate-300">최근 1년 출하두수</span>
+                      <span className="text-[9px] text-slate-500">사육현황(실제 출하) 우선</span>
                     </div>
-                    <div class="flex items-baseline">
-                      <span class="text-3xl font-black text-white px-1">
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black text-white px-1">
                         {((dashboardStats || {}).dbYearlyShipped || 0) > 0 ? ((dashboardStats || {}).dbYearlyShipped || 0).toLocaleString() : ((dashboardStats || {}).autoShipped || 0).toLocaleString()}
                       </span>
-                      <span class="text-xs ml-1 font-bold text-slate-400">두</span>
+                      <span className="text-xs ml-1 font-bold text-slate-400">두</span>
                     </div>
                   </div>
 
@@ -1526,16 +1691,16 @@
                     onClick={() => setShowFormulaModal(true)} 
                     className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md cursor-pointer hover:shadow-lg active:scale-95 transition-all"
                   >
-                    <div class="flex items-center justify-between mb-1">
-                      <div class="flex flex-col">
-                        <span class="text-[11px] font-bold text-indigo-200">현재 PSY</span>
-                        <span class="text-[9px] text-indigo-300 mt-0.5">수기 이유두수 기준</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-indigo-200">현재 PSY</span>
+                        <span className="text-[9px] text-indigo-300 mt-0.5">수기 이유두수 기준</span>
                       </div>
                       <Activity className="w-4 h-4 text-indigo-300 opacity-50" />
                     </div>
-                    <div class="flex items-baseline">
-                      <span class="text-3xl font-black">{(dashboardStats || {}).psy || '0.0'}</span>
-                      <span class="text-sm font-bold ml-1 text-indigo-100">두</span>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).psy || '0.0'}</span>
+                      <span className="text-sm font-bold ml-1 text-indigo-100">두</span>
                     </div>
                   </div>
 
@@ -1543,34 +1708,34 @@
                     onClick={() => setShowFormulaModal(true)} 
                     className="bg-gradient-to-br from-violet-500 to-violet-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
                   >
-                    <div class="flex items-center justify-between mb-1">
-                      <div class="flex flex-col">
-                        <span class="text-[11px] font-bold text-violet-200">현재 MSY</span>
-                        <span class="text-[9px] text-violet-300 mt-0.5">최근 출하량 기준</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-violet-200">현재 MSY</span>
+                        <span className="text-[9px] text-violet-300 mt-0.5">최근 출하량 기준</span>
                       </div>
                       <Activity className="w-4 h-4 text-violet-300 opacity-50" />
                     </div>
-                    <div class="flex items-baseline">
-                      <span class="text-3xl font-black">{(dashboardStats || {}).msy || '0.0'}</span>
-                      <span class="text-sm font-bold ml-1 text-violet-100">두</span>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).msy || '0.0'}</span>
+                      <span className="text-sm font-bold ml-1 text-violet-100">두</span>
                     </div>
                   </div>
 
-                  {/* FCR (사료요구율) 핵심 카드 */}
+                  {/* 비육돈 전용 FCR 카드 */}
                   <div 
                     onClick={() => setShowFormulaModal(true)} 
-                    className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
+                    className="col-span-2 md:col-span-1 bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
                   >
-                    <div class="flex items-center justify-between mb-1">
-                      <div class="flex flex-col">
-                        <span class="text-[11px] font-bold text-emerald-100">비육돈 전용 FCR</span>
-                        <span class="text-[9px] text-emerald-200 mt-0.5">자돈(6kg)~출하 사료 효율</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-emerald-100">비육돈 전용 FCR</span>
+                        <span className="text-[9px] text-emerald-200 mt-0.5">자돈(6kg)~출하 사료 효율</span>
                       </div>
                       <Activity className="w-4 h-4 text-emerald-200 opacity-50" />
                     </div>
-                    <div class="flex items-baseline">
-                      <span class="text-3xl font-black">{(dashboardStats || {}).marketFcr || '0.00'}</span>
-                      <span class="text-xs font-bold ml-1 text-emerald-100">(젖돈/육성)</span>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).marketFcr || '0.00'}</span>
+                      <span className="text-xs font-bold ml-1 text-emerald-100">(젖돈/육성)</span>
                     </div>
                   </div>
 
@@ -1579,37 +1744,37 @@
                     onClick={() => setShowFormulaModal(true)} 
                     className="bg-gradient-to-br from-slate-600 to-slate-700 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
                   >
-                    <div class="flex items-center justify-between mb-1">
-                      <div class="flex flex-col">
-                        <span class="text-[11px] font-bold text-slate-200">농장 전체 FCR</span>
-                        <span class="text-[9px] text-slate-300 mt-0.5">번식돈 사료 등 전체 포함</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold text-slate-200">농장 전체 FCR</span>
+                        <span className="text-[9px] text-slate-300 mt-0.5">번식돈 사료 등 전체 포함</span>
                       </div>
                       <Activity className="w-4 h-4 text-slate-400 opacity-50" />
                     </div>
-                    <div class="flex items-baseline">
-                      <span class="text-3xl font-black">{(dashboardStats || {}).totalFcr || '0.00'}</span>
-                      <span class="text-xs font-bold ml-1 text-slate-400">(종합 효율)</span>
+                    <div className="flex items-baseline">
+                      <span className="text-3xl font-black">{(dashboardStats || {}).totalFcr || '0.00'}</span>
+                      <span className="text-xs font-bold ml-1 text-slate-400">(종합 효율)</span>
                     </div>
                   </div>
                 </div>
 
                 {/* 통계 열람 보조 버튼 */}
-                <div class="grid grid-cols-1 gap-2 mt-2">
-                  <button onClick={() => setShowParityModal(true)} class="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
-                    <div class="bg-indigo-50 p-2 rounded-full">
+                <div className="grid grid-cols-1 gap-2 mt-2">
+                  <button onClick={() => setShowParityModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
+                    <div className="bg-indigo-50 p-2 rounded-full">
                       <Activity className="w-5 h-5 text-indigo-500" />
                     </div>
-                    <span class="text-xs">산차별 현황</span>
+                    <span className="text-xs">산차별 현황</span>
                   </button>
                 </div>
 
                 {/* --- 주간 이유 성적 (수동 직접 입력 관리) --- */}
-                <div class="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                  <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-sm font-black text-blue-800">
-                      주간 이유 성적 <span class="text-[10px] bg-white text-blue-500 px-1.5 py-0.5 rounded font-bold ml-1">직접 기록</span>
+                <div className="mt-4 bg-blue-50 border border-blue-100 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-black text-blue-800">
+                      주간 이유 성적 <span className="text-[10px] bg-white text-blue-500 px-1.5 py-0.5 rounded font-bold ml-1">직접 기록</span>
                     </h3>
-                    <div class="flex gap-2">
+                    <div className="flex gap-2">
                       <button 
                         onClick={() => openWeaningModal()} 
                         className="bg-blue-100 text-blue-700 px-2 py-1.5 rounded-lg text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all shadow-sm hover:bg-blue-200"
@@ -1625,9 +1790,9 @@
                     </div>
                   </div>
 
-                  <div class="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
                     {sortedWeaningRecords.length === 0 ? (
-                      <div class="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">
+                      <div className="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">
                         직접 기록된 이유 성적이 없습니다.
                       </div>
                     ) : (
@@ -1639,15 +1804,15 @@
                             onClick={() => openWeaningModal(st)}
                             className="min-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all"
                           >
-                            <span class="text-[11px] font-black text-slate-500 mb-2">{(st.date || '').substring(5).replace('-', '/')} 이유</span>
-                            <div class="flex flex-col gap-1.5">
-                              <div class="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded">
-                                <span class="text-[10px] font-bold text-slate-500">모돈</span>
-                                <span class="text-[13px] font-black text-slate-800">{st.sowCount || 0}<span class="text-[9px] font-normal ml-0.5">복</span></span>
+                            <span className="text-[11px] font-black text-slate-500 mb-2">{(st.date || '').substring(5).replace('-', '/')} 이유</span>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded">
+                                <span className="text-[10px] font-bold text-slate-500">모돈</span>
+                                <span className="text-[13px] font-black text-slate-800">{st.sowCount || 0}<span className="text-[9px] font-normal ml-0.5">복</span></span>
                               </div>
-                              <div class="flex justify-between items-center bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100">
-                                <span class="text-[10px] font-bold text-blue-600">이유</span>
-                                <span class="text-[14px] font-black text-blue-700">{st.totalWeaned || 0}<span class="text-[9px] font-normal ml-0.5">두</span></span>
+                              <div className="flex justify-between items-center bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100">
+                                <span className="text-[10px] font-bold text-blue-600">이유</span>
+                                <span className="text-[14px] font-black text-blue-700">{st.totalWeaned || 0}<span className="text-[9px] font-normal ml-0.5">두</span></span>
                               </div>
                             </div>
                           </div>
@@ -1658,15 +1823,15 @@
                 </div>
 
                 {/* --- 월별 번식 종합 실적 카드 --- */}
-                <div class="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                  <div class="flex justify-between items-center mb-3">
-                    <h3 class="text-sm font-black text-slate-800">
-                      월별 교배 및 분만 실적 <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold ml-1">최근 순</span>
+                <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-black text-slate-800">
+                      월별 교배 및 분만 실적 <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold ml-1">최근 순</span>
                     </h3>
                   </div>
-                  <div class="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
                     {monthlyActivityStats.length === 0 ? (
-                      <div class="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">
+                      <div className="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">
                         기록된 실적이 없습니다.
                       </div>
                     ) : (
@@ -1678,15 +1843,15 @@
                             onClick={() => openFilteredList('activityMonth', stat.month)}
                             className="min-w-[120px] bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 active:scale-95 transition-all"
                           >
-                            <span class="text-[11px] font-black text-slate-500 mb-2">{yyyy}년 {parseInt(mm)}월</span>
-                            <div class="flex flex-col gap-1.5">
-                              <div class="flex justify-between items-center bg-blue-50 px-1.5 py-1 rounded border border-blue-100">
-                                <span class="text-[10px] font-bold text-blue-600">교배(임신)</span>
-                                <span class="text-[13px] font-black text-blue-700">{stat.mated}<span class="text-[9px] font-normal ml-0.5">복</span></span>
+                            <span className="text-[11px] font-black text-slate-500 mb-2">{yyyy}년 {parseInt(mm)}월</span>
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex justify-between items-center bg-blue-50 px-1.5 py-1 rounded border border-blue-100">
+                                <span className="text-[10px] font-bold text-blue-600">교배(임신)</span>
+                                <span className="text-[13px] font-black text-blue-700">{stat.mated}<span className="text-[9px] font-normal ml-0.5">복</span></span>
                               </div>
-                              <div class="flex justify-between items-center bg-emerald-50 px-1.5 py-1 rounded border border-emerald-100">
-                                <span class="text-[10px] font-bold text-emerald-600">분만(포유)</span>
-                                <span class="text-[13px] font-black text-emerald-700">{stat.farrowed}<span class="text-[9px] font-normal ml-0.5">복</span></span>
+                              <div className="flex justify-between items-center bg-emerald-50 px-1.5 py-1 rounded border border-emerald-100">
+                                <span className="text-[10px] font-bold text-emerald-600">분만(포유)</span>
+                                <span className="text-[13px] font-black text-emerald-700">{stat.farrowed}<span className="text-[9px] font-normal ml-0.5">복</span></span>
                               </div>
                             </div>
                           </div>
@@ -1696,50 +1861,104 @@
                   </div>
                 </div>
 
-                {/* --- 사료량 연동 대시보드 --- */}
-                <div class="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-1">
-                    <h3 class="text-sm font-black text-slate-800 flex flex-wrap items-center gap-1.5">
+                {/* --- 사료량 연동 대시보드 (아코디언 형태 적용) --- */}
+                <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div 
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-1 gap-1 cursor-pointer select-none"
+                    onClick={() => setIsFeedSummaryOpen(!isFeedSummaryOpen)}
+                  >
+                    <h3 className="text-sm font-black text-slate-800 flex flex-wrap items-center gap-1.5">
                       올해 월별 사료 주문 요약 (입고일 기준)
-                      <span class="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-bold">사료 발주 연동</span>
-                      <span class="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold animate-pulse">💡 카드 클릭 시 엑셀 보기</span>
+                      <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-bold">사료 발주 연동</span>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold animate-pulse">💡 클릭 시 엑셀 보기</span>
+                    </h3>
+                    <div className="flex items-center text-slate-400 mt-1 sm:mt-0">
+                      <span className="text-[10px] font-bold mr-1">{isFeedSummaryOpen ? '접기' : '펼치기'}</span>
+                      <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isFeedSummaryOpen ? 'rotate-90' : ''}`} />
+                    </div>
+                  </div>
+                  
+                  {isFeedSummaryOpen && (
+                    <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar pt-3 border-t border-slate-50 mt-2 animate-[slideUp_0.2s_ease-out]">
+                      {monthlyFeedStats.length === 0 ? (
+                        <div className="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">
+                          올해 기록된 사료 데이터가 없습니다.
+                        </div>
+                      ) : (
+                        monthlyFeedStats.map(stat => {
+                          const [yyyy, mm] = stat.ym.split('-');
+                          const typesArr = Object.entries(stat.types).sort((a, b) => b[1] - a[1]);
+                          
+                          return (
+                            <div 
+                              key={stat.ym} 
+                              onClick={() => setSelectedFeedMonth(stat)}
+                              className="min-w-[145px] bg-slate-50 border border-slate-200 hover:border-amber-400 hover:bg-amber-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group"
+                            >
+                              <div className="flex justify-between items-center mb-2">
+                                <span className="text-[11px] font-black text-slate-500 group-hover:text-amber-700">{yyyy}년 {parseInt(mm)}월</span>
+                                <TableIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-500" />
+                              </div>
+                              <div className="flex flex-col gap-1.5 flex-1">
+                                {typesArr.length === 0 ? (
+                                  <span className="text-[10px] text-slate-400 text-center py-2 flex-1">주문내역 없음</span>
+                                ) : (
+                                  typesArr.map(([type, amount]) => (
+                                    <div key={type} className="flex justify-between items-center bg-white px-1.5 py-1 rounded border border-slate-100">
+                                      <span className="text-[10px] font-bold text-slate-600 truncate mr-2">{type}</span>
+                                      <span className="text-[11px] font-black text-slate-800 whitespace-nowrap">{amount.toFixed(1)} <span className="text-[9px] font-normal text-slate-400">톤</span></span>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                              <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center">
+                                <span className="text-[10px] font-black text-amber-600">총합계</span>
+                                <span className="text-[13px] font-black text-amber-700">{stat.total.toFixed(1)} <span className="text-[9px] font-normal text-amber-500">톤</span></span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* [신규 추가] 월별 출하 정산 요약 */}
+                <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-1">
+                    <h3 className="text-sm font-black text-slate-800 flex flex-wrap items-center gap-1.5">
+                      올해 월별 출하 정산 요약
+                      <span className="text-[10px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold">출하 정산 연동</span>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold animate-pulse">💡 클릭 시 상세 내역</span>
                     </h3>
                   </div>
-                  <div class="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
-                    {monthlyFeedStats.length === 0 ? (
-                      <div class="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">
-                        올해 기록된 사료 데이터가 없습니다.
+                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
+                    {monthlyShipmentSettlementStats.length === 0 ? (
+                      <div className="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">
+                        올해 기록된 출하 정산 데이터가 없습니다.
                       </div>
                     ) : (
-                      monthlyFeedStats.map(stat => {
+                      monthlyShipmentSettlementStats.map(stat => {
                         const [yyyy, mm] = stat.ym.split('-');
-                        const typesArr = Object.entries(stat.types).sort((a, b) => b[1] - a[1]);
-                        
                         return (
                           <div 
                             key={stat.ym} 
-                            onClick={() => setSelectedFeedMonth(stat)}
-                            className="min-w-[145px] bg-slate-50 border border-slate-200 hover:border-amber-400 hover:bg-amber-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group"
+                            onClick={() => setSelectedShipmentMonth(stat)}
+                            className="min-w-[145px] bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group"
                           >
-                            <div class="flex justify-between items-center mb-2">
-                              <span class="text-[11px] font-black text-slate-500 group-hover:text-amber-700">{yyyy}년 {parseInt(mm)}월</span>
-                              <TableIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-500" />
+                            <div className="flex justify-between items-center mb-2">
+                              <span className="text-[11px] font-black text-slate-500 group-hover:text-emerald-700">{yyyy}년 {parseInt(mm)}월</span>
+                              <TableIcon className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500" />
                             </div>
-                            <div class="flex flex-col gap-1.5 flex-1">
-                              {typesArr.length === 0 ? (
-                                <span class="text-[10px] text-slate-400 text-center py-2 flex-1">주문내역 없음</span>
-                              ) : (
-                                typesArr.map(([type, amount]) => (
-                                  <div key={type} class="flex justify-between items-center bg-white px-1.5 py-1 rounded border border-slate-100">
-                                    <span class="text-[10px] font-bold text-slate-600 truncate mr-2">{type}</span>
-                                    <span class="text-[11px] font-black text-slate-800 whitespace-nowrap">{amount.toFixed(1)} <span class="text-[9px] font-normal text-slate-400">톤</span></span>
-                                  </div>
-                                ))
-                              )}
+                            <div className="flex flex-col gap-1 flex-1">
+                                <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded">
+                                    <span className="text-[10px] font-bold text-slate-500">출하두수</span>
+                                    <span className="text-[11px] font-black text-slate-800">{stat.count.toLocaleString()}두</span>
+                                </div>
                             </div>
-                            <div class="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center">
-                              <span class="text-[10px] font-black text-amber-600">총합계</span>
-                              <span class="text-[13px] font-black text-amber-700">{stat.total.toFixed(1)} <span class="text-[9px] font-normal text-amber-500">톤</span></span>
+                            <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center">
+                              <span className="text-[10px] font-black text-emerald-600">총 정산액</span>
+                              <span className="text-[11px] font-black text-emerald-700">{Math.round(stat.revenue).toLocaleString()} <span className="text-[9px] font-normal">원</span></span>
                             </div>
                           </div>
                         );
@@ -1749,14 +1968,14 @@
                 </div>
 
                 {/* --- 올해 사육구분별 월간 폐사/도태 현황 그리드 (사육현황 실시간 accidents 연동) --- */}
-                <div class="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                  <div class="flex justify-between items-center mb-3">
-                    <div class="flex flex-col">
-                      <h3 class="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex flex-col">
+                      <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                         <Activity className="w-4.5 h-4.5 text-rose-500" />
                         올해 사육단계별 월간 폐사/도태 현황
                       </h3>
-                      <span class="text-[10px] font-bold text-slate-400 mt-0.5">※ 칸 클릭 시, 해당 월의 상세 배치별 폐사/도태 보고서가 열립니다</span>
+                      <span className="text-[10px] font-bold text-slate-400 mt-0.5">※ 칸 클릭 시, 해당 월의 상세 배치별 폐사/도태 보고서가 열립니다</span>
                     </div>
                     <button 
                       onClick={downloadMortalityExcel}
@@ -1766,15 +1985,15 @@
                     </button>
                   </div>
 
-                  <div class="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-inner no-scrollbar">
-                    <table class="w-full text-xs font-mono border-collapse excel-table text-slate-700 min-w-[900px]">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-inner no-scrollbar">
+                    <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700 min-w-[900px]">
                       <thead>
-                        <tr class="bg-slate-100 text-slate-500 font-bold text-center">
-                          <th class="p-2 border-b border-slate-200 w-28">사육 구분</th>
+                        <tr className="bg-slate-100 text-slate-500 font-bold text-center">
+                          <th className="p-2 border-b border-slate-200 w-28">사육 구분</th>
                           {Array.from({length: 12}, (_, i) => (
                             <th key={i} className="p-2 border-b border-slate-200">{i + 1}월</th>
                           ))}
-                          <th class="p-2 border-b border-slate-200 w-28 bg-slate-100">연간 누계</th>
+                          <th className="p-2 border-b border-slate-200 w-28 bg-slate-100">연간 누계</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1782,19 +2001,18 @@
                           let catTotalSum = 0;
 
                           return (
-                            <tr key={cat} class="hover:bg-slate-50/50 transition-colors">
-                              <td class="p-3.5 font-black text-center bg-slate-50/50 text-slate-700 border-r border-slate-200 text-sm">{cat}</td>
+                            <tr key={cat} className="hover:bg-slate-50/50 transition-colors">
+                              <td className="p-3.5 font-black text-center bg-slate-50/50 text-slate-700 border-r border-slate-200 text-sm">{cat}</td>
                               {Array.from({length: 12}, (_, i) => {
                                 const mm = String(i + 1).padStart(2, '0');
                                 const mData = monthlyCategoryDeathStats[cat][mm] || { total: 0, details: [] };
-                                  
-                                catTotalSum += mData.total;
+                                const totalLoss = mData.total;
+                                
+                                catTotalSum += totalLoss;
 
-                                const hasLoss = mData.total > 0;
-                                  
-                                let cellClass = "p-2.5 text-center text-slate-400 cursor-pointer hover:bg-slate-100 select-none";
-                                if (hasLoss) {
-                                  cellClass = "p-2.5 text-center bg-rose-50/80 font-bold text-rose-750 cursor-pointer hover:bg-rose-100 select-none";
+                                let cellClass = "p-2.5 text-center text-slate-400 cursor-pointer hover:bg-slate-100 transition-colors select-none";
+                                if (totalLoss > 0) {
+                                  cellClass = "p-2.5 text-center bg-rose-50/80 font-black text-rose-700 cursor-pointer hover:bg-rose-100 transition-colors select-none";
                                 }
 
                                 return (
@@ -1806,20 +2024,20 @@
                                         category: cat,
                                         monthLabel: `${i + 1}월`,
                                         details: mData.details,
-                                        total: mData.total
+                                        total: totalLoss
                                       });
                                     }}
                                   >
-                                    {mData.total > 0 ? (
-                                      <span>{mData.total} 두</span>
+                                    {totalLoss > 0 ? (
+                                      <span>{totalLoss} <span className="text-[9px] font-normal text-rose-400">두</span></span>
                                     ) : (
                                       "-"
                                     )}
                                   </td>
                                 );
                               })}
-                              <td class={`p-2.5 text-center font-black border-l border-slate-200 ${catTotalSum > 0 ? 'bg-rose-50/30 text-rose-800' : 'bg-slate-50/30 text-slate-400'}`}>
-                                {catTotalSum} 두
+                              <td className={`p-2.5 text-center font-black border-l border-slate-200 ${catTotalSum > 0 ? 'bg-rose-100/40 text-rose-800' : 'bg-slate-50/30 text-slate-400'}`}>
+                                {catTotalSum > 0 ? `${catTotalSum} 두` : "-"}
                               </td>
                             </tr>
                           );
@@ -1831,38 +2049,48 @@
 
                 {/* --- 출하 기록 및 예정 (사육현황 연동) --- */}
                 <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-black text-slate-800">
+                  <div 
+                    className="flex justify-between items-center mb-1 cursor-pointer select-none"
+                    onClick={() => setIsShipmentScheduleOpen(!isShipmentScheduleOpen)}
+                  >
+                    <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                       출하 기록 및 예정 <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold ml-1">사육현황 연동</span>
                     </h3>
+                    <div className="flex items-center text-slate-400">
+                      <span className="text-[10px] font-bold mr-1">{isShipmentScheduleOpen ? '접기' : '펼치기'}</span>
+                      <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isShipmentScheduleOpen ? 'rotate-90' : ''}`} />
+                    </div>
                   </div>
-                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-60 overflow-y-auto no-scrollbar pb-2">
-                    {groupedShipments.length === 0 ? (
-                      <div className="col-span-full text-center py-6 bg-slate-50 rounded-xl text-xs font-bold text-slate-400">
-                        등록된 출하 기록이 없습니다.
-                      </div>
-                    ) : (
-                      groupedShipments.map((record, idx) => {
-                        const isExpected = record.isExpected;
-                        return (
-                          <div 
-                            key={idx} 
-                            onClick={() => { setSelectedShipment(record); setModalAvgTemp('-'); }}
-                            className={`bg-white p-1 rounded-xl border ${isExpected ? 'border-rose-100 hover:border-rose-300' : 'border-emerald-100 hover:border-emerald-350'} shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden`}
-                          >
-                            <div className={`w-full flex flex-col items-center py-2 rounded-lg border ${isExpected ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'}`}>
-                              <span className={`text-[10px] font-black leading-none mb-1.5 ${isExpected ? 'text-rose-600' : 'text-emerald-600'}`}>
-                                {isExpected ? '예정' : '완료'}
-                              </span>
-                              <span className="text-[11px] font-black text-slate-800 leading-none tracking-tighter">
-                                {record.date ? record.date.substring(5).replace('-', '/') : '-'}
-                              </span>
+                  
+                  {isShipmentScheduleOpen && (
+                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-60 overflow-y-auto no-scrollbar pb-2 pt-3 border-t border-slate-50 mt-2 animate-[slideUp_0.2s_ease-out]">
+                      {groupedShipments.length === 0 ? (
+                        <div className="col-span-full text-center py-6 bg-slate-50 rounded-xl text-xs font-bold text-slate-400">
+                          등록된 출하 기록이 없습니다.
+                        </div>
+                      ) : (
+                        groupedShipments.map((record, idx) => {
+                          const isExpected = record.isExpected;
+                          return (
+                            <div 
+                              key={idx} 
+                              onClick={() => { setSelectedShipment(record); setModalAvgTemp('-'); }}
+                              className={`bg-white p-1 rounded-xl border ${isExpected ? 'border-rose-100 hover:border-rose-300' : 'border-emerald-100 hover:border-emerald-350'} shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden`}
+                            >
+                              <div className={`w-full flex flex-col items-center py-2 rounded-lg border ${isExpected ? 'bg-rose-50 border-rose-100' : 'bg-emerald-50 border-emerald-100'}`}>
+                                <span className={`text-[10px] font-black leading-none mb-1.5 ${isExpected ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                  {isExpected ? '예정' : '완료'}
+                                </span>
+                                <span className="text-[11px] font-black text-slate-800 leading-none tracking-tighter">
+                                  {record.date ? record.date.substring(5).replace('-', '/') : '-'}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
 
               </div>
@@ -2514,7 +2742,7 @@
                           <th className="p-2 border border-slate-300">입고 일시 (Receipt Date)</th>
                           <th className="p-2 border border-slate-300">사료 종류 (Type)</th>
                           <th className="p-2 border border-slate-300">벌크통 (Bin)</th>
-                          <th className="p-2 border border-slate-300 text-right">입고량 (Qty)</th>
+                          <th className="p-2 border border-slate-300 text-right">주문량 (Qty)</th>
                           <th className="p-2 border border-slate-300">단위 (Unit)</th>
                         </tr>
                       </thead>
@@ -2555,6 +2783,93 @@
                 
                 <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end gap-2">
                   <button onClick={() => setSelectedFeedMonth(null)} className="bg-slate-800 hover:bg-slate-900 text-white font-black py-2.5 px-6 rounded-xl text-xs active:scale-95 transition-all">닫기</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* --- 월별 출하 정산 엑셀 상세조회 모달 (원패스 앱 연동) --- */}
+          {selectedShipmentMonth && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
+                <div className="bg-slate-800 p-4 text-white flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <TableIcon className="w-5 h-5 text-emerald-400" />
+                    <span className="font-black text-base">{selectedShipmentMonth.ym.split('-')[0]}년 {parseInt(selectedShipmentMonth.ym.split('-')[1])}월 출하 정산 내역 (Excel)</span>
+                  </div>
+                  <button onClick={() => setSelectedShipmentMonth(null)} className="text-slate-300 hover:text-white p-1 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+                </div>
+                
+                <div className="p-5 flex-1 overflow-y-auto space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2 bg-slate-50 border border-slate-200 p-3.5 rounded-xl">
+                    <div className="text-xs text-slate-600 font-bold">
+                      * 출하 정산 앱 데이터와 실시간 연동되어 추산된 내역입니다.
+                    </div>
+                    <button 
+                      onClick={() => downloadShipmentMonthExcel(selectedShipmentMonth)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-black px-4 py-2 rounded-lg text-xs flex items-center justify-center gap-1.5 shadow-sm active:scale-95 transition-transform shrink-0 self-start sm:self-auto"
+                    >
+                      <Download className="w-4.5 h-4.5" /> 엑셀 파일 다운로드 (.xlsx)
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-inner max-h-[380px] no-scrollbar">
+                    <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700 min-w-[700px]">
+                      <thead>
+                        <tr className="bg-slate-100 text-slate-500 font-bold text-center select-none">
+                          <th className="p-1 bg-slate-200 border border-slate-300 w-10"></th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">A</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">B</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">C</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">D</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">E</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">F</th>
+                        </tr>
+                        <tr className="bg-slate-50 text-slate-700 font-black text-center">
+                          <th className="p-2 bg-slate-100 border border-slate-300 text-slate-400">1</th>
+                          <th className="p-2 border border-slate-300">출하 일자</th>
+                          <th className="p-2 border border-slate-300">출하 두수 (두)</th>
+                          <th className="p-2 border border-slate-300 text-right">총 지육중량 (kg)</th>
+                          <th className="p-2 border border-slate-300 text-right">지육율 (%)</th>
+                          <th className="p-2 border border-slate-300 text-right">1등급 이상 (%)</th>
+                          <th className="p-2 border border-slate-300 text-right text-emerald-700">실 정산액 (원)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedShipmentMonth.items.length === 0 ? (
+                          <tr>
+                            <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">2</td>
+                            <td colSpan="6" className="p-6 text-center text-slate-400 font-sans">이 달에 등록된 출하 정산 기록이 없습니다.</td>
+                          </tr>
+                        ) : (
+                          selectedShipmentMonth.items.map((item, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                              <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">{idx + 2}</td>
+                              <td className="p-2 border border-slate-300 text-center font-sans font-bold">{item.date || '-'}</td>
+                              <td className="p-2 border border-slate-300 text-center font-sans font-black text-slate-900">{item.count}</td>
+                              <td className="p-2 border border-slate-300 text-right font-sans text-slate-700 font-bold">{item.totalWeight.toLocaleString()}</td>
+                              <td className="p-2 border border-slate-300 text-right font-sans text-slate-500">{item.yieldRate.toFixed(1)}</td>
+                              <td className="p-2 border border-slate-300 text-right font-sans font-bold text-indigo-600">{item.topRatio}</td>
+                              <td className="p-2 border border-slate-300 text-right font-black font-sans text-emerald-700">{Math.round(item.revenue).toLocaleString()}</td>
+                            </tr>
+                          ))
+                        )}
+                        <tr className="bg-emerald-50/50 font-black text-slate-900">
+                          <td className="p-2.5 bg-slate-200 border border-slate-300 text-center text-slate-500">{selectedShipmentMonth.items.length + 2}</td>
+                          <td className="p-2.5 border border-slate-300 text-center font-sans">합계 (Total)</td>
+                          <td className="p-2.5 border border-slate-300 text-center text-slate-800">{selectedShipmentMonth.count.toLocaleString()}</td>
+                          <td className="p-2.5 border border-slate-300 text-right text-slate-800">{selectedShipmentMonth.items.reduce((acc, curr) => acc + curr.totalWeight, 0).toLocaleString()}</td>
+                          <td className="p-2.5 border border-slate-300 text-center"></td>
+                          <td className="p-2.5 border border-slate-300 text-center"></td>
+                          <td className="p-2.5 border border-slate-300 text-right text-emerald-700 text-sm font-black font-sans">{Math.round(selectedShipmentMonth.revenue).toLocaleString()}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end gap-2">
+                  <button onClick={() => setSelectedShipmentMonth(null)} className="bg-slate-800 hover:bg-slate-950 text-white font-black py-2.5 px-6 rounded-xl text-xs active:scale-95 transition-all">닫기</button>
                 </div>
               </div>
             </div>

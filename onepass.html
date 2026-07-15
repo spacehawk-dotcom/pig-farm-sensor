@@ -1223,7 +1223,12 @@
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-slate-50 transition-colors text-center';
 
-            const liveWeightStr = batch.liveWeight > 0 ? `${batch.liveWeight.toLocaleString()} kg` : `<span class="text-slate-300 font-medium">미입력</span>`;
+            let liveWeightStr = `<span class="text-slate-300 font-medium">미입력</span>`;
+            if (batch.liveWeight > 0) {
+                const perHeadLiveWeight = (batch.liveWeight / batch.headCount).toFixed(1);
+                liveWeightStr = `${batch.liveWeight.toLocaleString()} kg<br><span class="text-[11px] text-emerald-600 font-black tracking-tighter mt-0.5 inline-block">두당 ${perHeadLiveWeight} kg</span>`;
+            }
+            
             const yieldRateStr = batch.yieldRate > 0 ? `${batch.yieldRate.toFixed(3)}%` : `76.500% <span class="text-[10px] text-slate-400 font-bold">(기본)</span>`;
             const marketPriceStr = batch.marketPrice > 0 ? `${batch.marketPrice.toLocaleString()} 원` : `${STATE.settings.marketPrice.toLocaleString()} 원`;
             const realPriceVal = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
