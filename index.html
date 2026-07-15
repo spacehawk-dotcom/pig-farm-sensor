@@ -743,6 +743,246 @@
                 renderGrower(); renderWeaning();
             }
 
+            window.calculateExpectedFarrowInline = (dbId, val) => {
+                const farrowInput = document.getElementById(`row-farrow-${dbId}`);
+                if (!farrowInput) return;
+                if (!val || val.trim().length < 3) { farrowInput.value = ''; return; }
+                const d = utils.parseDate(val);
+                if (d) {
+                    d.setDate(d.getDate() + 114);
+                    farrowInput.value = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+                } else farrowInput.value = '';
+            };
+
+            window.addSowHistoryRow = (parity='', matingDate='', expDate='', farrowDate='', weaningDate='', total='', born='', weaned='', move='') => {
+                const container = document.getElementById('sow-history-container');
+                if (!container) return;
+                const rowId = 'row-' + Date.now() + Math.random().toString(36).substr(2, 5);
+                const numCls = "bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-black text-center shrink-0 outline-none transition-all";
+                const txtCls = "bg-white border border-slate-200 shadow-sm focus:border-blue-400 focus:ring-1 focus:ring-blue-400 rounded py-1.5 px-1 text-[11px] font-bold shrink-0 text-center outline-none transition-all";
+                const ocMating = "if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+114);this.parentElement.querySelector('.h-exp').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}";
+                const ocFarrow = "if(this.value){const d=utils.parseDate(this.value);if(d){d.setDate(d.getDate()+20);let day=d.getDay();let diff=day===0?-3:4-day;d.setDate(d.getDate()+diff);this.parentElement.querySelector('.h-weaning-date').value=String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0');}}";
+                const html = `<div id="${rowId}" class="history-row bg-white p-2 border-b border-slate-100 flex items-center gap-1.5 relative group hover:bg-slate-50 transition-colors">
+                    <input type="number" class="h-parity w-12 ${numCls}" value="${parity}" placeholder="산차">
+                    <input type="text" class="h-mating w-16 ${txtCls}" value="${matingDate}" placeholder="MM/DD" onchange="${ocMating}">
+                    <input type="text" class="h-exp w-16 ${txtCls}" value="${expDate}" placeholder="MM/DD">
+                    <input type="text" class="h-farrow w-16 ${txtCls}" value="${farrowDate}" placeholder="MM/DD" onchange="${ocFarrow}">
+                    <input type="text" class="h-weaning-date w-16 ${txtCls}" value="${weaningDate}" placeholder="MM/DD">
+                    <input type="number" class="h-total w-12 ${numCls}" value="${total}" placeholder="산자수">
+                    <input type="number" class="h-born w-12 ${numCls}" value="${born}" placeholder="포유">
+                    <input type="text" class="h-weaned w-12 ${numCls}" value="${weaned}" placeholder="이동">
+                    <input type="text" class="h-move w-12 ${numCls}" value="${move}" placeholder="이유">
+                    <div class="w-8 flex justify-center shrink-0"><button onclick="document.getElementById('${rowId}').remove()" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="x-circle" class="w-4 h-4"></i></button></div>
+                </div>`;
+                container.insertAdjacentHTML('beforeend', html);
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+
+            window.renderSowNursingRowHTML = (s) => {
+                const lastH = (s.history && s.history.length > 0) ? [...s.history].sort((a, b) => b.parity - a.parity)[0] : null;
+                const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '-';
+                const expDate = s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '';
+                const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '-';
+                let farrowFormatted = '';
+                if (lastH && lastH.date) {
+                    if (lastH.date.includes('-') && lastH.date.length === 10) farrowFormatted = lastH.date.substring(5).replace('-', '/');
+                    else farrowFormatted = lastH.date;
+                }
+                const bornCount = (lastH && lastH.born !== undefined) ? lastH.born : '';
+                const weanTotalCount = (lastH && lastH.total !== undefined) ? lastH.total : '';
+                const moveCount = (lastH && lastH.weaned !== undefined) ? lastH.weaned : '';
+                const weanCount = (lastH && lastH.move !== undefined) ? lastH.move : '';
+                const inpNum = "w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all";
+                const inpTxt = "w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-bold text-center outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 transition-all";
+                const wrp = "shrink-0 px-0.5 text-center flex items-center justify-center";
+                return `<div class="bg-white px-2 py-1.5 border-b border-slate-100 flex items-center gap-1.5 hover:bg-emerald-50/50 transition-colors nursing-row" data-dbid="${s.dbId}">
+                    <span class="w-8 shrink-0 flex justify-center"><input type="checkbox" class="n-select-sow w-4 h-4 rounded text-emerald-600 accent-emerald-600 cursor-pointer" data-dbid="${s.dbId}"></span>
+                    <span onclick="window.closeModal(); setTimeout(()=>window.openModal('sow_detail', '${s.dbId}'), 300)" class="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800">${s.sowNo}</span>
+                    <div class="w-10 ${wrp}"><input type="hidden" class="n-parity" value="${s.parity}"><span class="text-[12px] font-black text-slate-700">${s.parity}산</span></div>
+                    <div class="w-14 ${wrp}"><input type="hidden" class="n-mating" value="${matingFormatted}"><span class="text-[12px] font-bold text-slate-500">${matingFormatted}</span></div>
+                    <div class="w-14 ${wrp}"><input type="hidden" class="n-exp" value="${expFormatted}"><span class="text-[12px] font-bold text-slate-500">${expFormatted}</span></div>
+                    <div class="w-16 shrink-0 px-0.5"><input type="text" class="n-farrow ${inpTxt}" value="${farrowFormatted}" placeholder="MM/DD"></div>
+                    <div class="w-12 shrink-0 px-0.5"><input type="number" class="n-total ${inpNum}" value="${weanTotalCount}" placeholder="산자"></div>
+                    <div class="w-12 shrink-0 px-0.5"><input type="number" class="n-born ${inpNum}" value="${bornCount}" placeholder="포유"></div>
+                    <div class="w-14 shrink-0 px-0.5"><input type="text" class="n-weaned ${inpTxt}" value="${moveCount}" placeholder="이동"></div>
+                    <div class="w-14 shrink-0 px-0.5"><input type="text" class="n-move ${inpTxt}" value="${weanCount}" placeholder="이유"></div>
+                    <div class="w-12 shrink-0 text-center"><button onclick="window.saveNursingRow('${s.dbId}')" class="bg-blue-50 text-blue-600 hover:bg-blue-100 font-black text-[10px] px-2 py-1.5 rounded border border-blue-100 active:scale-95 transition-all shadow-sm">저장</button></div>
+                </div>`;
+            };
+
+            window.saveNursingRow = async (dbId) => {
+                const row = document.querySelector(`.nursing-row[data-dbid="${dbId}"]`);
+                if (!row) return;
+                const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
+                if (sowIdx === -1) return;
+                
+                const sow = state.sowList[sowIdx];
+                const parity = parseInt(row.querySelector('.n-parity').value) || sow.parity;
+                const mRaw = row.querySelector('.n-mating').value, eRaw = row.querySelector('.n-exp').value, fRaw = row.querySelector('.n-farrow').value;
+                const totalInput = row.querySelector('.n-total').value, total = totalInput === '' ? '' : parseInt(totalInput) || 0;
+                const bornInput = row.querySelector('.n-born').value, born = bornInput === '' ? '' : parseInt(bornInput) || 0;
+                const weaned = row.querySelector('.n-weaned').value, move = row.querySelector('.n-move').value;
+                
+                let history = [...(sow.history || [])];
+                history.sort((a, b) => b.parity - a.parity);
+                if (history.length === 0) {
+                    history.push({ parity, matingDate: mRaw, expDate: eRaw, date: fRaw, weaningDate: '', total, born, weaned, move });
+                } else {
+                    history[0].parity = parity; history[0].matingDate = mRaw; history[0].expDate = eRaw; history[0].date = fRaw; history[0].total = total; history[0].born = born; history[0].weaned = weaned; history[0].move = move;
+                }
+                
+                try {
+                    if (isLocalEnv) state.sowList[sowIdx].history = history;
+                    else await db.collection(COLS.SOWS).doc(dbId).update({ history });
+                    utils.showToast(`${sow.sowNo}번 기록 임시 저장 완료!`);
+                } catch (e) { utils.showToast("저장 실패: " + e.message); }
+            };
+
+            window.toggleSelectGroup = (cb, gCls) => { document.querySelectorAll(`.${gCls} .n-select-sow`).forEach(c => c.checked = cb.checked); };
+            window.toggleSelectAllNursing = (checked) => { document.querySelectorAll('.n-select-sow').forEach(cb => cb.checked = checked); };
+
+            window.completeSingleSowFarrowing = async (dbId, weekKey) => {
+                const tInp = document.getElementById(`e-total-${dbId}`);
+                const total = tInp && tInp.value !== '' ? parseInt(tInp.value) || 0 : 0, born = total;
+                const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
+                if (sowIdx === -1) return;
+                const sow = state.sowList[sowIdx];
+                const today = new Date(), todayMMDD = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+                let history = [...(sow.history || [])];
+                history.sort((a, b) => b.parity - a.parity);
+                if (history.length === 0 || history[0].date) {
+                    const matingMMDD = sow.matingDate ? `${String(new Date(sow.matingDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(sow.matingDate).getDate()).padStart(2, '0')}` : '';
+                    const expDate = sow.matingDate ? utils.getExpectedFarrow(sow.matingDate) : '';
+                    const expMMDD = expDate ? `${String(new Date(expDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(expDate).getDate()).padStart(2, '0')}` : '';
+                    history.push({ parity: sow.parity, matingDate: matingMMDD, expDate: expMMDD, date: todayMMDD, weaningDate: '', total: total, born: born, weaned: '', move: '' });
+                } else {
+                    history[0].date = todayMMDD; history[0].total = total; history[0].born = born;
+                }
+                const dataToUpdate = { currentStatus: '포유', history: history };
+                try {
+                    if (isLocalEnv) {
+                        state.sowList[sowIdx] = { ...sow, ...dataToUpdate };
+                        utils.showToast(`${sow.sowNo}번 분만 완료`);
+                        const remaining = state.sowList.filter(s => {
+                            if (!s.matingDate || s.farrowingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false;
+                            return utils.getWeekKey(utils.getExpectedFarrow(s.matingDate)) === weekKey;
+                        });
+                        if (remaining.length > 0) window.openModal('expected_week', weekKey);
+                        else window.closeModal();
+                        renderAll();
+                    } else {
+                        await db.collection(COLS.SOWS).doc(dbId).update(dataToUpdate);
+                        utils.showToast(`${sow.sowNo}번 분만 완료`);
+                        await saveDailyHistory();
+                        setTimeout(() => {
+                            const remaining = state.sowList.filter(s => {
+                                if (!s.matingDate || s.farrowingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false;
+                                return utils.getWeekKey(utils.getExpectedFarrow(s.matingDate)) === weekKey;
+                            });
+                            if (remaining.length > 0) window.openModal('expected_week', weekKey);
+                            else window.closeModal();
+                        }, 500);
+                    }
+                } catch (e) { utils.showToast("실패: " + e.message); }
+            };
+
+            window.completeSelectedSowsCycle = async () => {
+                const checkedCheckboxes = document.querySelectorAll('.n-select-sow:checked');
+                if (checkedCheckboxes.length === 0) { utils.showToast("선택된 모돈이 없습니다."); return; }
+                const btn = document.querySelector('[onclick="window.completeSelectedSowsCycle()"]');
+                const originalText = btn.innerHTML;
+                btn.disabled = true; btn.innerHTML = '<i class="w-4 h-4 animate-spin mr-1" data-lucide="loader-2"></i> 처리 중...';
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                try {
+                    const promises = [];
+                    const today = new Date(), todayMMDD = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+                    checkedCheckboxes.forEach(cb => {
+                        const dbId = cb.dataset.dbid, row = document.querySelector(`.nursing-row[data-dbid="${dbId}"]`);
+                        if (!row) return;
+                        const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
+                        if (sowIdx === -1) return;
+                        const sow = state.sowList[sowIdx];
+                        const currentParity = parseInt(row.querySelector('.n-parity').value) || sow.parity, mRaw = row.querySelector('.n-mating').value, eRaw = row.querySelector('.n-exp').value, fRaw = row.querySelector('.n-farrow').value, totalInput = row.querySelector('.n-total').value, total = totalInput === '' ? '' : parseInt(totalInput) || 0, bornInput = row.querySelector('.n-born').value, born = bornInput === '' ? '' : parseInt(bornInput) || 0, weaned = row.querySelector('.n-weaned').value, move = row.querySelector('.n-move').value;
+                        let history = [...(sow.history || [])];
+                        history.sort((a, b) => b.parity - a.parity);
+                        if (history.length === 0) {
+                            history.push({ parity: currentParity, matingDate: mRaw, expDate: eRaw, date: fRaw, weaningDate: todayMMDD, total, born, weaned, move });
+                        } else {
+                            history[0].parity = currentParity; history[0].matingDate = mRaw; history[0].expDate = eRaw; history[0].date = fRaw; history[0].weaningDate = todayMMDD; history[0].total = total; history[0].born = born; history[0].weaned = weaned; history[0].move = move;
+                        }
+                        const nextParity = currentParity + 1, dataToUpdate = { parity: nextParity, matingDate: '', currentStatus: '이유', history: history };
+                        if (isLocalEnv) state.sowList[sowIdx] = { ...sow, ...dataToUpdate };
+                        else promises.push(db.collection(COLS.SOWS).doc(dbId).update(dataToUpdate));
+                    });
+                    if (!isLocalEnv) await Promise.all(promises);
+                    utils.showToast(`${checkedCheckboxes.length}두 완료! 산차 1 증가 및 이유 목록 이동`);
+                    window.closeModal();
+                    if (isLocalEnv) renderAll();
+                    else await saveDailyHistory();
+                } catch (e) {
+                    utils.showToast("실패: " + e.message);
+                } finally {
+                    btn.disabled = false; btn.innerHTML = originalText;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            };
+
+            window.saveWeanedSowRow = async (dbId) => {
+                const rowMating = document.getElementById(`row-mating-${dbId}`).value.trim();
+                const sowIdx = state.sowList.findIndex(x => x.dbId === dbId);
+                if (sowIdx === -1) return;
+                const sow = state.sowList[sowIdx], originalStatus = sow.currentStatus || '이유';
+                if (!rowMating) { utils.showToast("종부일을 입력해주세요."); return; }
+                let parsedMatingDate = '';
+                const parsed = utils.parseDate(rowMating);
+                if (parsed) parsedMatingDate = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}-${String(parsed.getDate()).padStart(2, '0')}`;
+                else { utils.showToast("올바른 종부일 형식을 입력하세요 (예: 06/11)."); return; }
+                const updatePayload = { currentStatus: '임신', matingDate: parsedMatingDate };
+                let history = [...(sow.history || [])];
+                const mmddMating = `${String(new Date(parsedMatingDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(parsedMatingDate).getDate()).padStart(2, '0')}`;
+                const expDate = utils.getExpectedFarrow(parsedMatingDate);
+                const mmddExp = expDate ? `${String(new Date(expDate).getMonth() + 1).padStart(2, '0')}/${String(new Date(expDate).getDate()).padStart(2, '0')}` : '';
+                history.push({ parity: sow.parity, matingDate: mmddMating, expDate: mmddExp, date: '', weaningDate: '', total: '', born: '', weaned: '', move: '' });
+                updatePayload.history = history;
+                try {
+                    if (isLocalEnv) { state.sowList[sowIdx] = { ...sow, ...updatePayload }; renderAll(); }
+                    else await db.collection(COLS.SOWS).doc(dbId).update(updatePayload);
+                    utils.showToast(`${sow.sowNo}번 모돈 종부 등록 완료!`);
+                    window.openModal('sow_list', originalStatus);
+                } catch (e) { utils.showToast("실패: " + e.message); }
+            };
+
+            window.deleteSow = async (dbId) => {
+                try {
+                    if (isLocalEnv) {
+                        const idx = state.sowList.findIndex(s => s.dbId === dbId);
+                        if (idx !== -1) state.sowList.splice(idx, 1);
+                    } else await db.doc(`${COLS.SOWS}/${dbId}`).delete();
+                    utils.showToast("모돈 삭제 완료"); window.closeModal(); if (isLocalEnv) renderAll();
+                } catch (e) { utils.showToast("삭제 실패: " + e.message); }
+            };
+
+            window.toggleSowDeleteConfirm = (dbId) => {
+                const btn = document.getElementById(`sow-del-btn-${dbId}`), confirmBtn = document.getElementById(`sow-confirm-btn-${dbId}`);
+                if (confirmBtn) { if (btn) btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); }
+            };
+
+            window.toggleSowDetailDeleteConfirm = () => {
+                const btn = document.getElementById('sow-del-btn-detail'), confirmBtn = document.getElementById('sow-confirm-btn-detail');
+                if (btn && confirmBtn) {
+                    if (!btn.classList.contains('hidden')) { btn.classList.add('hidden'); confirmBtn.classList.remove('hidden'); } 
+                    else { btn.classList.remove('hidden'); confirmBtn.classList.add('hidden'); }
+                }
+            };
+
+            window.filterSowList = (query) => {
+                const lowerQuery = String(query).toLowerCase().trim(), cards = document.querySelectorAll('.sow-card-item, .sow-list-item');
+                cards.forEach(card => {
+                    const sowNo = String(card.getAttribute('data-sow-no')).toLowerCase();
+                    card.style.display = sowNo.includes(lowerQuery) ? '' : 'none';
+                });
+            };
+
             window.modalRenderers = {
                 piglet_calc: () => {
                     const nursingSows = state.sowCache.nursingSows, avgPiglets = state.stocks.avgPiglets || 10, weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0);
