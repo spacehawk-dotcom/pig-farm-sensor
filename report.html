@@ -29,6 +29,8 @@
     body { font-family: 'Noto Sans KR', sans-serif; -webkit-tap-highlight-color: transparent; }
     /* 슬라이드 애니메이션 */
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .animate-fade-in { animation: fadeIn 0.2s ease-out; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     /* input number 스피너 숨기기 */
     input[type=number]::-webkit-inner-spin-button, 
@@ -230,7 +232,7 @@
     const WEANING_PATH = 'farms/sungamfarm/weaning';
     const ACCIDENTS_PATH = 'farms/sungamfarm/accidents';
     const FEEDS_COLLECTION_PATH = 'farms/sungamfarm/feed_orders';
-    const ONEPASS_COLLECTION_PATH = 'pig_onepass_batches'; // 원패스 앱 출하 정산 연동 컬렉션
+    const ONEPASS_COLLECTION_PATH = 'pig_onepass_batches';
 
     // 알림창 컴포넌트
     const CustomAlert = ({ message, onClose }) => (
@@ -287,7 +289,7 @@
       const [wBatches, setWBatches] = useState([]); 
       const [accidents, setAccidents] = useState([]); 
       const [feedRecords, setFeedRecords] = useState([]); 
-      const [onepassBatches, setOnepassBatches] = useState([]); // 원패스 정산 데이터
+      const [onepassBatches, setOnepassBatches] = useState([]); 
       const [loading, setLoading] = useState(true);
       
       const [alertMsg, setAlertMsg] = useState(null);
@@ -327,14 +329,14 @@
       const [selectedShipment, setSelectedShipment] = useState(null); 
       const [modalAvgTemp, setModalAvgTemp] = useState('-'); 
       const [selectedFeedMonth, setSelectedFeedMonth] = useState(null);
-      
       const [selectedMortalityDetail, setSelectedMortalityDetail] = useState(null);
-      const [isFeedSummaryOpen, setIsFeedSummaryOpen] = useState(false); // 아코디언 상태 추가 (기본 닫힘)
-      const [isShipmentScheduleOpen, setIsShipmentScheduleOpen] = useState(false); // 출하 예정 아코디언 상태 추가 (기본 닫힘)
-      const [isActivityStatsOpen, setIsActivityStatsOpen] = useState(false); // 번식 실적 아코디언 상태 추가 (기본 닫힘)
-      
-      // FIXED: Added missing state definition for Shipment Settlement modal
       const [selectedShipmentMonth, setSelectedShipmentMonth] = useState(null);
+
+      // 아코디언 메뉴 UI 상태 관리
+      const [isActivityStatsOpen, setIsActivityStatsOpen] = useState(false);
+      const [isFeedSummaryOpen, setIsFeedSummaryOpen] = useState(false);
+      const [isMortalityScheduleOpen, setIsMortalityScheduleOpen] = useState(false);
+      const [isShipmentScheduleOpen, setIsShipmentScheduleOpen] = useState(false);
 
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
       const [newRecord, setNewRecord] = useState({ parity: '', date: '', expDate: '', born: '', weaned: '', move: '' });
@@ -1036,7 +1038,7 @@
         return Object.values(statsMap).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
       }, [sows]);
 
-      // 월별 사료량 통계 (사료 주문 내역으로 데이터 고도화 및 엑셀 확인 지원)
+      // 월별 사료량 통계 (지대 사료 번호별 분리 표기 로직 반영)
       const monthlyFeedStats = useMemo(() => {
         const currentYear = new Date().getFullYear().toString();
         const stats = {};
@@ -1052,7 +1054,15 @@
           if (!receiptDate || !receiptDate.startsWith(currentYear)) return;
 
           const ym = receiptDate.substring(0, 7);
-          const type = record.feedType || record.type || record.feedName || '기타 사료';
+          let type = record.feedType || record.type || record.feedName || '기타 사료';
+          
+          if (record.bulkBin && String(record.bulkBin).includes('지대')) {
+            if (!String(type).includes('첨가제')) {
+              const numMatch = String(record.bulkBin).match(/\d+/);
+              type = numMatch ? `지대 ${numMatch[0]}` : '지대';
+            }
+          }
+
           const amount = Number(record.quantity) || Number(record.amount) || Number(record.weight) || Number(record.kg) || 0;
 
           if (!stats[ym]) {
@@ -1077,12 +1087,11 @@
           .sort((a, b) => String((b || {}).ym || '').localeCompare(String((a || {}).ym || '')));
       }, [feedRecords]);
 
-      // ★ 원패스 연동: 월별 출하 정산 실시간 분석 (지육율, 정산액, 1등급율 종합) ★
+      // 원패스 연동: 월별 출하 정산 실시간 분석 (생체중 기반)
       const monthlyShipmentSettlementStats = useMemo(() => {
         const currentYear = new Date().getFullYear().toString();
         const stats = {};
         
-        // 올 해 1월부터 현재 월까지 초기화
         const currentMonth = new Date().getMonth() + 1;
         for (let i = 1; i <= currentMonth; i++) {
           const mm = String(i).padStart(2, '0');
@@ -1095,9 +1104,11 @@
           if (!stats[ym]) stats[ym] = { ym, count: 0, revenue: 0, items: [] };
           
           const count = Number(batch.headCount) || 0;
-          // 실정산금액(realPrice) 최우선 적용, 없으면 예상정산금액(totalPrice) 적용
           const revenue = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
           
+          const yieldRate = batch.yieldRate > 0 ? (batch.yieldRate / 100) : 0.765;
+          const actualLiveWeight = batch.liveWeight > 0 ? batch.liveWeight : (batch.totalWeight / yieldRate);
+
           stats[ym].count += count;
           stats[ym].revenue += revenue;
           stats[ym].items.push({
@@ -1107,11 +1118,10 @@
             yieldRate: batch.yieldRate,
             topRatio: batch.topRatio,
             revenue: revenue,
-            liveWeight: batch.liveWeight
+            liveWeight: actualLiveWeight
           });
         });
 
-        // 각 월 내에서는 최신순으로 정렬
         Object.values(stats).forEach(stat => {
           stat.items.sort((a, b) => b.date.localeCompare(a.date));
         });
@@ -1119,7 +1129,6 @@
         return Object.values(stats).sort((a, b) => b.ym.localeCompare(a.ym));
       }, [onepassBatches]);
 
-      // 매월 현재 모돈수 자동 기록
       useEffect(() => {
         if (!user || loading) return;
         
@@ -1373,11 +1382,24 @@
         
         const excelData = monthStat.orders.map((order, idx) => {
           const actualReceiptDate = order.deliveryDate || order.receivingDate || order.date || '-';
+          
+          let feedTypeStr = order.feedType || '-';
+          let binStr = order.bulkBin ? `벌크 ${order.bulkBin}호` : '-';
+          
+          if (order.bulkBin && String(order.bulkBin).includes('지대')) {
+            const numMatch = String(order.bulkBin).match(/\d+/);
+            binStr = numMatch ? numMatch[0] : '-'; 
+            
+            if (!String(feedTypeStr).includes('첨가제')) {
+              feedTypeStr = '지대';
+            }
+          }
+
           return {
             'No.': idx + 1,
             '입고 일시': actualReceiptDate,
-            '사료 종류': order.feedType || '-',
-            '벌크통 번호': `벌크 ${order.bulkBin}호`,
+            '사료 종류': feedTypeStr,
+            '벌크통 번호': binStr,
             '주문량 (톤)': parseFloat(order.quantity || 0).toFixed(1),
             '단위': order.unit || '톤'
           };
@@ -1402,7 +1424,6 @@
         showToast(`📊 ${monthStat.ym} 사료 입고 엑셀 다운로드 완료!`);
       };
 
-      // ★ 월별 출하 정산 엑셀 다운로드 함수 ★
       const downloadShipmentMonthExcel = (monthStat) => {
         if (!monthStat || !monthStat.items || monthStat.items.length === 0) {
           showAlert("다운로드할 출하 정산 데이터가 없습니다.");
@@ -1414,25 +1435,29 @@
             'No.': idx + 1,
             '출하 일자': item.date || '-',
             '출하 두수 (두)': Number(item.count) || 0,
-            '총 지육중량 (kg)': item.totalWeight,
+            '총 생체중 (kg)': Math.round(item.liveWeight),
+            '두당 생체중 (kg)': item.count > 0 ? Number((item.liveWeight / item.count).toFixed(1)) : 0,
             '지육율 (%)': item.yieldRate,
             '1등급 이상 (%)': item.topRatio,
-            '정산액 (원)': Math.round(item.revenue)
+            '실 정산액 (원)': Math.round(item.revenue)
           };
         });
+
+        const totalLiveWeightSum = monthStat.items.reduce((acc, curr) => acc + curr.liveWeight, 0);
 
         excelData.push({
           'No.': '합계',
           '출하 일자': '',
           '출하 두수 (두)': monthStat.count,
-          '총 지육중량 (kg)': '',
+          '총 생체중 (kg)': Math.round(totalLiveWeightSum),
+          '두당 생체중 (kg)': monthStat.count > 0 ? Number((totalLiveWeightSum / monthStat.count).toFixed(1)) : 0,
           '지육율 (%)': '',
           '1등급 이상 (%)': '',
-          '정산액 (원)': Math.round(monthStat.revenue)
+          '실 정산액 (원)': Math.round(monthStat.revenue)
         });
 
         const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const wscols = [{wch:10}, {wch:15}, {wch:15}, {wch:20}, {wch:15}, {wch:15}, {wch:20}];
+        const wscols = [{wch:10}, {wch:15}, {wch:15}, {wch:20}, {wch:20}, {wch:15}, {wch:15}, {wch:20}];
         worksheet['!cols'] = wscols;
 
         const workbook = XLSX.utils.book_new();
@@ -1579,7 +1604,7 @@
 
             {showAddRecord && (
               <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
-                <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl" style={{ animation: "slideUp 0.2s ease-out" }}>
+                <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                   <div className="flex justify-between items-center mb-6">
                     <h3 className="text-lg font-black text-slate-800">생산 기록 추가</h3>
                     <button onClick={() => setShowAddRecord(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
@@ -1623,7 +1648,6 @@
           {alertMsg && <CustomAlert message={alertMsg} onClose={() => setAlertMsg(null)} />}
           {confirmConfig && <CustomConfirm message={confirmConfig.message} onConfirm={confirmConfig.onConfirm} onCancel={confirmConfig.onCancel} />}
           
-          {/* 토스트 메세지 공지 */}
           {toastMsg && (
             <div className="fixed bottom-6 left-6 z-[100] bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-xl flex items-center gap-2.5 animate-[slideUp_0.2s_ease-out]">
               <span>✔️</span>
@@ -1722,7 +1746,6 @@
                     </div>
                   </div>
 
-                  {/* 비육돈 전용 FCR 카드 */}
                   <div 
                     onClick={() => setShowFormulaModal(true)} 
                     className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
@@ -1740,7 +1763,6 @@
                     </div>
                   </div>
 
-                  {/* 농장 전체 FCR 카드 */}
                   <div 
                     onClick={() => setShowFormulaModal(true)} 
                     className="bg-gradient-to-br from-slate-600 to-slate-700 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all"
@@ -1759,7 +1781,6 @@
                   </div>
                 </div>
 
-                {/* 통계 열람 보조 버튼 */}
                 <div className="grid grid-cols-1 gap-2 mt-2">
                   <button onClick={() => setShowParityModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
                     <div className="bg-indigo-50 p-2 rounded-full">
@@ -1872,7 +1893,7 @@
                   )}
                 </div>
 
-                {/* --- 사료량 연동 대시보드 (아코디언 형태 적용) --- */}
+                {/* --- 사료량 연동 대시보드 --- */}
                 <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
                   <div 
                     className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-1 gap-1 cursor-pointer select-none"
@@ -1934,7 +1955,7 @@
                   )}
                 </div>
 
-                {/* [신규 추가] 월별 출하 정산 요약 */}
+                {/* --- 올해 월별 출하 정산 요약 --- */}
                 <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-1">
                     <h3 className="text-sm font-black text-slate-800 flex flex-wrap items-center gap-1.5">
@@ -1978,9 +1999,9 @@
                   </div>
                 </div>
 
-                {/* --- 올해 사육구분별 월간 폐사/도태 현황 그리드 (사육현황 실시간 accidents 연동) --- */}
+                {/* --- 올해 사육단계별 월간 폐사/도태 현황 그리드 --- */}
                 <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
-                  <div className="flex justify-between items-center mb-3">
+                  <div className="flex justify-between items-center mb-3 cursor-pointer select-none" onClick={() => setIsMortalityScheduleOpen(!isMortalityScheduleOpen)}>
                     <div className="flex flex-col">
                       <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
                         <Activity className="w-4.5 h-4.5 text-rose-500" />
@@ -1988,74 +2009,86 @@
                       </h3>
                       <span className="text-[10px] font-bold text-slate-400 mt-0.5">※ 칸 클릭 시, 해당 월의 상세 배치별 폐사/도태 보고서가 열립니다</span>
                     </div>
-                    <button 
-                      onClick={downloadMortalityExcel}
-                      className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
-                    >
-                      <Download className="w-3.5 h-3.5" /> 엑셀 다운로드
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {isMortalityScheduleOpen && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); downloadMortalityExcel(); }}
+                          className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"
+                        >
+                          <Download className="w-3.5 h-3.5" /> 엑셀 다운로드
+                        </button>
+                      )}
+                      <div className="flex items-center text-slate-400">
+                        <span className="text-[10px] font-bold mr-1">{isMortalityScheduleOpen ? '접기' : '펼치기'}</span>
+                        <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${isMortalityScheduleOpen ? 'rotate-90' : ''}`} />
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-inner no-scrollbar">
-                    <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700 min-w-[900px]">
-                      <thead>
-                        <tr className="bg-slate-100 text-slate-500 font-bold text-center">
-                          <th className="p-2 border-b border-slate-200 w-28">사육 구분</th>
-                          {Array.from({length: 12}, (_, i) => (
-                            <th key={i} className="p-2 border-b border-slate-200">{i + 1}월</th>
-                          ))}
-                          <th className="p-2 border-b border-slate-200 w-28 bg-slate-100">연간 누계</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {['이유', '육성'].map(cat => {
-                          let catTotalSum = 0;
+                  {isMortalityScheduleOpen && (
+                    <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-inner no-scrollbar mt-2 animate-[slideUp_0.2s_ease-out]">
+                      <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700 min-w-[900px]">
+                        <thead>
+                          <tr className="bg-slate-100 text-slate-500 font-bold text-center">
+                            <th className="p-2 border-b border-slate-200 w-28">사육 구분</th>
+                            {Array.from({length: 12}, (_, i) => (
+                              <th key={i} className="p-2 border-b border-slate-200">{i + 1}월</th>
+                            ))}
+                            <th className="p-2 border-b border-slate-200 w-28 bg-slate-100">연간 누계</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {['이유', '육성'].map(cat => {
+                            let catTotalSum = 0;
 
-                          return (
-                            <tr key={cat} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="p-3.5 font-black text-center bg-slate-50/50 text-slate-700 border-r border-slate-200 text-sm">{cat}</td>
-                              {Array.from({length: 12}, (_, i) => {
-                                const mm = String(i + 1).padStart(2, '0');
-                                const mData = monthlyCategoryDeathStats[cat][mm] || { total: 0, details: [] };
-                                const totalLoss = mData.total;
-                                
-                                catTotalSum += totalLoss;
+                            return (
+                              <tr key={cat} className="hover:bg-slate-50/50 transition-colors">
+                                <td className="p-3.5 font-black text-center bg-slate-50/50 text-slate-700 border-r border-slate-200 text-sm">{cat}</td>
+                                {Array.from({length: 12}, (_, i) => {
+                                  const mm = String(i + 1).padStart(2, '0');
+                                  const mData = monthlyCategoryDeathStats[cat][mm] || { total: 0, details: [] };
+                                  const totalLoss = mData.total;
+                                  
+                                  catTotalSum += totalLoss;
 
-                                let cellClass = "p-2.5 text-center text-slate-400 cursor-pointer hover:bg-slate-100 transition-colors select-none";
-                                if (totalLoss > 0) {
-                                  cellClass = "p-2.5 text-center bg-rose-50/80 font-black text-rose-700 cursor-pointer hover:bg-rose-100 transition-colors select-none";
-                                }
+                                  let cellClass = "p-2.5 text-center text-slate-400 cursor-pointer hover:bg-slate-100 transition-colors select-none";
+                                  if (totalLoss > 0) {
+                                    cellClass = "p-2.5 text-center bg-rose-50/80 font-black text-rose-700 cursor-pointer hover:bg-rose-100 transition-colors select-none";
+                                  }
 
-                                return (
-                                  <td 
-                                    key={i} 
-                                    className={cellClass}
-                                    onClick={() => {
-                                      setSelectedMortalityDetail({
-                                        category: cat,
-                                        monthLabel: `${i + 1}월`,
-                                        details: mData.details,
-                                        total: totalLoss
-                                      });
-                                    }}
-                                  >
-                                    {totalLoss > 0 ? (
-                                      <span>{totalLoss} <span className="text-[9px] font-normal text-rose-400">두</span></span>
-                                    ) : (
-                                      "-"
-                                    )}
-                                  </td>
-                                );
-                              })}
-                              <td className={`p-2.5 text-center font-black border-l border-slate-200 ${catTotalSum > 0 ? 'bg-rose-100/40 text-rose-800' : 'bg-slate-50/30 text-slate-400'}`}>
-                                {catTotalSum > 0 ? `${catTotalSum} 두` : "-"}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                  return (
+                                    <td 
+                                      key={i} 
+                                      className={cellClass}
+                                      onClick={() => {
+                                        if (totalLoss > 0) {
+                                          setSelectedMortalityDetail({
+                                            category: cat,
+                                            monthLabel: `${i + 1}월`,
+                                            details: mData.details,
+                                            total: totalLoss
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      {totalLoss > 0 ? (
+                                        <span>{totalLoss} <span className="text-[9px] font-normal text-rose-400">두</span></span>
+                                      ) : (
+                                        "-"
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                                <td className={`p-2.5 text-center font-black border-l border-slate-200 ${catTotalSum > 0 ? 'bg-rose-100/40 text-rose-800' : 'bg-slate-50/30 text-slate-400'}`}>
+                                  {catTotalSum > 0 ? `${catTotalSum} 두` : "-"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
 
                 {/* --- 출하 기록 및 예정 (사육현황 연동) --- */}
@@ -2116,7 +2149,7 @@
             )}
           </main>
 
-          {/* --- 검색 및 조건 분류 모돈 목록 보기 팝업 --- */}
+          {}
           {showSowListModal && (
             <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col animate-[slideUp_0.2s_ease-out]">
               <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm flex items-center gap-3">
@@ -2311,7 +2344,6 @@
             </div>
           )}
 
-          {/* --- 주간 이유 직접 기록 관리 팝업 --- */}
           {showWeaningModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -2413,7 +2445,6 @@
             </div>
           )}
 
-          {/* --- PSY / MSY / FCR 설명 및 계산식 팝업 --- */}
           {showFormulaModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center p-4">
               <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out] max-h-[85vh] overflow-y-auto no-scrollbar">
@@ -2441,7 +2472,6 @@
                     <p className="text-[9px] text-slate-500 mt-2">* 출하기록 연동이 비어있을 경우 이유량의 95%로 자동 대체 연산됩니다.</p>
                   </div>
 
-                  {/* 비육돈 FCR 설명 */}
                   <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
                     <h4 className="text-xs font-black text-emerald-700 mb-2">비육돈 전용 FCR (사료요구율)</h4>
                     <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 육성사 사료섭취량(kg) ÷ 최근 1년 총 증체량(kg)</p>
@@ -2452,7 +2482,7 @@
                         <span className="font-black text-emerald-600">{((dashboardStats || {}).yearlyMarketFeedKg || 0).toLocaleString()} kg ({(((dashboardStats || {}).yearlyMarketFeedKg || 0)/1000).toFixed(1)}t)</span>
                       </div>
                       <div className="flex justify-between border-b border-slate-100 pb-1.5">
-                        <span>2. 연간 총 출하중량</span>
+                        <span>2. 연간 총 출하 생체중</span>
                         <span className="font-black text-slate-800">{((dashboardStats || {}).yearlyTotalShippedWeight || 0).toLocaleString()} kg</span>
                       </div>
                       <div className="flex justify-between border-b border-slate-100 pb-1.5">
@@ -2471,7 +2501,6 @@
                     <p className="text-[9px] text-slate-500 mt-2">* 시장돈 전용 사료(임신, 포유, 후보돈 제외)와 전입시 체중인 6kg를 기반으로 산출된 실무 사양관리 평가용 효율 지표입니다.</p>
                   </div>
 
-                  {/* 전체 FCR 설명 */}
                   <div className="bg-slate-100 p-4 rounded-xl border border-slate-200">
                     <h4 className="text-xs font-black text-slate-700 mb-2">농장 전체 FCR</h4>
                     <p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 농장 내 모든 사료섭취량(kg) ÷ 최근 1년 총 증체량(kg)</p>
@@ -2499,7 +2528,6 @@
             </div>
           )}
 
-          {/* --- 산차별 현황 팝업 --- */}
           {showParityModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -2523,7 +2551,6 @@
             </div>
           )}
 
-          {/* --- 월말 모돈수 및 연평균 상시 계산 모달 --- */}
           {showMonthlySowModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -2607,7 +2634,6 @@
             </div>
           )}
 
-          {/* 모돈 추가 플로팅 버튼 */}
           <button 
             onClick={() => { setShowSowListModal(false); setShowAddSow(true); }}
             className="fixed bottom-6 right-6 bg-slate-800 text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-transform z-[60]"
@@ -2615,7 +2641,6 @@
             <Plus className="w-6 h-6" />
           </button>
 
-          {/* 모돈 신규 추가 모달 */}
           {showAddSow && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -2665,7 +2690,6 @@
             </div>
           )}
 
-          {/* --- 출하 상세 및 실시간 온도 동기화 조회 모달 --- */}
           {selectedShipment && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -2711,7 +2735,6 @@
             </div>
           )}
 
-          {/* --- 월별 사료 발주 상세조회 및 엑셀 입고 스프레드시트 모달 --- */}
           {selectedFeedMonth && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-[slideUp_0.2s_ease-out] max-h-[85vh]">
@@ -2736,7 +2759,6 @@
                     </button>
                   </div>
 
-                  {/* Excel Sheet Visual Grid Layout */}
                   <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-inner max-h-[380px] no-scrollbar">
                     <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700">
                       <thead>
@@ -2766,19 +2788,31 @@
                         ) : (
                           selectedFeedMonth.orders.map((order, idx) => {
                             const actualReceiptDate = order.deliveryDate || order.receivingDate || order.date || '-';
+                            
+                            let feedTypeStr = order.feedType || '-';
+                            let binStr = order.bulkBin ? `벌크 ${order.bulkBin}호` : '-';
+                            
+                            if (order.bulkBin && String(order.bulkBin).includes('지대')) {
+                              const numMatch = String(order.bulkBin).match(/\d+/);
+                              binStr = numMatch ? numMatch[0] : '-'; 
+                              
+                              if (!String(feedTypeStr).includes('첨가제')) {
+                                feedTypeStr = '지대';
+                              }
+                            }
+
                             return (
                               <tr key={idx} className="hover:bg-slate-50 transition-colors">
                                 <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">{idx + 2}</td>
                                 <td className="p-2 border border-slate-300 text-center font-sans">{actualReceiptDate}</td>
-                                <td className="p-2 border border-slate-300 text-center font-sans font-black text-slate-900">{order.feedType || '-'}</td>
-                                <td className="p-2 border border-slate-300 text-center text-amber-700 font-black">벌크 {order.bulkBin || '-'}호</td>
+                                <td className="p-2 border border-slate-300 text-center font-sans font-black text-slate-900">{feedTypeStr}</td>
+                                <td className="p-2 border border-slate-300 text-center text-amber-700 font-black">{binStr}</td>
                                 <td className="p-2 border border-slate-300 text-right font-black font-sans text-slate-950">{parseFloat(order.quantity || 0).toFixed(1)}</td>
                                 <td className="p-2 border border-slate-300 text-center text-slate-500 font-sans">{order.unit || '톤'}</td>
                               </tr>
                             );
                           })
                         )}
-                        {/* Total Row */}
                         <tr className="bg-amber-50/50 font-black text-slate-900">
                           <td className="p-2.5 bg-slate-200 border border-slate-300 text-center text-slate-500">{selectedFeedMonth.orders.length + 2}</td>
                           <td className="p-2.5 border border-slate-300 text-center font-sans">합계 (Total)</td>
@@ -2799,10 +2833,9 @@
             </div>
           )}
 
-          {/* --- 월별 출하 정산 엑셀 상세조회 모달 (원패스 앱 연동) --- */}
           {selectedShipmentMonth && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-fade-in">
-              <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
+              <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
                 <div className="bg-slate-800 p-4 text-white flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <TableIcon className="w-5 h-5 text-emerald-400" />
@@ -2825,7 +2858,7 @@
                   </div>
 
                   <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-inner max-h-[380px] no-scrollbar">
-                    <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700 min-w-[700px]">
+                    <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700 min-w-[800px]">
                       <thead>
                         <tr className="bg-slate-100 text-slate-500 font-bold text-center select-none">
                           <th className="p-1 bg-slate-200 border border-slate-300 w-10"></th>
@@ -2835,12 +2868,14 @@
                           <th className="p-1 bg-slate-200 border border-slate-300">D</th>
                           <th className="p-1 bg-slate-200 border border-slate-300">E</th>
                           <th className="p-1 bg-slate-200 border border-slate-300">F</th>
+                          <th className="p-1 bg-slate-200 border border-slate-300">G</th>
                         </tr>
                         <tr className="bg-slate-50 text-slate-700 font-black text-center">
                           <th className="p-2 bg-slate-100 border border-slate-300 text-slate-400">1</th>
                           <th className="p-2 border border-slate-300">출하 일자</th>
                           <th className="p-2 border border-slate-300">출하 두수 (두)</th>
-                          <th className="p-2 border border-slate-300 text-right">총 지육중량 (kg)</th>
+                          <th className="p-2 border border-slate-300 text-right">총 생체중 (kg)</th>
+                          <th className="p-2 border border-slate-300 text-right text-blue-700">두당 생체중 (kg)</th>
                           <th className="p-2 border border-slate-300 text-right">지육율 (%)</th>
                           <th className="p-2 border border-slate-300 text-right">1등급 이상 (%)</th>
                           <th className="p-2 border border-slate-300 text-right text-emerald-700">실 정산액 (원)</th>
@@ -2850,7 +2885,7 @@
                         {selectedShipmentMonth.items.length === 0 ? (
                           <tr>
                             <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">2</td>
-                            <td colSpan="6" className="p-6 text-center text-slate-400 font-sans">이 달에 등록된 출하 정산 기록이 없습니다.</td>
+                            <td colSpan="7" className="p-6 text-center text-slate-400 font-sans">이 달에 등록된 출하 정산 기록이 없습니다.</td>
                           </tr>
                         ) : (
                           selectedShipmentMonth.items.map((item, idx) => (
@@ -2858,7 +2893,8 @@
                               <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">{idx + 2}</td>
                               <td className="p-2 border border-slate-300 text-center font-sans font-bold">{item.date || '-'}</td>
                               <td className="p-2 border border-slate-300 text-center font-sans font-black text-slate-900">{item.count}</td>
-                              <td className="p-2 border border-slate-300 text-right font-sans text-slate-700 font-bold">{item.totalWeight.toLocaleString()}</td>
+                              <td className="p-2 border border-slate-300 text-right font-sans text-slate-700 font-bold">{Math.round(item.liveWeight).toLocaleString()}</td>
+                              <td className="p-2 border border-slate-300 text-right font-sans text-blue-700 font-bold">{item.count > 0 ? (item.liveWeight / item.count).toFixed(1) : '-'}</td>
                               <td className="p-2 border border-slate-300 text-right font-sans text-slate-500">{item.yieldRate.toFixed(1)}</td>
                               <td className="p-2 border border-slate-300 text-right font-sans font-bold text-indigo-600">{item.topRatio}</td>
                               <td className="p-2 border border-slate-300 text-right font-black font-sans text-emerald-700">{Math.round(item.revenue).toLocaleString()}</td>
@@ -2869,7 +2905,8 @@
                           <td className="p-2.5 bg-slate-200 border border-slate-300 text-center text-slate-500">{selectedShipmentMonth.items.length + 2}</td>
                           <td className="p-2.5 border border-slate-300 text-center font-sans">합계 (Total)</td>
                           <td className="p-2.5 border border-slate-300 text-center text-slate-800">{selectedShipmentMonth.count.toLocaleString()}</td>
-                          <td className="p-2.5 border border-slate-300 text-right text-slate-800">{selectedShipmentMonth.items.reduce((acc, curr) => acc + curr.totalWeight, 0).toLocaleString()}</td>
+                          <td className="p-2.5 border border-slate-300 text-right text-slate-800">{Math.round(selectedShipmentMonth.items.reduce((acc, curr) => acc + curr.liveWeight, 0)).toLocaleString()}</td>
+                          <td className="p-2.5 border border-slate-300 text-right text-blue-800 font-bold">{selectedShipmentMonth.count > 0 ? (selectedShipmentMonth.items.reduce((acc, curr) => acc + curr.liveWeight, 0) / selectedShipmentMonth.count).toFixed(1) : '-'}</td>
                           <td className="p-2.5 border border-slate-300 text-center"></td>
                           <td className="p-2.5 border border-slate-300 text-center"></td>
                           <td className="p-2.5 border border-slate-300 text-right text-emerald-700 text-sm font-black font-sans">{Math.round(selectedShipmentMonth.revenue).toLocaleString()}</td>
@@ -2886,7 +2923,6 @@
             </div>
           )}
 
-          {/* --- 사육단계별 월간 폐사/도태 상세조회 스프레드시트 모달 --- */}
           {selectedMortalityDetail && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
@@ -2895,7 +2931,7 @@
                     <TableIcon className="w-5 h-5 text-rose-400" />
                     <span className="font-black text-sm">성암농장 [{selectedMortalityDetail.category}] - {selectedMortalityDetail.monthLabel} 상세 기록</span>
                   </div>
-                  <button onClick={() => setSelectedMortalityDetail(null)} className="p-2 bg-slate-100 rounded-lg transition-colors"><X className="w-5 h-5" /></button>
+                  <button onClick={() => setSelectedMortalityDetail(null)} className="p-2 bg-slate-100 rounded-lg transition-colors text-slate-400"><X className="w-5 h-5" /></button>
                 </div>
                 
                 <div className="p-5 flex-1 overflow-y-auto space-y-4">
@@ -2942,7 +2978,6 @@
                             );
                           })
                         )}
-                        {/* Total Row */}
                         <tr className="bg-amber-50/50 font-black text-slate-900">
                           <td className="p-2.5 bg-slate-200 border border-slate-300 text-center text-slate-500">{selectedMortalityDetail.details.length + 2}</td>
                           <td className="p-2.5 border border-slate-300 text-center font-sans">합계 (Total)</td>

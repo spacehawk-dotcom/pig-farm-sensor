@@ -165,7 +165,7 @@
                         </div>
                         <div class="flex space-x-2">
                             <button onclick="saveCurrentBatch()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2 rounded-lg shadow-sm flex items-center">
-                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
+                                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3 3m3 3V4"></path></svg>
                                 DB에 기록 저장하기
                             </button>
                             <button onclick="clearCurrentBatch()" class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 text-sm font-semibold px-3 py-2 rounded-lg">
@@ -186,14 +186,19 @@
                         </div>
                         <div class="text-right">
                             <span class="text-xs text-slate-500 font-semibold block">실시간 산출된 배치 지육율</span>
-                            <span id="summary-yield-rate" class="text-2xl font-black text-indigo-600 mt-1 block">76.500% <span class="text-[10px] font-bold text-slate-400">(기본값)</span></span>
+                            <span id="summary-yield-rate" class="text-2xl font-black text-indigo-600 tracking-tight block">76.500% <span class="text-[10px] font-bold text-slate-400">(기본값)</span></span>
                         </div>
                     </div>
 
-                    <div class="p-5 bg-emerald-50/50 border-b border-emerald-100 grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- 실시간 산출 결과판 -->
+                    <div class="p-5 bg-emerald-50/50 border-b border-emerald-100 grid grid-cols-2 md:grid-cols-5 gap-4">
                         <div class="text-center p-3 bg-white rounded-xl shadow-sm border border-emerald-100">
                             <p class="text-xs text-slate-500 font-medium">총 출하 두수</p>
                             <p id="calc-summary-count" class="text-xl font-bold text-slate-800 mt-1">- 두</p>
+                        </div>
+                        <div class="text-center p-3 bg-indigo-50 rounded-xl shadow-sm border border-indigo-100">
+                            <p class="text-xs text-indigo-500 font-bold">1+·1등급 출현율</p>
+                            <p id="calc-summary-app-rate" class="text-xl font-black text-indigo-700 mt-1 leading-tight">- %</p>
                         </div>
                         <div class="text-center p-3 bg-white rounded-xl shadow-sm border border-emerald-100">
                             <p class="text-xs text-slate-500 font-medium">총 지육 중량</p>
@@ -304,10 +309,11 @@
             </div>
             
             <div class="flex items-center space-x-2 bg-white p-1 rounded-xl shadow-sm border border-slate-200">
-                <button id="filter-btn-all" onclick="filterDashboardData('all')" class="dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white shadow-sm transition-colors">전체 누적</button>
+                <button id="filter-btn-all" onclick="filterDashboardData('all')" class="dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">전체 누적</button>
                 <button id="filter-btn-12m" onclick="filterDashboardData('12m')" class="dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition-colors">최근 12개월</button>
-                <div class="relative flex items-center">
-                    <input type="month" id="month-selector" onchange="filterDashboardData('month', this.value)" class="w-32 text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg p-1.5 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 text-slate-600">
+                <div class="relative flex items-center space-x-1">
+                    <input type="month" id="month-selector" onchange="filterDashboardData('month', this.value)" class="w-32 text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg p-1.5 outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 text-slate-600" title="월별 조회">
+                    <input type="date" id="date-selector" onchange="filterDashboardData('date', this.value)" class="w-32 text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg p-1.5 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 text-slate-600" title="특정 일자 조회">
                 </div>
             </div>
         </div>
@@ -319,7 +325,7 @@
         </div>
 
         <div id="dashboard-widgets" class="space-y-6">
-            <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                     <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">필터구간 총 출하두수</p>
                     <p id="kpi-total-head" class="text-2xl font-bold text-slate-800 mt-2">- 두</p>
@@ -329,6 +335,11 @@
                     <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">평균 지육 중량</p>
                     <p id="kpi-avg-weight" class="text-2xl font-bold text-slate-800 mt-2">- kg</p>
                     <p class="text-xs text-slate-400 mt-1">두당 평균 판정무게</p>
+                </div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">평균 지육율</p>
+                    <p id="kpi-avg-yield" class="text-2xl font-bold text-indigo-600 mt-2">- %</p>
+                    <p class="text-xs text-slate-400 mt-1">생체중 대비 지육 비율</p>
                 </div>
                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
                     <p class="text-xs text-slate-500 font-semibold uppercase tracking-wider">상위등급 비율 (1등급 이상)</p>
@@ -342,47 +353,22 @@
                     <p id="kpi-avg-fat" class="text-2xl font-bold text-slate-800 mt-2">- mm</p>
                     <p class="text-xs text-slate-400 mt-1">지방 조절 상태 모니터링</p>
                 </div>
-                <div class="col-span-2 lg:col-span-1 bg-emerald-600 p-5 rounded-2xl shadow-md text-white">
+                <div class="bg-emerald-600 p-5 rounded-2xl shadow-md text-white">
                     <p class="text-xs text-emerald-100 font-semibold uppercase tracking-wider">구간 총 정산액 (실입금액 우선)</p>
                     <p id="kpi-total-revenue" class="text-2xl font-bold mt-2">- 원</p>
                     <p class="text-xs text-emerald-100 mt-1">수기 기입 및 예상금 보정 합산</p>
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <!-- 1. 등급 분포 현황 차트 -->
-                <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center">
+            <div class="grid grid-cols-1 gap-6">
+                <!-- 1. 등급 분포 현황 차트 (가로형 일자) -->
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-800 mb-6 flex items-center justify-center">
                         <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full mr-2"></span>
-                        돼지 등급 분포 (육질 등급)
+                        돼지 등급 분포 (육질 등급) 비율
                     </h3>
-                    <div class="flex-grow flex items-center justify-center h-64 relative">
+                    <div class="flex-grow flex items-center justify-center h-32 relative">
                         <canvas id="gradeDistributionChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- 2. 출하일자별 실시간 출하성적 변동 트렌드 -->
-                <div class="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center">
-                        <span class="w-2.5 h-2.5 bg-indigo-500 rounded-full mr-2"></span>
-                        일자별 출하 성적 및 평균 중량 추이
-                    </h3>
-                    <div class="flex-grow h-64">
-                        <canvas id="weightTrendChart"></canvas>
-                    </div>
-                </div>
-
-                <!-- 3. 평균 판매 가격대별 매출 기여 분석 -->
-                <div class="lg:col-span-3 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-4">
-                        <h3 class="text-base font-bold text-slate-800 flex items-center">
-                            <span class="w-2.5 h-2.5 bg-sky-500 rounded-full mr-2"></span>
-                            출하 일자별 총 정산 대금 분석
-                        </h3>
-                        <p class="text-xs text-slate-400">출하 차수별 실입금 및 정산 현황</p>
-                    </div>
-                    <div class="h-72">
-                        <canvas id="revenueBarChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -416,7 +402,7 @@
                     <thead>
                         <tr class="bg-slate-50 border-b border-slate-100 text-slate-600 font-semibold text-center">
                             <th class="p-4 text-left">출하 일자</th>
-                            <th class="p-4">출하량(두)</th>
+                            <th class="p-4">출하량(두)<br><span class="text-[10px] text-slate-400">(출현율)</span></th>
                             <th class="p-4 text-right">총 출하 생체중(kg)<br><span class="text-[10px] text-slate-400">(계근중량)</span></th>
                             <th class="p-4 text-right">총 지육중량 / 지육율</th>
                             <th class="p-4 text-right">경락 적용시세</th>
@@ -556,13 +542,17 @@
         loadHistoryFromStorage();
         
         initFirebase(); // Firestore 클라우드 초기화 시도
-
         setupDragAndDrop();
+
+        // 당월 기본값 필터 세팅
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        document.getElementById('month-selector').value = currentMonth;
+        
         switchTab('upload');
         syncDatabaseUI();
     }
 
-    // --- 유틸리티: 숫자 천단위 콤마 포맷팅 ---
     function formatNumberInput(element) {
         let val = element.value.replace(/[^0-9]/g, '');
         if (val === '') {
@@ -844,10 +834,11 @@
         return new Date().toISOString().split('T')[0];
     }
 
+    // 이중 탐색 기반(Dual-Anchor) 엑셀 파서 로직
     function interpretAndProcessData(rawRows) {
         let globalDate = getTodayFormatted();
         for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
-            if(!rawRows[i]) continue;
+            if(!rawRows[i] || !Array.isArray(rawRows[i])) continue;
             const rowStr = rawRows[i].join(' ');
             const match = rowStr.match(/(20\d{2})[-.년 ]+(0[1-9]|1[0-2])[-.월 ]+(0[1-9]|[12]\d|3[01])/);
             if (match) {
@@ -860,24 +851,46 @@
 
         for (let i = 0; i < rawRows.length; i++) {
             const row = rawRows[i];
-            if (!row || row.length < 5) continue;
+            if (!row || !Array.isArray(row) || row.length < 5) continue;
 
-            const textRow = row.map(cell => String(cell || '').trim());
+            const textRow = [];
+            for (let col = 0; col < row.length; col++) {
+                textRow.push(String(row[col] || '').trim());
+            }
 
-            let gradeIdx = -1;
-            let grade = '기타';
+            // 1. 역방향 탐색: '최종 등급'의 실제 문자를 가져온다.
+            let finalGradeVal = '기타';
+            let foundFinalGrade = false;
+            
+            for (let j = textRow.length - 1; j >= 3; j--) {
+                if (!textRow[j]) continue;
+                const cellVal = textRow[j].replace(/\s+/g, '');
+                if (['1+', '1', '2', '등외'].includes(cellVal)) {
+                    finalGradeVal = cellVal;
+                    foundFinalGrade = true;
+                    break;
+                }
+                if (cellVal === '1+등급') { finalGradeVal = '1+'; foundFinalGrade = true; break; }
+                if (cellVal === '1등급') { finalGradeVal = '1'; foundFinalGrade = true; break; }
+                if (cellVal === '2등급') { finalGradeVal = '2'; foundFinalGrade = true; break; }
+                if (cellVal === '등외등급') { finalGradeVal = '등외'; foundFinalGrade = true; break; }
+            }
+
+            // 2. 정방향 탐색: '1차 등급' 위치(Anchor)를 찾아 도체중, 등지방 등을 추출한다.
+            let anchorIdx = -1;
             for (let j = 3; j < textRow.length; j++) {
-                if (['1+', '1', '2', '등외'].includes(textRow[j])) {
-                    grade = textRow[j];
-                    gradeIdx = j;
+                if (!textRow[j]) continue;
+                const cellVal = textRow[j].replace(/\s+/g, '');
+                if (['1+', '1', '2', '등외', '1+등급', '1등급', '2등급', '등외등급'].includes(cellVal)) {
+                    anchorIdx = j;
                     break;
                 }
             }
 
-            if (gradeIdx === -1) continue;
+            if (anchorIdx === -1 || !foundFinalGrade) continue;
 
             let numsBefore = [];
-            for (let j = gradeIdx - 1; j >= Math.max(0, gradeIdx - 10); j--) {
+            for (let j = anchorIdx - 1; j >= Math.max(0, anchorIdx - 15); j--) {
                 if (!textRow[j]) continue;
                 const valRaw = textRow[j].replace(/,/g, '');
                 const val = parseFloat(valRaw);
@@ -899,7 +912,7 @@
             if (weight === 0) continue;
 
             let gender = '기타';
-            for (let j = Math.max(0, gradeIdx - 15); j < gradeIdx; j++) {
+            for (let j = Math.max(0, anchorIdx - 15); j < anchorIdx; j++) {
                 if (['암', '수', '거세'].includes(textRow[j])) {
                     gender = textRow[j];
                     break;
@@ -907,7 +920,7 @@
             }
 
             let pigId = '';
-            for (let j = Math.max(0, gradeIdx - 15); j < gradeIdx; j++) {
+            for (let j = Math.max(0, anchorIdx - 15); j < anchorIdx; j++) {
                 if(!textRow[j]) continue;
                 const val = textRow[j].replace(/[^0-9A-Za-z]/g, '');
                 if (val.length >= 4 && val.length <= 15 && !textRow[j].includes('.')) {
@@ -917,7 +930,7 @@
             }
             if (!pigId) pigId = `ID-임시-${i}`;
 
-            processedList.push({ date: globalDate, grade, weight, fat, id: pigId, gender });
+            processedList.push({ date: globalDate, grade: finalGradeVal, weight, fat, id: pigId, gender });
         }
 
         if (processedList.length === 0) {
@@ -1011,9 +1024,6 @@
             tr.className = 'hover:bg-slate-50 transition-colors';
             
             const ratioStr = isSpecial50 ? `<span class="text-rose-500 font-bold bg-rose-50 px-1 rounded">50.0%</span>` : `${finalRatio.toFixed(1)}%`;
-            let bpClass = 'text-slate-500';
-            if(bonusPenalty > 0) bpClass = 'text-indigo-600 font-semibold';
-            if(bonusPenalty < 0) bpClass = 'text-rose-600 font-semibold';
 
             tr.innerHTML = `
                 <td class="p-3 text-center text-slate-400 font-medium">${index + 1}</td>
@@ -1033,6 +1043,7 @@
         });
 
         document.getElementById('calc-summary-count').innerText = `${rows.length} 두`;
+        document.getElementById('calc-summary-app-rate').innerHTML = `${appearanceRate.toFixed(1)}% <span class="text-[10px] text-indigo-400 block mt-0.5">보정: ${appearanceRatioBonus > 0 ? '+' : ''}${appearanceRatioBonus.toFixed(1)}%p</span>`;
         document.getElementById('calc-summary-weight').innerText = `${totalWeight.toFixed(1)} kg`;
         document.getElementById('calc-summary-fat').innerText = `${(totalFat / rows.length).toFixed(1)} mm`;
         document.getElementById('calc-summary-price').innerText = `${totalEstimatedPrice.toLocaleString()} 원`;
@@ -1069,34 +1080,19 @@
     }
 
     // --- DB 저장, 삭제 및 동기화 (Firestore Optimistic UI) ---
-    function saveCurrentBatch() {
-        if (!STATE.currentParsedData || STATE.currentParsedData.length === 0) {
-            showCustomAlert("저장할 데이터가 존재하지 않습니다.");
-            return;
-        }
-
-        const batchDate = STATE.currentParsedData[0].date;
-        let batchTotalWeight = 0;
+    function calculateBatchPrice(batchDetails, batchLiveWeight, yieldRate, appRate, baseRatio, marketPrice) {
         let batchTotalEstimatedPrice = 0;
-        let topGradeCount = 0;
-
-        const marketPrice = STATE.settings.marketPrice;
-        const baseRatio = STATE.settings.formula.baseRatio;
-        
-        let batchTopGradeCount = 0;
-        STATE.currentParsedData.forEach(r => { if(r.grade === '1+' || r.grade === '1') batchTopGradeCount++; });
-        const appRate = Math.round((batchTopGradeCount / STATE.currentParsedData.length) * 1000) / 10;
         let appRatioBonus = 0;
+        
         if(appRate>=80) appRatioBonus=1.0; else if(appRate>=65) appRatioBonus=0.0; else if(appRate>=55) appRatioBonus=-1.0; else if(appRate>=45) appRatioBonus=-1.5; else appRatioBonus=-3.0;
 
-        const finalYieldRate = STATE.calculatedYieldRate;
         let yieldRatioBonus = 0;
-        if (STATE.batchLiveWeight > 0) {
-            if (finalYieldRate >= 78.0) yieldRatioBonus = Math.round((finalYieldRate - 78.0) * 10) / 10;
-            else if (finalYieldRate < 77.0) yieldRatioBonus = - (Math.round((77.0 - finalYieldRate) * 10) / 10);
+        if (batchLiveWeight > 0) {
+            if (yieldRate >= 78.0) yieldRatioBonus = Math.round((yieldRate - 78.0) * 10) / 10;
+            else if (yieldRate < 77.0) yieldRatioBonus = - (Math.round((77.0 - yieldRate) * 10) / 10);
         }
 
-        const dataDetails = STATE.currentParsedData.map(row => {
+        const newDetails = batchDetails.map(row => {
             let isSpecial50 = false;
             if (row.gender === '수' || row.grade === '등외') isSpecial50 = true;
             if (row.weight < 71.0 || row.weight >= 110.0) isSpecial50 = true;
@@ -1104,7 +1100,7 @@
             let finalRatio = Math.round((baseRatio + appRatioBonus + yieldRatioBonus) * 10) / 10;
             if (isSpecial50) finalRatio = 50.0;
 
-            const divisorRate = finalYieldRate / 100;
+            const divisorRate = yieldRate / 100;
             const estimatedLiveWeight = divisorRate > 0 ? (row.weight / divisorRate) : row.weight;
             const basePrice = Math.round(estimatedLiveWeight * marketPrice * (finalRatio / 100));
             
@@ -1124,19 +1120,35 @@
             }
             bonusPenalty -= STATE.settings.formula.expense;
             const calculatedPrice = Math.max(0, basePrice + bonusPenalty);
-
-            batchTotalWeight += row.weight;
             batchTotalEstimatedPrice += calculatedPrice;
-            if (row.grade === '1+' || row.grade === '1') topGradeCount++;
-
-            return {
-                id: row.id,
-                grade: row.grade,
-                weight: row.weight,
-                fat: row.fat,
-                price: calculatedPrice
-            };
+            
+            return { ...row, price: calculatedPrice };
         });
+
+        return { details: newDetails, totalPrice: batchTotalEstimatedPrice };
+    }
+
+    function saveCurrentBatch() {
+        if (!STATE.currentParsedData || STATE.currentParsedData.length === 0) {
+            showCustomAlert("저장할 데이터가 존재하지 않습니다.");
+            return;
+        }
+
+        const batchDate = STATE.currentParsedData[0].date;
+        let batchTotalWeight = 0;
+        let batchTopGradeCount = 0;
+
+        STATE.currentParsedData.forEach(r => {
+            batchTotalWeight += r.weight;
+            if(r.grade === '1+' || r.grade === '1') batchTopGradeCount++;
+        });
+
+        const appRate = Math.round((batchTopGradeCount / STATE.currentParsedData.length) * 1000) / 10;
+        const marketPrice = STATE.settings.marketPrice;
+        const baseRatio = STATE.settings.formula.baseRatio;
+        const finalYieldRate = STATE.calculatedYieldRate;
+
+        const calcResult = calculateBatchPrice(STATE.currentParsedData, STATE.batchLiveWeight, finalYieldRate, appRate, baseRatio, marketPrice);
 
         const newBatchRecord = {
             id: `BATCH-${Date.now()}`,
@@ -1146,19 +1158,17 @@
             liveWeight: STATE.batchLiveWeight,
             yieldRate: finalYieldRate,
             marketPrice: marketPrice,
-            totalPrice: batchTotalEstimatedPrice,
-            realPrice: batchTotalEstimatedPrice,
-            topRatio: Math.round((topGradeCount / STATE.currentParsedData.length) * 100),
-            details: dataDetails
+            totalPrice: calcResult.totalPrice,
+            realPrice: calcResult.totalPrice,
+            topRatio: appRate,
+            details: calcResult.details
         };
 
-        // 로컬 우선 갱신 (Optimistic Update)
         STATE.database.push(newBatchRecord);
         STATE.database.sort((a,b) => new Date(a.date) - new Date(b.date));
         saveHistoryToStorage();
         syncDatabaseUI();
 
-        // Firestore 연동
         if (firestoreDB) {
             firestoreDB.collection('pig_onepass_batches').doc(newBatchRecord.id).set(newBatchRecord)
                 .catch(err => {
@@ -1189,14 +1199,47 @@
             STATE.database[index].realPrice = numVal;
             saveHistoryToStorage();
             
-            // Firestore 연동
             if (firestoreDB) {
                 firestoreDB.collection('pig_onepass_batches').doc(batchId).update({ realPrice: numVal })
                     .catch(err => console.error("Firestore update error:", err));
             }
             
             showToast("실 정산 대금이 실시간 동기화되었습니다.", "success");
-            renderDashboardCharts(STATE.database); // 차트 재렌더링
+            
+            // 필터 유지한 상태로 차트 다시 그리기
+            const filterMonth = document.getElementById('month-selector').value;
+            const filterDate = document.getElementById('date-selector') ? document.getElementById('date-selector').value : '';
+            if (filterDate) filterDashboardData('date', filterDate);
+            else if (filterMonth) filterDashboardData('month', filterMonth);
+            else filterDashboardData('all');
+        }
+    }
+
+    function updateBatchMarketPrice(batchId, inputElement) {
+        let rawVal = inputElement.value.replace(/[^0-9]/g, '');
+        if (rawVal === '') rawVal = '0';
+        inputElement.value = parseInt(rawVal).toLocaleString();
+        
+        const newMarketPrice = parseInt(rawVal);
+        const index = STATE.database.findIndex(b => b.id === batchId);
+        if (index !== -1) {
+            const batch = STATE.database[index];
+            batch.marketPrice = newMarketPrice;
+            
+            const calcResult = calculateBatchPrice(batch.details, batch.liveWeight, batch.yieldRate, batch.topRatio, STATE.settings.formula.baseRatio, newMarketPrice);
+            
+            batch.totalPrice = calcResult.totalPrice;
+            batch.realPrice = calcResult.totalPrice; 
+            batch.details = calcResult.details;
+
+            saveHistoryToStorage();
+            syncDatabaseUI();
+            
+            if (firestoreDB) {
+                firestoreDB.collection('pig_onepass_batches').doc(batchId).set(batch)
+                    .catch(err => console.error("Firestore market update error:", err));
+            }
+            showToast("경락 적용시세 변경에 따라 해당 배치의 정산액이 재계산되었습니다.", "success");
         }
     }
 
@@ -1230,18 +1273,27 @@
             }
             
             const yieldRateStr = batch.yieldRate > 0 ? `${batch.yieldRate.toFixed(3)}%` : `76.500% <span class="text-[10px] text-slate-400 font-bold">(기본)</span>`;
-            const marketPriceStr = batch.marketPrice > 0 ? `${batch.marketPrice.toLocaleString()} 원` : `${STATE.settings.marketPrice.toLocaleString()} 원`;
+            const marketPriceStr = batch.marketPrice > 0 ? `${batch.marketPrice.toLocaleString()}` : `${STATE.settings.marketPrice.toLocaleString()}`;
             const realPriceVal = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
+            const topRatioStr = batch.topRatio !== undefined ? batch.topRatio.toFixed(1) : '-';
 
             tr.innerHTML = `
                 <td class="p-4 font-black text-slate-700 text-left">${batch.date}</td>
-                <td class="p-4 font-black text-indigo-600">${batch.headCount} 두</td>
+                <td class="p-4 font-black text-indigo-600">
+                    ${batch.headCount} 두<br>
+                    <span class="text-[11px] text-emerald-600 font-bold whitespace-nowrap">출현율 ${topRatioStr}%</span>
+                </td>
                 <td class="p-4 text-right font-black text-slate-600">${liveWeightStr}</td>
                 <td class="p-4 text-right text-slate-500 font-bold">
                     ${batch.totalWeight.toLocaleString()} kg <br>
                     <span class="text-[11px] text-indigo-500 font-black tracking-tighter">${yieldRateStr}</span>
                 </td>
-                <td class="p-4 text-right text-slate-500 font-bold">${marketPriceStr}</td>
+                <td class="p-4 text-center">
+                    <div class="flex items-center space-x-1 justify-center relative">
+                        <input type="text" value="${marketPriceStr}" onchange="updateBatchMarketPrice('${batch.id}', this)" oninput="formatNumberInput(this)" class="w-24 text-right border border-indigo-200 rounded-lg p-1.5 text-sm font-bold text-indigo-800 focus:ring-2 focus:ring-indigo-400 outline-none shadow-sm bg-white" />
+                        <span class="text-[10px] text-slate-400 font-black absolute right-2 pointer-events-none">원</span>
+                    </div>
+                </td>
                 <td class="p-4 text-right font-black text-slate-400 tracking-tight">${batch.totalPrice.toLocaleString()} 원</td>
                 <td class="p-4 text-center">
                     <div class="flex items-center space-x-1 justify-center relative">
@@ -1260,20 +1312,18 @@
 
         // 현재 필터 상태 유지하여 차트 업데이트
         const filterMonth = document.getElementById('month-selector').value;
-        const is12m = document.getElementById('filter-btn-12m').classList.contains('bg-emerald-500');
-        if (filterMonth) filterDashboardData('month', filterMonth);
-        else if (is12m) filterDashboardData('12m');
+        const filterDate = document.getElementById('date-selector') ? document.getElementById('date-selector').value : '';
+        if (filterDate) filterDashboardData('date', filterDate);
+        else if (filterMonth) filterDashboardData('month', filterMonth);
         else renderDashboardCharts(STATE.database);
     }
 
     function deleteBatch(batchId) {
         showCustomConfirm('해당 일자의 출하 기록을 클라우드와 기기에서 완전히 삭제하시겠습니까? 관련 차트에서도 제거됩니다.', function() {
-            // 로컬 우선 반영
             STATE.database = STATE.database.filter(b => b.id !== batchId);
             saveHistoryToStorage();
             syncDatabaseUI();
             
-            // Firestore 연동
             if (firestoreDB) {
                 firestoreDB.collection('pig_onepass_batches').doc(batchId).delete()
                     .catch(err => console.error("Firestore delete error:", err));
@@ -1286,12 +1336,10 @@
         showCustomConfirm('경고: 누적된 모든 출하 기록이 완전히 초기화됩니다. 이 작업은 되돌릴 수 없습니다. 진행하시겠습니까?', function() {
             const idsToDelete = STATE.database.map(b => b.id);
             
-            // 로컬 우선 반영
             STATE.database = [];
             saveHistoryToStorage();
             syncDatabaseUI();
             
-            // Firestore 연동 (Batch Delete)
             if (firestoreDB && idsToDelete.length > 0) {
                 const batch = firestoreDB.batch();
                 idsToDelete.forEach(id => {
@@ -1308,14 +1356,13 @@
         if (dataToRender.length === 0) {
             document.getElementById('kpi-total-head').innerText = `0 두`;
             document.getElementById('kpi-avg-weight').innerText = `0.0 kg`;
+            document.getElementById('kpi-avg-yield').innerText = `0.00%`;
             document.getElementById('kpi-avg-fat').innerText = `0.0 mm`;
             document.getElementById('kpi-total-revenue').innerText = `0 원`;
             document.getElementById('kpi-top-ratio').innerText = `0%`;
             document.getElementById('kpi-top-bar').style.width = `0%`;
 
             if (STATE.charts.grade) { STATE.charts.grade.destroy(); STATE.charts.grade = null; }
-            if (STATE.charts.weightTrend) { STATE.charts.weightTrend.destroy(); STATE.charts.weightTrend = null; }
-            if (STATE.charts.revenue) { STATE.charts.revenue.destroy(); STATE.charts.revenue = null; }
             return;
         }
 
@@ -1325,25 +1372,17 @@
         let topGradeCount = 0;
         let totalFat = 0;
         let totalGradeCount = 0;
+        let totalWeightedYield = 0;
 
-        const dateLabels = [];
-        const averageWeights = [];
-        const batchRevenues = [];
-        const headCounts = [];
-        
         const gradeCounts = { '1+': 0, '1': 0, '2': 0, '등외': 0, '기타': 0 };
 
         dataToRender.forEach(batch => {
             totalHead += batch.headCount;
             totalWeight += batch.totalWeight;
+            totalWeightedYield += (batch.yieldRate || 76.5) * batch.headCount;
             
             const currentRevenueVal = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
             totalRev += currentRevenueVal;
-
-            dateLabels.push(batch.date);
-            averageWeights.push((batch.totalWeight / batch.headCount).toFixed(1));
-            batchRevenues.push(currentRevenueVal);
-            headCounts.push(batch.headCount);
 
             batch.details.forEach(p => {
                 totalGradeCount++;
@@ -1356,81 +1395,45 @@
         });
 
         const overallAvgWeight = totalHead > 0 ? (totalWeight / totalHead) : 0;
+        const overallAvgYield = totalHead > 0 ? (totalWeightedYield / totalHead) : 0;
         const overallAvgFat = totalGradeCount > 0 ? (totalFat / totalGradeCount) : 0;
-        const overallTopRatio = totalGradeCount > 0 ? Math.round((topGradeCount / totalGradeCount) * 100) : 0;
+        const overallTopRatio = totalGradeCount > 0 ? (Math.round((topGradeCount / totalGradeCount) * 1000) / 10).toFixed(1) : "0.0";
 
         document.getElementById('kpi-total-head').innerText = `${totalHead.toLocaleString()} 두`;
         document.getElementById('kpi-avg-weight').innerText = `${overallAvgWeight.toFixed(1)} kg`;
+        document.getElementById('kpi-avg-yield').innerText = `${overallAvgYield.toFixed(2)}%`;
         document.getElementById('kpi-avg-fat').innerText = `${overallAvgFat.toFixed(1)} mm`;
         document.getElementById('kpi-total-revenue').innerText = `${totalRev.toLocaleString()} 원`;
         document.getElementById('kpi-top-ratio').innerText = `${overallTopRatio}%`;
         document.getElementById('kpi-top-bar').style.width = `${overallTopRatio}%`;
 
-        // 1. 등급 분포 차트 (Donut)
+        // 1. 등급 분포 차트 (단일 가로형 누적 일자 막대그래프)
         if (STATE.charts.grade) STATE.charts.grade.destroy();
         const ctxGrade = document.getElementById('gradeDistributionChart').getContext('2d');
         STATE.charts.grade = new Chart(ctxGrade, {
-            type: 'doughnut',
-            data: {
-                labels: ['1+ 등급', '1 등급', '2 등급', '등외', '기타'],
-                datasets: [{
-                    data: [gradeCounts['1+'], gradeCounts['1'], gradeCounts['2'], gradeCounts['등외'], gradeCounts['기타']],
-                    backgroundColor: ['#10b981', '#6366f1', '#f59e0b', '#f43f5e', '#94a3b8'],
-                    borderWidth: 2,
-                    borderColor: '#ffffff'
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { family: 'Noto Sans KR', size: 11 } } } },
-                cutout: '65%'
-            }
-        });
-
-        // 2. 출하일자별 추이 차트 (Line + Bar 콤보)
-        if (STATE.charts.weightTrend) STATE.charts.weightTrend.destroy();
-        const ctxWeight = document.getElementById('weightTrendChart').getContext('2d');
-        STATE.charts.weightTrend = new Chart(ctxWeight, {
             type: 'bar',
             data: {
-                labels: dateLabels,
+                labels: ['전체 누적 비율'], // 단일 막대로 구성
                 datasets: [
-                    {
-                        label: '두당 평균 중량 (kg)', type: 'line', data: averageWeights,
-                        borderColor: '#6366f1', borderWidth: 3, pointBackgroundColor: '#6366f1', tension: 0.3, yAxisID: 'y-weight', zIndex: 10
-                    },
-                    {
-                        label: '출하 두수 (두)', type: 'bar', data: headCounts,
-                        backgroundColor: '#e2e8f0', borderRadius: 6, yAxisID: 'y-head',
-                    }
+                    { label: '1+ 등급', data: [gradeCounts['1+']], backgroundColor: '#10b981', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
+                    { label: '1 등급', data: [gradeCounts['1']], backgroundColor: '#6366f1', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
+                    { label: '2 등급', data: [gradeCounts['2']], backgroundColor: '#f59e0b', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
+                    { label: '등외', data: [gradeCounts['등외']], backgroundColor: '#f43f5e', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
+                    { label: '기타', data: [gradeCounts['기타']], backgroundColor: '#94a3b8', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' }
                 ]
             },
             options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'top', labels: { boxWidth: 12, font: { size: 11 } } } },
+                indexAxis: 'y', // 가로 방향 설정
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 12, padding: 20, font: { family: 'Noto Sans KR', size: 12, weight: 'bold' } } },
+                    tooltip: { callbacks: { label: function(context) { return ` ${context.dataset.label}: ${context.raw} 두`; } } }
+                },
                 scales: {
-                    'y-weight': { type: 'linear', position: 'left', title: { display: true, text: '중량 (kg)', font: { size: 11 } }, min: 60, max: 110 },
-                    'y-head': { type: 'linear', position: 'right', title: { display: true, text: '출하 두수 (두)', font: { size: 11 } }, grid: { drawOnChartArea: false } }
+                    x: { stacked: true, display: false }, // X축 숨김
+                    y: { stacked: true, display: false }  // Y축 숨김
                 }
-            }
-        });
-
-        // 3. 차수별 매출 추이 차트 (Bar)
-        if (STATE.charts.revenue) STATE.charts.revenue.destroy();
-        const ctxRev = document.getElementById('revenueBarChart').getContext('2d');
-        STATE.charts.revenue = new Chart(ctxRev, {
-            type: 'bar',
-            data: {
-                labels: dateLabels,
-                datasets: [{
-                    label: '총 실정산 대금 (원)', data: batchRevenues,
-                    backgroundColor: 'rgba(16, 185, 129, 0.15)', borderColor: '#10b981', borderWidth: 2, borderRadius: 8, barThickness: 32
-                }]
-            },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: { y: { ticks: { callback: function(value) { return (value / 10000).toLocaleString() + '만'; } } } }
             }
         });
     }
@@ -1440,12 +1443,10 @@
         const buttons = document.querySelectorAll('.dash-filter-btn');
         buttons.forEach(btn => btn.className = 'dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition-colors');
         
-        if (type === 'all') {
-            document.getElementById('filter-btn-all').className = 'dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white shadow-sm transition-colors';
+        if (type === 'all' || type === '12m') {
+            document.getElementById(`filter-btn-${type}`).className = 'dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white shadow-sm transition-colors';
             document.getElementById('month-selector').value = '';
-        } else if (type === '12m') {
-            document.getElementById('filter-btn-12m').className = 'dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white shadow-sm transition-colors';
-            document.getElementById('month-selector').value = '';
+            document.getElementById('date-selector').value = '';
         }
 
         let filteredDb = STATE.database;
@@ -1461,10 +1462,17 @@
             renderDashboardCharts(filteredDb);
             showToast(`최근 12개월 구간으로 필터링되었습니다.`, "info");
         } else if (type === 'month') {
+            document.getElementById('date-selector').value = ''; // 날짜 필터 초기화
             if (!value) return filterDashboardData('all');
             filteredDb = STATE.database.filter(b => b.date.startsWith(value));
             renderDashboardCharts(filteredDb);
             showToast(`${value.split('-')[0]}년 ${value.split('-')[1]}월 데이터로 필터링되었습니다.`, "info");
+        } else if (type === 'date') {
+            document.getElementById('month-selector').value = ''; // 월별 필터 초기화
+            if (!value) return filterDashboardData('all');
+            filteredDb = STATE.database.filter(b => b.date === value);
+            renderDashboardCharts(filteredDb);
+            showToast(`${value} 출하일자 데이터로 필터링되었습니다.`, "info");
         }
     }
 
@@ -1486,7 +1494,15 @@
         const mobileSelect = document.getElementById('mobile-tab-select');
         if(mobileSelect) mobileSelect.value = tabId;
 
-        if (tabId === 'dashboard') setTimeout(() => renderDashboardCharts(STATE.database), 50);
+        if (tabId === 'dashboard') {
+            setTimeout(() => {
+                const filterMonth = document.getElementById('month-selector').value;
+                const filterDate = document.getElementById('date-selector') ? document.getElementById('date-selector').value : '';
+                if (filterDate) filterDashboardData('date', filterDate);
+                else if (filterMonth) filterDashboardData('month', filterMonth);
+                else filterDashboardData('all');
+            }, 50);
+        }
     }
 
     // 설정 저장 및 파서 반영
