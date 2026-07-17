@@ -665,6 +665,14 @@
           }
         });
 
+        // 1. 사육현황 앱(shipments)에서 최근 1년 실제 출하두수 1순위로 합산
+        let farmingStatusYearlyShipped = 0;
+        shipments.forEach(s => {
+          if (s && s.date && s.date >= oneYearAgoStr) {
+            farmingStatusYearlyShipped += (Number(s.count) || 0);
+          }
+        });
+
         let dbYearlyShipped = 0;
         let yearlyWeightGainKg = 0; 
         let yearlyTotalShippedWeight = 0; 
@@ -709,7 +717,14 @@
         const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
         
         const autoShipped = Math.floor(manualYearlyWeaned * 0.95);
-        const yearlyShipped = dbYearlyShipped > 0 ? dbYearlyShipped : autoShipped;
+        
+        // 사육현황 출하 기록 > 원패스 정산 기록 > 수기 이유두수 추정치 순서로 적용
+        let yearlyShipped = autoShipped;
+        if (farmingStatusYearlyShipped > 0) {
+            yearlyShipped = farmingStatusYearlyShipped;
+        } else if (dbYearlyShipped > 0) {
+            yearlyShipped = dbYearlyShipped;
+        }
 
         stats.psy = avgSows > 0 ? (manualYearlyWeaned / avgSows).toFixed(1) : "0.0";
         stats.msy = avgSows > 0 ? (yearlyShipped / avgSows).toFixed(1) : "0.0";
@@ -718,6 +733,7 @@
         stats.yearlyShipped = yearlyShipped;
         stats.autoShipped = autoShipped;
         stats.dbYearlyShipped = dbYearlyShipped;
+        stats.farmingStatusYearlyShipped = farmingStatusYearlyShipped;
 
         stats.yearlyTotalFeedKg = yearlyTotalFeedKg;
         stats.yearlyMarketFeedKg = yearlyMarketFeedKg;
@@ -728,7 +744,7 @@
         stats.marketFcr = yearlyWeightGainKg > 0 ? (yearlyMarketFeedKg / yearlyWeightGainKg).toFixed(2) : "0.00";
 
         return stats;
-      }, [sows, weaningRecords, farmSettings, onepassBatches, feedRecords]);
+      }, [sows, weaningRecords, farmSettings, onepassBatches, feedRecords, shipments]);
 
       const sowStats = useMemo(() => {
         const s = currentSow || {};
@@ -1706,7 +1722,7 @@
                     </div>
                     <div className="flex items-baseline">
                       <span className="text-3xl font-black text-white px-1">
-                        {((dashboardStats || {}).dbYearlyShipped || 0) > 0 ? ((dashboardStats || {}).dbYearlyShipped || 0).toLocaleString() : ((dashboardStats || {}).autoShipped || 0).toLocaleString()}
+                        {((dashboardStats || {}).yearlyShipped || 0).toLocaleString()}
                       </span>
                       <span className="text-xs ml-1 font-bold text-slate-400">두</span>
                     </div>
@@ -2469,7 +2485,7 @@
                     <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">
                       {(dashboardStats || {}).yearlyShipped || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-violet-600">{(dashboardStats || {}).msy || '0.0'}</span>
                     </div>
-                    <p className="text-[9px] text-slate-500 mt-2">* 출하기록 연동이 비어있을 경우 이유량의 95%로 자동 대체 연산됩니다.</p>
+                    <p className="text-[9px] text-slate-500 mt-2">* 사육현황(실제 출하) > 원패스 정산 > 이유량의 95% 순서로 데이터가 자동 적용되어 연산됩니다.</p>
                   </div>
 
                   <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
