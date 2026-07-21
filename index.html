@@ -274,6 +274,13 @@
             const utils = {
                 getTodayStr: () => { const d = new Date(); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; },
                 getTomorrowStr: () => { const d = new Date(); d.setDate(d.getDate() + 1); return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0]; },
+                getThursdayStr: () => {
+                    const d = new Date();
+                    const day = d.getDay(); // 0(일) ~ 6(토)
+                    const diff = day === 0 ? -3 : 4 - day; // 일요일은 지난주 목요일, 그 외는 이번 주 목요일
+                    d.setDate(d.getDate() + diff);
+                    return new Date(d - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
+                },
                 getDiffDays: (d1, d2) => {
                     if (!d1 || !d2) return 0; const t1 = new Date(d1).getTime(), t2 = new Date(d2).getTime();
                     if (isNaN(t1) || isNaN(t2)) return 0; return Math.floor((t2 - t1) / (1000 * 60 * 60 * 24));
@@ -1161,7 +1168,8 @@
                 weaning_record: (date) => {
                     const isEditing = !!(date && typeof date === 'string');
                     const record = isEditing ? state.weaningRecords[date] : {};
-                    const rDate = date || utils.getTodayStr();
+                    // 새 기록 추가 시 그 주의 목요일을 기본값으로 사용
+                    const rDate = date || utils.getThursdayStr();
                     const sowCount = record ? (record.sowCount || '') : '', totalWeaned = record ? (record.totalWeaned || '') : '';
                     const html = `
                     <input type="hidden" id="w-original-date" value="${isEditing ? date : ''}">

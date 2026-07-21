@@ -103,7 +103,8 @@ exports.handler = async (event, context) => {
         { id: 'bf1faaae7e5072f78fhyzr', name: '육성_4배치', fbCol: 'grower',  fbBatch: 4 },
         { id: 'bfb668aa0470a59280kzot', name: '육성_5배치', fbCol: 'grower',  fbBatch: 5 },
         { id: 'bff5798c4d866a911090af', name: '육성_6배치', fbCol: 'grower',  fbBatch: 6 },
-        { id: 'bf13f302e48b276482bzjb', name: '외부온도', fbCol: 'grower',  fbBatch: 7 }
+        { id: 'bfba0d33b943894f3eddgh', name: '육성_7배치', fbCol: 'grower',  fbBatch: 7 },
+        { id: 'bf13f302e48b276482bzjb', name: '외부온도', fbCol: 'grower',  fbBatch: 8 }
 
     ];
 
