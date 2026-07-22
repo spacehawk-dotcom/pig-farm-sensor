@@ -1290,14 +1290,14 @@
                 </td>
                 <td class="p-4 text-center">
                     <div class="flex items-center space-x-1 justify-center relative">
-                        <input type="text" value="${marketPriceStr}" onchange="updateBatchMarketPrice('${batch.id}', this)" oninput="formatNumberInput(this)" class="w-24 text-right border border-indigo-200 rounded-lg p-1.5 text-sm font-bold text-indigo-800 focus:ring-2 focus:ring-indigo-400 outline-none shadow-sm bg-white" />
+                        <input type="text" value="${marketPriceStr}" onchange="updateBatchMarketPrice('${batch.id}', this)" oninput="formatNumberInput(this)" class="w-24 text-right border border-indigo-200 rounded-lg py-1.5 pl-2 pr-7 text-sm font-bold text-indigo-800 focus:ring-2 focus:ring-indigo-400 outline-none shadow-sm bg-white" />
                         <span class="text-[10px] text-slate-400 font-black absolute right-2 pointer-events-none">원</span>
                     </div>
                 </td>
                 <td class="p-4 text-right font-black text-slate-400 tracking-tight">${batch.totalPrice.toLocaleString()} 원</td>
                 <td class="p-4 text-center">
                     <div class="flex items-center space-x-1 justify-center relative">
-                        <input type="text" value="${realPriceVal.toLocaleString()}" onchange="updateRealPrice('${batch.id}', this)" oninput="formatNumberInput(this)" class="w-36 text-right border border-emerald-300 rounded-lg p-2 text-sm font-black text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm bg-emerald-50/50" />
+                        <input type="text" value="${realPriceVal.toLocaleString()}" onchange="updateRealPrice('${batch.id}', this)" oninput="formatNumberInput(this)" class="w-36 text-right border border-emerald-300 rounded-lg py-2 pl-2 pr-7 text-sm font-black text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm bg-emerald-50/50" />
                         <span class="text-[10px] text-slate-400 font-black absolute right-2 pointer-events-none">원</span>
                     </div>
                 </td>
