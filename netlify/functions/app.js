@@ -1,7 +1,7 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
-// 🌟 핵심 보안 패치: 실제 키값을 지우고, 네플리파이 금고에서 꺼내 쓰도록 지시!
+// 🌟 핵심 보안: 실제 키값을 지우고, 네플리파이 금고에서 꺼내 쓰도록 지시!
 const ACCESS_ID = process.env.TUYA_ACCESS_ID;
 const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY; 
@@ -39,15 +39,10 @@ async function getDeviceStatus(deviceId, token) {
     return res.data.result;
 }
 
-// 🌟 [핵심 변경] 파이어베이스 임시 출입증을 먼저 발급받고 데이터를 쏙 빼옵니다!
-async function getFarmData(collection, batchNumber) {
+// 🌟 [최적화] idToken(출입증)을 밖에서 받아서 사용하도록 변경하여 중복 발급 방지
+async function getFarmData(collection, batchNumber, idToken) {
     try {
-        // 1. 임시 출입증(토큰) 발급받기
-        const authUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`;
-        const authRes = await axios.post(authUrl, { returnSecureToken: true });
-        const idToken = authRes.data.idToken;
-
-        // 2. 출입증 보여주고 사육 데이터 가져오기
+        // 출입증(idToken) 보여주고 사육 데이터 가져오기
         const url = `https://firestore.googleapis.com/v1/projects/sungamfarm/databases/(default)/documents/farms/sungamfarm/${collection}/batch_${batchNumber}`;
         const response = await axios.get(url, {
             headers: { Authorization: `Bearer ${idToken}` }
@@ -105,15 +100,20 @@ exports.handler = async (event, context) => {
         { id: 'bff5798c4d866a911090af', name: '육성_6배치', fbCol: 'grower',  fbBatch: 6 },
         { id: 'bfba0d33b943894f3eddgh', name: '육성_7배치', fbCol: 'grower',  fbBatch: 7 },
         { id: 'bf96609b8d76a4cdc0beff', name: '외부온도', fbCol: 'grower',  fbBatch: 8 }
-
     ];
 
     try {
+        // 🌟 1. 파이어베이스 임시 출입증(토큰)은 여기서 딱 1번만 발급받습니다! (회원 무한 생성 방지)
+        const authUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`;
+        const authRes = await axios.post(authUrl, { returnSecureToken: true });
+        const firebaseIdToken = authRes.data.idToken;
+
         const token = await getTuyaToken(); 
         const results = {};
 
         for (const device of devices) {
-            const farmData = await getFarmData(device.fbCol, device.fbBatch);
+            // 발급받은 출입증(firebaseIdToken)을 같이 넘겨줍니다.
+            const farmData = await getFarmData(device.fbCol, device.fbBatch, firebaseIdToken);
             
             try {
                 const status = await getDeviceStatus(device.id, token);
@@ -135,8 +135,9 @@ exports.handler = async (event, context) => {
             }
         }
 
-        await axios.put("https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json", results);
-        await axios.put(`https://sungamfarm-default-rtdb.firebaseio.com/history_logs/${Date.now()}.json`, results);
+        // 🌟 2. Realtime Database에 저장할 때 URL 끝에 '?auth=출입증' 을 붙여 권한을 증명합니다!
+        await axios.put(`https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json?auth=${firebaseIdToken}`, results);
+        await axios.put(`https://sungamfarm-default-rtdb.firebaseio.com/history_logs/${Date.now()}.json?auth=${firebaseIdToken}`, results);
         
         return { statusCode: 200, body: JSON.stringify({ message: "완료", data: results }) };
     } catch (error) {

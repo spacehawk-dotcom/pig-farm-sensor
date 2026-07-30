@@ -736,7 +736,7 @@
 
       const handleRestoreMedicationSchedule = (week) => {
           const field = `medDeleted_${week}`;
-          db.collection(SETTINGS_PATH).doc({ [field]: firebase.firestore.FieldValue.delete() }, { merge: true }).catch(err => {
+          db.collection(SETTINGS_PATH).doc('main').update({ [field]: firebase.firestore.FieldValue.delete() }).catch(err => {
             console.error("약제 투여 일정 복구 실패:", err);
             showAlert("복구 실패: " + err.message);
           });
