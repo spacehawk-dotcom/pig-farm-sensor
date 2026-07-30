@@ -4,8 +4,8 @@ const crypto = require('crypto');
 const ACCESS_ID = process.env.TUYA_ACCESS_ID;
 const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 
-// 🌟 혹시 서버 위치 문제일 수 있어, 한국에서 가장 많이 쓰는 미국(US) 서버로 임시 변경해 봅니다.
-const BASE_URL = 'https://openapi.tuyaus.com';
+// 🌟 사장님의 원래 서버인 유럽(EU) 센터로 주소를 다시 원상복구 합니다!
+const BASE_URL = 'https://openapi.tuyaeu.com';
 
 async function getTuyaToken() {
     const t = Date.now().toString();
@@ -19,8 +19,8 @@ async function getTuyaToken() {
     const res = await axios.get(BASE_URL + path, {
         headers: { 'client_id': ACCESS_ID, 'sign': sign, 't': t, 'sign_method': 'HMAC-SHA256' }
     });
-    // 진짜 에러 메시지를 추적하기 위해 살려둡니다.
-    if (!res.data.success) throw new Error("토큰에러: " + res.data.msg);
+    
+    if (!res.data.success) throw new Error("토큰 발급 실패: " + res.data.msg);
     return res.data.result.access_token;
 }
 
@@ -37,7 +37,7 @@ async function getDeviceStatus(deviceId, token) {
         headers: { 'client_id': ACCESS_ID, 'access_token': token, 'sign': sign, 't': t, 'sign_method': 'HMAC-SHA256' }
     });
     
-    // 🌟 투야 본사가 거절한 '진짜 이유(res.data.msg)'를 그대로 던집니다!
+    // 투야가 거절하면 그 진짜 이유를 밖으로 던집니다.
     if (!res.data.success) throw new Error(res.data.msg);
     return res.data.result;
 }
@@ -81,7 +81,7 @@ async function getFarmData(collection, batchNumber) {
 
 exports.handler = async (event, context) => {
     if (!ACCESS_ID || !ACCESS_SECRET) {
-        return { statusCode: 500, body: JSON.stringify({ error: "Netlify 금고에 TUYA 환경변수가 없습니다!" }) };
+        return { statusCode: 500, body: JSON.stringify({ error: "Netlify 금고에 환경변수가 없습니다!" }) };
     }
 
     const devices = [
@@ -118,7 +118,7 @@ exports.handler = async (event, context) => {
                     timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
                 };
             } catch (err) {
-                // 🌟 투야 에러 메시지를 현황판 시간란에 빨간색으로 출력합니다!
+                // 에러 발생 시 원인을 화면에 표시
                 let errorReason = err.message || "연결실패";
                 if (errorReason.includes("function not support")) errorReason = "수면모드";
                 
