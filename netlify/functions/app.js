@@ -1,13 +1,11 @@
 const axios = require('axios');
 const crypto = require('crypto');
 
-// 🌟 보안 핵심: 털리면 안 되는 투야(Tuya) 비밀번호만 금고에서 꺼내옵니다.
 const ACCESS_ID = process.env.TUYA_ACCESS_ID;
 const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
 
-// 🌟 파이어베이스 열쇠는 원래 공개용이므로 직접 입력해 에러를 방지합니다.
-const FIREBASE_API_KEY = "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0"; 
-const BASE_URL = 'https://openapi.tuyaeu.com';
+// 🌟 혹시 서버 위치 문제일 수 있어, 한국에서 가장 많이 쓰는 미국(US) 서버로 임시 변경해 봅니다.
+const BASE_URL = 'https://openapi.tuyaus.com';
 
 async function getTuyaToken() {
     const t = Date.now().toString();
@@ -21,7 +19,8 @@ async function getTuyaToken() {
     const res = await axios.get(BASE_URL + path, {
         headers: { 'client_id': ACCESS_ID, 'sign': sign, 't': t, 'sign_method': 'HMAC-SHA256' }
     });
-    if (!res.data.success) throw new Error("토큰 실패");
+    // 진짜 에러 메시지를 추적하기 위해 살려둡니다.
+    if (!res.data.success) throw new Error("토큰에러: " + res.data.msg);
     return res.data.result.access_token;
 }
 
@@ -37,18 +36,16 @@ async function getDeviceStatus(deviceId, token) {
     const res = await axios.get(BASE_URL + path, {
         headers: { 'client_id': ACCESS_ID, 'access_token': token, 'sign': sign, 't': t, 'sign_method': 'HMAC-SHA256' }
     });
+    
+    // 🌟 투야 본사가 거절한 '진짜 이유(res.data.msg)'를 그대로 던집니다!
     if (!res.data.success) throw new Error(res.data.msg);
     return res.data.result;
 }
 
-async function getFarmData(collection, batchNumber, idToken) {
+async function getFarmData(collection, batchNumber) {
     try {
-        if (!idToken) return { count: 0, dateRange: "--" }; // 출입증 없으면 패스
-
         const url = `https://firestore.googleapis.com/v1/projects/sungamfarm/databases/(default)/documents/farms/sungamfarm/${collection}/batch_${batchNumber}`;
-        const response = await axios.get(url, {
-            headers: { Authorization: `Bearer ${idToken}` }
-        });
+        const response = await axios.get(url);
         
         const fields = response.data.fields;
         let count = 0;
@@ -83,6 +80,10 @@ async function getFarmData(collection, batchNumber, idToken) {
 }
 
 exports.handler = async (event, context) => {
+    if (!ACCESS_ID || !ACCESS_SECRET) {
+        return { statusCode: 500, body: JSON.stringify({ error: "Netlify 금고에 TUYA 환경변수가 없습니다!" }) };
+    }
+
     const devices = [
         { id: 'bfe1709c2ca2d9e157eyuy', name: '이유_1배치', fbCol: 'weaning', fbBatch: 1 },
         { id: 'bf074190b83540b4d2pazp', name: '이유_2배치', fbCol: 'weaning', fbBatch: 2 },
@@ -100,21 +101,11 @@ exports.handler = async (event, context) => {
     ];
 
     try {
-        let firebaseIdToken = "";
-        try {
-            // 🌟 사육정보를 가져오기 위한 임시 출입증 발급
-            const authUrl = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE_API_KEY}`;
-            const authRes = await axios.post(authUrl, { returnSecureToken: true });
-            firebaseIdToken = authRes.data.idToken;
-        } catch(e) {
-            console.log("출입증 발급 에러가 났지만 멈추지 않고 온도 수집을 강행합니다.");
-        }
-
         const token = await getTuyaToken(); 
         const results = {};
 
         for (const device of devices) {
-            const farmData = await getFarmData(device.fbCol, device.fbBatch, firebaseIdToken);
+            const farmData = await getFarmData(device.fbCol, device.fbBatch);
             
             try {
                 const status = await getDeviceStatus(device.id, token);
@@ -127,21 +118,23 @@ exports.handler = async (event, context) => {
                     timestamp: new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })
                 };
             } catch (err) {
-                let errorReason = "연결실패";
-                if (err.message.includes("function not support")) errorReason = "수면모드";
+                // 🌟 투야 에러 메시지를 현황판 시간란에 빨간색으로 출력합니다!
+                let errorReason = err.message || "연결실패";
+                if (errorReason.includes("function not support")) errorReason = "수면모드";
+                
                 results[device.name] = { 
                     temp: "--", humi: "--", 
-                    count: farmData.count, dateRange: farmData.dateRange, timestamp: errorReason 
+                    count: farmData.count, dateRange: farmData.dateRange, timestamp: "에러: " + errorReason 
                 };
             }
         }
 
-        // 🌟 이미 문이 열려있는 창고(RTDB)이므로 귀찮은 인증(?auth=...) 없이 곧바로 저장!
         await axios.put(`https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json`, results);
         await axios.put(`https://sungamfarm-default-rtdb.firebaseio.com/history_logs/${Date.now()}.json`, results);
         
         return { statusCode: 200, body: JSON.stringify({ message: "완료", data: results }) };
     } catch (error) {
-        return { statusCode: 500, body: JSON.stringify({ error: String(error) }) };
+        console.error("서버 에러 발생:", error.message);
+        return { statusCode: 500, body: JSON.stringify({ error: String(error.message) }) };
     }
 };
