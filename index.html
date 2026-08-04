@@ -462,14 +462,21 @@
                         const todayStr = utils.getTodayStr(), weaningTotal = state.wBatches.reduce((s, b) => s + (b.pigs || 0), 0),
                               nursingSows = state.sowCache.nursingSows, avgPiglets = state.stocks.avgPiglets || 10, nursingPiglets = Math.floor(nursingSows * avgPiglets),
                               piglet = weaningTotal + nursingPiglets, grower = state.gBatches.filter(b => b.id !== 8).reduce((s, b) => s + (b.pigs || 0), 0),
-                              giltPigs = state.gBatches.find(b => b.id === 8)?.pigs || 0, sow = state.sowCache.sowCount, replacement = state.sowCache.replacementCount, boar = Number(state.stocks.boar) || 0;
+                              gilt_batch = state.gBatches.find(b => b.id === 8)?.pigs || 0, sow = state.sowCache.sowCount, replacement = state.sowCache.replacementCount, boar = Number(state.stocks.boar) || 0;
                         const docSnap = await db.doc(`${COLS.STOCKS}/current`).get(), saved = docSnap.exists ? docSnap.data() : {};
-                        if (saved.piglet !== piglet || saved.grower !== grower || saved.gilt_batch !== giltPigs || saved.sow !== sow || saved.replacement !== replacement || saved.boar !== boar || saved.nursingPiglets !== nursingPiglets || saved.sow_pregnant !== state.sowCache.sowPregnantCount || saved.sow_nursing !== state.sowCache.nursingSows || saved.sow_weaning !== state.sowCache.sowWeaningCount || saved.sow_return !== state.sowCache.returnCount) {
+                        
+                        // 오늘 날짜의 기록이 이미 저장되어 있는지 확인
+                        const hasHistoryToday = state.historyList.some(h => h.date === todayStr);
+
+                        // 재고의 변동이 있거나, 아직 오늘 날짜로 기록된 히스토리가 없다면 무조건 저장
+                        if (!hasHistoryToday || saved.piglet !== piglet || saved.grower !== grower || saved.gilt_batch !== gilt_batch || saved.sow !== sow || saved.replacement !== replacement || saved.boar !== boar || saved.nursingPiglets !== nursingPiglets || saved.sow_pregnant !== state.sowCache.sowPregnantCount || saved.sow_nursing !== state.sowCache.nursingSows || saved.sow_weaning !== state.sowCache.sowWeaningCount || saved.sow_return !== state.sowCache.returnCount) {
                             state.stocks = { ...state.stocks, piglet, grower, gilt_batch, sow, replacement, boar, nursingPiglets, sow_pregnant: state.sowCache.sowPregnantCount, sow_nursing: state.sowCache.nursingSows, sow_weaning: state.sowCache.sowWeaningCount, sow_return: state.sowCache.returnCount };
                             await db.doc(`${COLS.STOCKS}/current`).set(state.stocks, { merge: true });
                             await db.doc(`${COLS.HISTORY}/${todayStr}`).set({ stocks: state.stocks, updatedAt: new Date().toISOString() }, { merge: true });
                         }
-                    } catch (e) {}
+                    } catch (e) {
+                        console.error("히스토리 저장 실패:", e);
+                    }
                 }, 1500);
             }
 
@@ -2095,17 +2102,36 @@
             window.resetBatch = async (stage, batchId) => {
                 try {
                     const emptyBatch = getEmptyBatch(batchId, stage === 'grower');
+                    
+                    // 파이어베이스 복합 색인(Index) 에러를 방지하기 위해 로컬 상태(state)에서 미리 삭제 대상 필터링
+                    const accidentsToArchive = state.accidents.filter(a => a.stage === stage && String(a.batchId) === String(batchId) && !a.archived);
+
                     if (isLocalEnv) {
                         const arr = stage === 'weaning' ? state.wBatches : state.gBatches, idx = arr.findIndex(x => x.id === batchId);
                         if (idx !== -1) arr[idx] = emptyBatch;
+                        accidentsToArchive.forEach(a => a.archived = true);
                     } else {
                         const col = stage === 'weaning' ? COLS.WEANING : COLS.GROWER;
+                        
+                        // 1. 배치 데이터 초기화
                         await db.doc(`${col}/batch_${batchId}`).set(emptyBatch);
-                        const accidentsSnapshot = await db.collection(COLS.ACCIDENTS).where('stage', '==', stage).where('batchId', '==', batchId).where('archived', '==', false).get();
-                        const batch = db.batch(); accidentsSnapshot.docs.forEach(doc => { batch.update(doc.ref, { archived: true }); }); await batch.commit();
+                        
+                        // 2. 대상 폐사/도태 기록들을 일괄 숨김(archived) 처리
+                        if (accidentsToArchive.length > 0) {
+                            const batchWrite = db.batch();
+                            accidentsToArchive.forEach(acc => {
+                                const docRef = db.collection(COLS.ACCIDENTS).doc(acc.dbId);
+                                batchWrite.update(docRef, { archived: true });
+                            });
+                            await batchWrite.commit();
+                        }
                     }
-                    utils.showToast(`${batchId}배치가 초기화 되었습니다.`); window.closeModal(); if (isLocalEnv) renderAll();
-                } catch (e) { utils.showToast("배치 리셋 실패: " + e.message); }
+                    utils.showToast(`${batchId}배치가 초기화 되었습니다.`); 
+                    window.closeModal(); 
+                    if (isLocalEnv) renderAll();
+                } catch (e) { 
+                    utils.showToast("배치 리셋 실패: " + e.message); 
+                }
             };
 
             window.quickSaveBatchMemo = async (stage, batchId, memoValue) => {
