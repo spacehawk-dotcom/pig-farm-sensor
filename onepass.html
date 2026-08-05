@@ -400,14 +400,15 @@
             </div>
 
             <div class="grid grid-cols-1 gap-6">
-                <!-- 1. 등급 분포 현황 차트 (가로형 일자) -->
-                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-                    <h3 class="text-base font-bold text-slate-800 mb-6 flex items-center justify-center">
-                        <span class="w-2.5 h-2.5 bg-emerald-500 rounded-full mr-2"></span>
-                        돼지 등급 분포 (육질 등급) 비율
+                <!-- 1. 도체중-등지방 산점도 (Scatter Plot) -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-800 mb-2 flex items-center justify-center">
+                        <span class="w-2.5 h-2.5 bg-rose-500 rounded-full mr-2"></span>
+                        개체별 도체중 - 등지방 분포도
                     </h3>
-                    <div class="flex-grow flex items-center justify-center h-32 relative">
-                        <canvas id="gradeDistributionChart"></canvas>
+                    <p class="text-xs text-slate-500 mb-4 text-center">X축: 도체중(kg) / Y축: 등지방 두께(mm) / <span class="text-rose-500 font-bold">빨간선(1+등급)</span>, <span class="text-blue-600 font-bold">파란선(1등급)</span>, <span class="text-orange-400 font-bold">주황선(2등급)</span></p>
+                    <div class="flex-grow flex items-center justify-center h-[28rem] relative">
+                        <canvas id="scatterChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -1550,43 +1551,45 @@
             document.getElementById('kpi-avg-weight').innerText = `0.0 kg`;
             document.getElementById('kpi-avg-yield').innerText = `0.00%`;
             document.getElementById('kpi-avg-fat').innerText = `0.0 mm`;
-            document.getElementById('kpi-total-revenue').innerText = `0 원`;
-            document.getElementById('kpi-top-ratio').innerText = `0%`;
-            document.getElementById('kpi-top-bar').style.width = `0%`;
+        document.getElementById('kpi-total-revenue').innerText = `0 원`;
+        document.getElementById('kpi-top-ratio').innerText = `0%`;
+        document.getElementById('kpi-top-bar').style.width = `0%`;
 
-            if (STATE.charts.grade) { STATE.charts.grade.destroy(); STATE.charts.grade = null; }
-            return;
-        }
+        if (STATE.charts.scatter) { STATE.charts.scatter.destroy(); STATE.charts.scatter = null; }
+        return;
+    }
 
-        let totalHead = 0;
+    let totalHead = 0;
         let totalWeight = 0;
         let totalRev = 0;
         let topGradeCount = 0;
         let totalFat = 0;
-        let totalGradeCount = 0;
-        let totalWeightedYield = 0;
+    let totalGradeCount = 0;
+    let totalWeightedYield = 0;
 
-        const gradeCounts = { '1+': 0, '1': 0, '2': 0, '등외': 0, '기타': 0 };
+    const scatterData = [];
 
-        dataToRender.forEach(batch => {
-            totalHead += batch.headCount;
+    dataToRender.forEach(batch => {
+        totalHead += batch.headCount;
             totalWeight += batch.totalWeight;
             totalWeightedYield += (batch.yieldRate || 76.5) * batch.headCount;
             
             const currentRevenueVal = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
-            totalRev += currentRevenueVal;
+        totalRev += currentRevenueVal;
 
-            batch.details.forEach(p => {
-                totalGradeCount++;
-                totalFat += p.fat;
-                if (gradeCounts[p.grade] !== undefined) gradeCounts[p.grade]++;
-                else gradeCounts['기타']++;
+        batch.details.forEach(p => {
+            totalGradeCount++;
+            totalFat += p.fat;
 
-                if (p.grade === '1+' || p.grade === '1') topGradeCount++;
-            });
+            if (p.grade === '1+' || p.grade === '1') topGradeCount++;
+            
+            if (p.weight > 0 && p.fat > 0) {
+                scatterData.push({ x: p.weight, y: p.fat });
+            }
         });
+    });
 
-        const overallAvgWeight = totalHead > 0 ? (totalWeight / totalHead) : 0;
+    const overallAvgWeight = totalHead > 0 ? (totalWeight / totalHead) : 0;
         const overallAvgYield = totalHead > 0 ? (totalWeightedYield / totalHead) : 0;
         const overallAvgFat = totalGradeCount > 0 ? (totalFat / totalGradeCount) : 0;
         const overallTopRatio = totalGradeCount > 0 ? (Math.round((topGradeCount / totalGradeCount) * 1000) / 10).toFixed(1) : "0.0";
@@ -1596,41 +1599,97 @@
         document.getElementById('kpi-avg-yield').innerText = `${overallAvgYield.toFixed(2)}%`;
         document.getElementById('kpi-avg-fat').innerText = `${overallAvgFat.toFixed(1)} mm`;
         document.getElementById('kpi-total-revenue').innerText = `${totalRev.toLocaleString()} 원`;
-        document.getElementById('kpi-top-ratio').innerText = `${overallTopRatio}%`;
-        document.getElementById('kpi-top-bar').style.width = `${overallTopRatio}%`;
+    document.getElementById('kpi-top-ratio').innerText = `${overallTopRatio}%`;
+    document.getElementById('kpi-top-bar').style.width = `${overallTopRatio}%`;
 
-        // 1. 등급 분포 차트 (단일 가로형 누적 일자 막대그래프)
-        if (STATE.charts.grade) STATE.charts.grade.destroy();
-        const ctxGrade = document.getElementById('gradeDistributionChart').getContext('2d');
-        STATE.charts.grade = new Chart(ctxGrade, {
-            type: 'bar',
-            data: {
-                labels: ['전체 누적 비율'], // 단일 막대로 구성
-                datasets: [
-                    { label: '1+ 등급', data: [gradeCounts['1+']], backgroundColor: '#10b981', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
-                    { label: '1 등급', data: [gradeCounts['1']], backgroundColor: '#6366f1', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
-                    { label: '2 등급', data: [gradeCounts['2']], backgroundColor: '#f59e0b', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
-                    { label: '등외', data: [gradeCounts['등외']], backgroundColor: '#f43f5e', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' },
-                    { label: '기타', data: [gradeCounts['기타']], backgroundColor: '#94a3b8', barThickness: 50, borderWidth: 2, borderColor: '#ffffff' }
-                ]
+    // 1. 도체중-등지방 분포 산점도 (Scatter Chart)
+    if (STATE.charts.scatter) STATE.charts.scatter.destroy();
+    const ctxScatter = document.getElementById('scatterChart').getContext('2d');
+    
+    // 등급 규격 박스를 그려주는 커스텀 플러그인
+    const gradingBoxesPlugin = {
+        id: 'gradingBoxes',
+        beforeDatasetsDraw(chart, args, pluginOptions) {
+            const { ctx, chartArea: { top, bottom, left, right, width, height }, scales: { x, y } } = chart;
+            ctx.save();
+            ctx.lineWidth = 2;
+            
+            const drawBox = (xMin, xMax, yMin, yMax, color, bgColor = 'transparent') => {
+                const xLeft = x.getPixelForValue(xMin);
+                const xRight = x.getPixelForValue(xMax);
+                const yTop = y.getPixelForValue(yMax); 
+                const yBottom = y.getPixelForValue(yMin);
+                
+                const w = xRight - xLeft;
+                const h = yBottom - yTop;
+                
+                if(w <= 0 || h <= 0) return; // 화면 밖으로 나가면 그리지 않음
+
+                if(bgColor !== 'transparent') {
+                    ctx.fillStyle = bgColor;
+                    ctx.fillRect(xLeft, yTop, w, h);
+                }
+                ctx.strokeStyle = color;
+                ctx.strokeRect(xLeft, yTop, w, h);
+            };
+
+            // 2등급 영역 (주황색 바탕)
+            drawBox(76, 104, 12, 33, 'rgba(251, 146, 60, 1)', 'rgba(251, 146, 60, 0.05)'); 
+            // 1등급 영역 (파란색 바탕)
+            drawBox(80, 98, 15, 28, 'rgba(37, 99, 235, 1)', 'rgba(37, 99, 235, 0.05)'); 
+            // 1+등급 영역 (빨간색 바탕)
+            drawBox(83, 93, 17, 25, 'rgba(225, 29, 72, 1)', 'rgba(225, 29, 72, 0.1)'); 
+            
+            ctx.restore();
+        }
+    };
+
+    STATE.charts.scatter = new Chart(ctxScatter, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: '판정 데이터',
+                data: scatterData,
+                backgroundColor: 'rgba(71, 117, 187, 0.8)', // 엑셀 차트와 유사한 푸른색
+                borderColor: 'rgba(50, 90, 150, 1)',
+                pointStyle: 'rectRot', // 엑셀처럼 마름모(다이아몬드) 형태 적용
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `도체중: ${ctx.raw.x}kg, 등지방: ${ctx.raw.y}mm`
+                    }
+                }
             },
-            options: {
-                indexAxis: 'y', // 가로 방향 설정
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { boxWidth: 12, padding: 20, font: { family: 'Noto Sans KR', size: 12, weight: 'bold' } } },
-                    tooltip: { callbacks: { label: function(context) { return ` ${context.dataset.label}: ${context.raw} 두`; } } }
+            scales: {
+                x: { 
+                    type: 'linear', 
+                    position: 'bottom', 
+                    title: { display: true, text: '도체중 (kg)', font: {weight: 'bold', family: 'Noto Sans KR'} },
+                    min: 60, 
+                    max: 110,
+                    ticks: { stepSize: 10 }
                 },
-                scales: {
-                    x: { stacked: true, display: false }, // X축 숨김
-                    y: { stacked: true, display: false }  // Y축 숨김
+                y: { 
+                    title: { display: true, text: '등지방 두께 (mm)', font: {weight: 'bold', family: 'Noto Sans KR'} },
+                    min: 0, 
+                    max: 40,
+                    ticks: { stepSize: 5 }
                 }
             }
-        });
-    }
+        },
+        plugins: [gradingBoxesPlugin]
+    });
+}
 
-    // 대시보드 필터 컨트롤러
+// 대시보드 필터 컨트롤러
     function filterDashboardData(type, value) {
         const buttons = document.querySelectorAll('.dash-filter-btn');
         buttons.forEach(btn => btn.className = 'dash-filter-btn px-3 py-1.5 text-xs font-medium rounded-lg text-slate-600 hover:bg-slate-100 transition-colors');
