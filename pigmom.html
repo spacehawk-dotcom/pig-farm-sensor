@@ -161,6 +161,7 @@
 
       // 가로 스크롤 포커스를 위한 Ref
       const farrowingScrollRef = useRef(null);
+      const weaning20ScrollRef = useRef(null);
 
       // --- Auth & Data Fetching ---
       useEffect(() => {
@@ -223,7 +224,7 @@
         return () => { unsubSows(); unsubSettings(); unsubShipments(); };
       }, [user]);
 
-      // 헬퍼: 범용 날짜 파싱 (사용자가 "4/9" 처럼 쳐도 올해 날짜로 자동 인식하여 오류 방지)
+      // 헬퍼: 범용 날짜 파싱
       const parseValidDate = (dateStr) => {
         if (!dateStr) return null;
         const str = String(dateStr).trim();
@@ -236,7 +237,7 @@
           let d = parseInt(parts[2], 10);
           return new Date(y, m, d);
         } else if (parts.length === 2) {
-          let y = new Date().getFullYear(); // 연도 생략 시 올해 자동 추가
+          let y = new Date().getFullYear(); 
           let m = parseInt(parts[0], 10) - 1;
           let d = parseInt(parts[1], 10);
           return new Date(y, m, d);
@@ -253,6 +254,16 @@
         const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
         const dd = String(dateObj.getDate()).padStart(2, '0');
         return `${yy}-${mm}-${dd}`;
+      };
+
+      // 헬퍼: 모돈의 '가장 최근 분만 기록'을 날짜 기준으로 확실하게 찾는 함수 (산차 꼬임 방지)
+      const getLatestHistoryRecord = (sow) => {
+        if (!sow || !sow.history || !Array.isArray(sow.history)) return null;
+        const validRecords = sow.history.filter(r => r && r.date);
+        if (validRecords.length === 0) return null;
+        // 날짜 기준 내림차순(최신순) 정렬
+        validRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+        return validRecords[0]; // 가장 최신 날짜의 기록 반환
       };
 
       // 헬퍼: 분만 예정일 계산 (+115일)
@@ -299,6 +310,31 @@
         return formatDate(d);
       };
 
+      // 💡 한국형 달력 주차 계산법 (사육현황 앱 동기화)
+      // 기준: "해당 주에 월의 1일이 포함되어 있으면 무조건 1주차" (일요일이 속한 달 기준)
+      const getWeekOfMonthString = (mondayDateStr) => {
+        const monday = parseValidDate(mondayDateStr);
+        if (!monday) return '';
+        
+        // 1. 해당 주의 일요일을 기준으로 '월(Month)'을 결정합니다.
+        const sunday = new Date(monday);
+        sunday.setDate(sunday.getDate() + 6);
+        
+        const targetMonth = sunday.getMonth();
+        const targetYear = sunday.getFullYear();
+        
+        // 2. 타깃 월의 1일 날짜 객체를 생성하고, 그 1일이 속한 주의 월요일을 구합니다.
+        const firstDayOfMonth = new Date(targetYear, targetMonth, 1);
+        const firstDayMonday = parseValidDate(getMonday(formatDate(firstDayOfMonth)));
+        
+        // 3. 입력된 월요일과, 1일이 속한 월요일의 차이를 7일로 나누어 주차를 계산합니다.
+        const diffInDays = Math.floor((monday - firstDayMonday) / (24 * 60 * 60 * 1000));
+        const weekNumber = Math.floor(diffInDays / 7) + 1;
+        
+        return `${targetMonth + 1}월 ${weekNumber}주차`;
+      };
+
+
       // --- Data Processing ---
       const filteredSows = useMemo(() => {
         let result = sows.filter(Boolean);
@@ -330,6 +366,23 @@
               const matchFallback = !s.matingDate && s.currentStatus === '포유' && filterObj.value === currentMonday;
               
               return matchActual || matchExpected || matchFallback;
+            });
+          } else if (filterObj.type === 'weaning20Week') {
+             // 💡 필터링 시 모돈 색출 로직 (정확히 20일이 도래하는 날짜가 속한 주차로 묶음)
+             result = result.filter(sow => {
+              const s = sow || {};
+              // 상태가 포유가 아니면 무조건 탈락
+              if ((s.currentStatus || '').trim() !== '포유') return false;
+              
+              // 날짜 기준 가장 최근 분만일 가져오기
+              const r = getLatestHistoryRecord(s);
+              if (!r || !r.date) return false;
+              
+              // 분만일 + 20일 계산 후, 그 날짜가 속한 주차의 월요일 추출
+              const targetWeaningDate = addDays(r.date, 20);
+              const targetWeaningWeek = getMonday(targetWeaningDate);
+              
+              return targetWeaningWeek === filterObj.value;
             });
           } else if (filterObj.type === 'activityMonth') {
             result = result.filter(sow => {
@@ -367,10 +420,9 @@
         return sows.find(s => s && (s || {}).id === selectedSowId) || null;
       }, [sows, selectedSowId]);
 
-      // 대시보드 통계 계산 (개체별 수기 기록 합산 반영)
+      // 대시보드 통계 계산
       const dashboardStats = useMemo(() => {
         const stats = {
-          // 연평균 상시 모돈수 등 계산 시, 후보돈(0산차)을 완전히 제외
           total: sows.filter(sow => sow && (Number(sow.parity) || 0) > 0).length,
           status: { '이유': 0, '임신': 0, '포유': 0, '재발': 0 },
           parity: {},
@@ -381,7 +433,7 @@
         oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
         const oneYearAgoStr = formatDate(oneYearAgo);
         
-        let historyYearlyWeaned = 0; // 개체 기록 기준 최근 1년 이유두수
+        let historyYearlyWeaned = 0;
         
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
@@ -400,7 +452,6 @@
             }
           }
 
-          // 최근 1년 이유두수 합산 (사육현황 연동 기준 필드: move)
           if (s.history && Array.isArray(s.history)) {
             s.history.forEach(r => {
                if (r && r.date && r.date >= oneYearAgoStr) {
@@ -410,7 +461,6 @@
           }
         });
 
-        // 사육현황 DB에서 최근 1년 출하두수 합산
         let dbYearlyShipped = 0;
         shipments.forEach(record => {
           if (record && record.date && record.date >= oneYearAgoStr) {
@@ -418,11 +468,8 @@
           }
         });
 
-        // 분모 계산: 사용자가 입력한 평균 상시 모돈수가 있으면 사용, 없으면 현재 총 두수 (후보돈 제외)
         const fSettings = farmSettings || {};
         const avgSows = fSettings.avgSowCount > 0 ? fSettings.avgSowCount : stats.total;
-        
-        // 출하두수 결정 (사육현황 DB 우선 적용, 없으면 기록된 이유두수*95% 가계산)
         const autoShipped = Math.floor(historyYearlyWeaned * 0.95);
         const yearlyShipped = dbYearlyShipped > 0 ? dbYearlyShipped : autoShipped;
 
@@ -457,7 +504,6 @@
       // 주간별 분만 현황 산출
       const weeklyFarrowingStats = useMemo(() => {
         const statsMap = {};
-        
         const todayStr = formatDate(new Date());
         const currentMonday = getMonday(todayStr);
 
@@ -477,12 +523,10 @@
               }
               statsMap[monday].actual += 1;
               
-              // 포유두수 계산: 포유(born) - 이동(weaned) (사육현황 구조 매핑)
               const nursingStart = Number(r.born || 0);
               const transferOut = Number(r.weaned || 0);
               statsMap[monday].nursingPiglets += (nursingStart >= transferOut ? nursingStart - transferOut : 0);
               
-              // 6산 도태는 이유를 완료한 시점(DB 상 산차가 6산 이상)으로 계산
               if (Number(s.parity || 0) >= 6) {
                 statsMap[monday].parity6Plus += 1;
               }
@@ -528,8 +572,8 @@
                 statsMap[currentMonday].actual += 1;
                 if (Number(s.parity || 0) >= 6) statsMap[currentMonday].parity6Plus += 1;
                 if (!statsMap[currentMonday].sows.find(item => item && item.id === s.id)) {
-                  statsMap[currentMonday].sows.push(s);
-                }
+                statsMap[currentMonday].sows.push(s);
+              }
              }
           }
         });
@@ -537,13 +581,47 @@
         return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
       }, [sows]);
 
-      // 월별 후보돈 예상 입수 두수 계산 (목표 11복 대비 미달분 - 6산 도태 반영)
+      // 💡 20일령(이유) 도래 복수 (정확히 20일이 되는 날짜가 속한 주차로 묶음)
+      const weeklyWeaning20DaysStats = useMemo(() => {
+        const statsMap = {};
+        const todayStr = formatDate(new Date());
+        const currentMonday = getMonday(todayStr);
+        // 약 한 달 전(4주 전) 데이터까지만 노출하여 밀린 오래된 데이터 방지
+        const fourWeeksAgo = subtractDays(currentMonday, 28); 
+
+        sows.filter(Boolean).forEach(sow => {
+          const s = sow || {};
+          
+          // 현재 상태가 '포유'인 개체만 필터링 (이유 완료 모돈 제외)
+          if ((s.currentStatus || '').trim() !== '포유') return;
+
+          // 가장 최근 분만일 찾기
+          const r = getLatestHistoryRecord(s); 
+          if (!r || !r.date) return;
+          
+          // 💡 분만일 + 20일을 더해 실제 20일령이 되는 날짜를 구하고, 그 날짜가 속한 주의 월요일을 구함
+          const targetWeaningDate = addDays(r.date, 20);
+          const targetWeaningWeek = getMonday(targetWeaningDate); 
+          
+          if (targetWeaningWeek >= fourWeeksAgo) {
+            if (!statsMap[targetWeaningWeek]) {
+              statsMap[targetWeaningWeek] = { date: targetWeaningWeek, count: 0, sows: [] };
+            }
+            statsMap[targetWeaningWeek].sows.push(s); 
+            statsMap[targetWeaningWeek].count += 1;
+          }
+        });
+
+        return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
+      }, [sows]);
+
+      // 월별 후보돈 예상 입수 두수 계산 (목표 12복 대비 미달분 - 6산 도태 반영)
       const monthlyGiltIntroStats = useMemo(() => {
         const statsMap = {};
         
         weeklyFarrowingStats.forEach(stat => {
           const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
-          const missingCount = 11 - validSowsCount;
+          const missingCount = 12 - validSowsCount;
 
           if (missingCount >= 2) {
             const weaningThursday = getWeaningThursday(stat.date);
@@ -567,7 +645,7 @@
           .map(ym => ({ month: ym, count: statsMap[ym] }));
       }, [weeklyFarrowingStats]);
 
-      // 예정된 후보돈 약제 투여 알림 (최대 4순위, 종부 4일 전 종료, 17일 진행)
+      // 예정된 후보돈 약제 투여 알림
       const upcomingMedications = useMemo(() => {
         const today = new Date();
         const yy = today.getFullYear();
@@ -580,15 +658,15 @@
         
         weeklyFarrowingStats.forEach(stat => {
           const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
-          const missingCount = 12 - validSowsCount; // 11 -> 12로 목표 복수 변경
+          const missingCount = 12 - validSowsCount; 
 
           if (missingCount >= 2) {
             const weaningThursday = getWeaningThursday(stat.date);
             if (weaningThursday) {
               const estMatingDate = addDays(weaningThursday, 4); 
               
-              const medEndDate = subtractDays(estMatingDate, 4); // 투약 종료일 (종부 4일 전)
-              const medStartDate = subtractDays(medEndDate, 17); // 투약 시작일 (종료일 17일 전)
+              const medEndDate = subtractDays(estMatingDate, 4); 
+              const medStartDate = subtractDays(medEndDate, 17); 
               
               const medWeekMonday = getMonday(medStartDate); 
               const matingWeekMonday = getMonday(estMatingDate);
@@ -603,7 +681,6 @@
                   estMatingDate,
                   autoCount: missingCount
                 };
-                // 사용자가 삭제한 항목과 유지할 항목 분류
                 if (farmSettings && farmSettings[deleteKey]) {
                   deleted.push(medData);
                 } else {
@@ -653,7 +730,7 @@
         return Object.values(statsMap).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
       }, [sows]);
 
-      // 부드러운 가로 스크롤 이동
+      // 부드러운 가로 스크롤 이동 동기화
       useEffect(() => {
         if (farrowingScrollRef.current && weeklyFarrowingStats.length > 0) {
           const todayStr = formatDate(new Date());
@@ -675,11 +752,26 @@
         }
       }, [weeklyFarrowingStats]);
 
-      // --- 매월 현재 모돈수 자동 기록 (후보돈 제외 적용) ---
+      useEffect(() => {
+        if (weaning20ScrollRef.current && weeklyWeaning20DaysStats.length > 0) {
+          const todayStr = formatDate(new Date());
+          const currentMonday = getMonday(todayStr);
+          let targetIndex = weeklyWeaning20DaysStats.findIndex(stat => stat.date >= currentMonday);
+          if (targetIndex === -1) targetIndex = weeklyWeaning20DaysStats.length - 1;
+          setTimeout(() => {
+            const container = weaning20ScrollRef.current;
+            if (container && container.children && container.children[targetIndex]) {
+              const card = container.children[targetIndex];
+              container.scrollTo({ left: card.offsetLeft - container.offsetLeft - 16, behavior: 'smooth' });
+            }
+          }, 300);
+        }
+      }, [weeklyWeaning20DaysStats]);
+
+      // --- 매월 현재 모돈수 자동 기록 ---
       useEffect(() => {
         if (!user || loading) return;
         
-        // 후보돈(0산차)을 제외한 상시 모돈 수 계산
         const currentSowsCount = sows.filter(sow => sow && (Number(sow.parity) || 0) > 0).length;
         if (currentSowsCount === 0) return; 
 
@@ -1062,7 +1154,7 @@
             {sows.length > 0 ? (
               <div className="mb-6 space-y-5 animate-[slideUp_0.3s_ease-out]">
                 
-                {/* 핵심 생산 지표 (연평균 상시 모돈수 및 연간 총 출하두수 입력 지원) */}
+                {/* 핵심 생산 지표 */}
                 <div className="grid grid-cols-2 gap-2">
                   <div 
                     onClick={() => setShowMonthlySowModal(true)}
@@ -1097,7 +1189,7 @@
                   </div>
                 </div>
 
-                {/* 상태별 현황 (클릭 시 필터) */}
+                {/* 상태별 현황 */}
                 <div className="grid grid-cols-4 gap-2">
                   <div onClick={() => openFilteredList('status', '이유')} className="bg-slate-200/60 p-3 rounded-2xl border border-slate-200 text-center flex flex-col justify-center cursor-pointer hover:border-slate-400 active:scale-95 transition-all">
                     <span className="text-[11px] font-bold text-slate-500 mb-1">이유/대기</span>
@@ -1117,7 +1209,7 @@
                   </div>
                 </div>
 
-                {/* 주간별 분만 현황 (메인 유지) */}
+                {/* 주간별 분만 현황 */}
                 <div>
                   <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
                     주간별 분만 복수 <span className="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded ml-1 font-bold">포유 및 분만예정 포함</span>
@@ -1162,6 +1254,46 @@
                   </div>
                 </div>
 
+                {/* --- 20일령(이유) 도래 복수 --- */}
+                <section className="mt-4">
+                  <div className="flex justify-between items-end mb-3 px-1">
+                    <h2 className="text-base font-black text-slate-800 flex items-center gap-2">
+                      <Baby className="w-5 h-5 text-emerald-500" /> 20일령(이유) 도래 복수
+                      <span className="text-[10px] text-emerald-600 font-bold ml-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">분만일+20일 기준</span>
+                    </h2>
+                  </div>
+                  <div 
+                    ref={weaning20ScrollRef}
+                    className="flex overflow-x-auto gap-3 pb-2 no-scrollbar"
+                  >
+                    {weeklyWeaning20DaysStats.length === 0 ? (
+                      <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
+                        도래 예정인 개체 없음
+                      </div>
+                    ) : (
+                      weeklyWeaning20DaysStats.map(stat => (
+                        <div 
+                          key={stat.date} 
+                          onClick={() => openFilteredList('weaning20Week', stat.date)} 
+                          className="w-[110px] bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform hover:border-emerald-300"
+                        >
+                          <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>
+                          <p className="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">
+                            {getWeekOfMonthString(stat.date)}<br/>
+                            <span className="text-[11px] font-bold text-slate-400">({addDays(stat.date, 3).substring(5).replace('-', '/')} 이유)</span>
+                          </p>
+                          <div className="flex items-end justify-between pl-1">
+                            <p className="text-3xl font-black text-emerald-600">
+                              {stat.count}<span className="text-sm font-bold text-emerald-400 ml-1">복</span>
+                            </p>
+                            <ChevronRight className="w-4 h-4 text-emerald-200 mb-1" />
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+
                 {/* 월별 후보돈 예상 입수 두수 */}
                 <div className="mt-4">
                   <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
@@ -1190,7 +1322,7 @@
                   </div>
                 </div>
 
-                {/* 예정된 약제 투여 후보돈 알림 (최대 4순위, 종부 목표 12복 기준 자동 산출) */}
+                {/* 예정된 약제 투여 후보돈 알림 */}
                 <div className="mt-4">
                   <div className="flex justify-between items-center mb-2 pl-1">
                     <h3 className="text-xs font-black text-slate-500">
@@ -1231,7 +1363,7 @@
                                     ▶ 시작: {medInfo.medStartDate.substring(5).replace('-', '/')}
                                   </span>
                                   <span className="text-[10px] font-bold text-amber-600">
-                                    ▶ 종료: {medInfo.medEndDate.substring(5).replace('-', '/')}
+                                    ▶ 종료(이유): {medInfo.medEndDate.substring(5).replace('-', '/')}
                                   </span>
                                   <span className="text-[10px] font-bold text-rose-500">
                                     ▶ 종부: {medInfo.estMatingDate.substring(5).replace('-', '/')} 예정
@@ -1369,6 +1501,7 @@
                          (listFilter || {}).type === 'parity' ? `${(listFilter || {}).value}산` :
                          (listFilter || {}).type === 'farrowingWeek' ? `${(listFilter || {}).value} 분만 및 예정` :
                          (listFilter || {}).type === 'activityMonth' ? `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 교배 및 분만` :
+                         (listFilter || {}).type === 'weaning20Week' ? `${getWeekOfMonthString((listFilter || {}).value)} 20일령 도래` :
                          `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 분만 예정`}
                         <button onClick={(e) => { e.stopPropagation(); setListFilter(null); }} className="hover:text-rose-500 transition-colors bg-blue-100 rounded-full p-0.5 ml-1">
                           <X className="w-3 h-3" />
@@ -1417,25 +1550,21 @@
                         if (actualRecord) {
                           if (Number(actualRecord.parity || 0) >= 6) cullCount++;
                         } else {
-                          // 6산 도태는 이유를 완료한 시점(DB 상 산차가 6산)으로 계산
                           if (Number(s.parity || 0) >= 6) cullCount++;
                         }
                       });
 
                       const validSowsCount = filteredSows.length - cullCount;
-                      const missingCount = 12 - validSowsCount; // 11 -> 12로 목표 복수 변경
+                      const missingCount = 12 - validSowsCount; 
 
-                      // 부족분이 2 이상일 때만 경고 표시
                       if (missingCount < 2) return null; 
 
                       const weaningThursday = getWeaningThursday(farrowMonday);
-                      const estMatingDate = addDays(weaningThursday, 4); // 다음 종부 예정일 (이유일 + 4일)
+                      const estMatingDate = addDays(weaningThursday, 4); 
                       
-                      const giltIntroDate = subtractDays(estMatingDate, 60); // 종부 2달 전
-                      
-                      // 변경된 약제 투여 계산
-                      const medEndDate = subtractDays(estMatingDate, 4); // 투약 종료일
-                      const medStartDate = subtractDays(medEndDate, 17); // 투약 시작일
+                      const giltIntroDate = subtractDays(estMatingDate, 60); 
+                      const medEndDate = subtractDays(estMatingDate, 4); 
+                      const medStartDate = subtractDays(medEndDate, 17); 
                       
                       return (
                         <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl flex flex-col gap-2 mb-2 shadow-sm">
@@ -1512,6 +1641,41 @@
                               <span className="text-[8px] font-bold text-slate-500 font-black leading-none tracking-tighter">
                                 {farrowDate ? farrowDate.substring(5).replace('-', '/') : '-'}
                               </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (listFilter && listFilter.type === 'weaning20Week') ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="bg-emerald-800 p-3 rounded-xl shadow-md mb-1 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-[13px] font-black text-white">{getWeekOfMonthString(listFilter.value)} 20일령 도래 모돈</span>
+                        <span className="text-[10px] text-emerald-200 mt-0.5">해당 주간에 20일령이 도래하는 개체 그룹</span>
+                      </div>
+                      <span className="text-[13px] font-black text-emerald-300">{filteredSows.length}복</span>
+                    </div>
+                    <div className="grid grid-cols-6 gap-1.5 mt-1">
+                      {filteredSows.map(sow => {
+                        const s = sow || {};
+                        const r = getLatestHistoryRecord(s);
+                        const farrowDate = r ? r.date : '-';
+                        const weaningDate = r && r.date ? addDays(r.date, 20) : '-'; 
+
+                        return (
+                          <div 
+                            key={s.id} 
+                            onClick={() => { setSelectedSowId(s.id); setShowSowListModal(false); }}
+                            className="bg-white p-1 rounded-xl border border-emerald-200 shadow-sm cursor-pointer active:scale-95 transition-all flex flex-col items-center justify-center relative overflow-hidden hover:border-emerald-400"
+                          >
+                            <div className="flex flex-col items-center gap-0 mb-1 mt-1 w-full px-0.5">
+                              <span className="text-[11px] font-black text-slate-800 leading-none tracking-tighter truncate w-full text-center">{s.sowNo || '-'}</span>
+                              <span className="text-[8px] font-bold text-slate-400 leading-none mt-0.5">{s.parity || 0}산</span>
+                            </div>
+                            <div className="w-full flex flex-col items-center py-1 rounded-lg border bg-emerald-50 border-emerald-100">
+                              <span className="text-[8px] font-black leading-none mb-0.5 text-emerald-600">분만 {farrowDate.substring(5).replace('-','/')}</span>
+                              <span className="text-[8px] font-bold text-slate-600 leading-none tracking-tighter">목표 {weaningDate.substring(5).replace('-','/')}</span>
                             </div>
                           </div>
                         );

@@ -582,7 +582,7 @@
                 try {
                     const dateGroups = {};
                     (state.accidents || []).forEach(a => {
-                        if (!a || !a.date || a.archived) return;
+                        if (!a || !a.date) return;
                         if (!dateGroups[a.date]) dateGroups[a.date] = { date: a.date, total: 0, weaningCount: 0, growerCount: 0 };
                         const count = Number(a.count) || 0;
                         dateGroups[a.date].total += count;
@@ -1459,9 +1459,12 @@
                     };
                 },
                 accident_day_detail: (date) => {
-                    const records = state.accidents.filter(a => a.date === date && !a.archived);
+                    const records = state.accidents.filter(a => a.date === date);
                     const dObj = utils.parseDate(date) || new Date(date), dateStr = !isNaN(dObj.getTime()) ? `${dObj.getMonth() + 1}월 ${dObj.getDate()}일` : date;
-                    const rows = records.map(a => `<tr class="hover:bg-slate-50/50 transition-colors flex w-full justify-between items-center py-2"><td class="flex-1 text-center font-bold text-slate-700 text-sm">${a.stage === 'weaning' ? '이유사' : '육성사'}</td><td class="flex-1 text-center font-semibold text-slate-600 text-xs">${a.batchId === 8 ? '후보사' : `${a.batchId}배치`} ${a.penIndex + 1}칸</td><td class="flex-1 text-center font-black text-red-600 text-sm">${a.count}두</td><td class="flex-1 text-center relative min-w-[70px] flex justify-center"><div class="flex justify-center items-center"><button id="del-acc-btn-${a.dbId}" onclick="window.toggleAccidentDeleteConfirm('${a.dbId}')" class="text-slate-300 hover:text-red-500 transition-colors p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button><button id="confirm-acc-btn-${a.dbId}" onclick="window.deleteAccident('${a.dbId}', '${date}')" class="hidden absolute inset-0 bg-red-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button></div></td></tr>`).join('');
+                    const rows = records.map(a => {
+                        const archivedBadge = a.archived ? `<br><span class="text-[8px] bg-slate-200 text-slate-500 px-1 rounded whitespace-nowrap">이전 배치</span>` : '';
+                        return `<tr class="hover:bg-slate-50/50 transition-colors flex w-full justify-between items-center py-2"><td class="flex-1 text-center font-bold text-slate-700 text-sm">${a.stage === 'weaning' ? '이유사' : '육성사'}</td><td class="flex-1 text-center font-semibold text-slate-600 text-[11px] leading-tight">${a.batchId === 8 ? '후보사' : `${a.batchId}배치`} ${a.penIndex + 1}칸${archivedBadge}</td><td class="flex-1 text-center font-black text-red-600 text-sm">${a.count}두</td><td class="flex-1 text-center relative min-w-[70px] flex justify-center"><div class="flex justify-center items-center"><button id="del-acc-btn-${a.dbId}" onclick="window.toggleAccidentDeleteConfirm('${a.dbId}')" class="text-slate-300 hover:text-red-500 transition-colors p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button><button id="confirm-acc-btn-${a.dbId}" onclick="window.deleteAccident('${a.dbId}', '${date}')" class="hidden absolute inset-0 bg-red-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button></div></td></tr>`;
+                    }).join('');
                     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
                     return {
                         title: '도태/폐사 상세 현황', hideSave: true,
@@ -1479,7 +1482,7 @@
                 accident_monthly_summary: () => {
                     const monthlyStats = {};
                     (state.accidents || []).forEach(a => {
-                        if (!a || !a.date || a.archived) return;
+                        if (!a || !a.date) return;
                         const monthKey = a.date.substring(0, 7);
                         if (!monthlyStats[monthKey]) monthlyStats[monthKey] = { month: monthKey, total: 0, weaningCount: 0, growerCount: 0 };
                         const count = Number(a.count) || 0;
@@ -1984,7 +1987,7 @@
                 });
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shipData), "출하기록_기간내");
 
-                const accData = state.accidents.filter(a => a.date >= start && a.date <= end && !a.archived).map(a => ({ '발생일자': a.date, '단계': a.stage === 'weaning' ? '이유사' : '육성사', '배치': a.batchId === 8 ? '후보사' : `${a.batchId}배치`, '칸번호': (Number(a.penIndex) + 1) + '칸', '두수': a.count, '사고종류': a.type === 'sick' ? '환돈' : '폐사' }));
+                const accData = state.accidents.filter(a => a.date >= start && a.date <= end).map(a => ({ '발생일자': a.date, '단계': a.stage === 'weaning' ? '이유사' : '육성사', '배치': a.batchId === 8 ? '후보사' : `${a.batchId}배치`, '칸번호': (Number(a.penIndex) + 1) + '칸', '두수': a.count, '사고종류': a.type === 'sick' ? '환돈' : '폐사', '비고': a.archived ? '이전 배치' : '' }));
                 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(accData), "폐사_도태기록");
 
                 XLSX.writeFile(wb, `성암농장_종합리포트_${start}_to_${end}.xlsx`); utils.showToast("농장 종합 통합엑셀 파일이 생성되었습니다.");
@@ -2038,34 +2041,41 @@
             window.deleteAccident = async (dbId, date) => {
                 try {
                     const acc = state.accidents.find(a => a.dbId === dbId);
+                    let isRestored = false;
                     if (acc) {
                         const col = acc.stage === 'weaning' ? COLS.WEANING : COLS.GROWER;
                         if (isLocalEnv) {
-                            const arr = acc.stage === 'weaning' ? state.wBatches : state.gBatches;
-                            const b = arr.find(x => x.id === acc.batchId);
-                            if (b && b.penDetails) {
-                                b.penDetails[acc.penIndex] += acc.count; b.pigs = b.penDetails.reduce((a, c) => a + c, 0); b.pens = b.penDetails.filter(c => c > 0).length; b.status = b.pigs > 0 ? 'active' : 'empty';
+                            if (!acc.archived) {
+                                const arr = acc.stage === 'weaning' ? state.wBatches : state.gBatches;
+                                const b = arr.find(x => x.id === acc.batchId);
+                                if (b && b.penDetails) {
+                                    b.penDetails[acc.penIndex] += acc.count; b.pigs = b.penDetails.reduce((a, c) => a + c, 0); b.pens = b.penDetails.filter(c => c > 0).length; b.status = b.pigs > 0 ? 'active' : 'empty';
+                                }
+                                isRestored = true;
                             }
                             const idx = state.accidents.findIndex(a => a.dbId === dbId);
                             if (idx !== -1) state.accidents.splice(idx, 1);
                         } else {
-                            const batchDocRef = db.doc(`${col}/batch_${acc.batchId}`), batchSnap = await batchDocRef.get();
-                            if (batchSnap.exists) {
-                                const b = batchSnap.data(), currentDetails = b.penDetails || [];
-                                if (currentDetails[acc.penIndex] !== undefined) {
-                                    currentDetails[acc.penIndex] += acc.count; const pigs = currentDetails.reduce((a, c) => a + c, 0);
-                                    await batchDocRef.update({ penDetails: currentDetails, pigs: pigs, pens: currentDetails.filter(c => c > 0).length, status: pigs > 0 ? 'active' : 'empty' });
+                            if (!acc.archived) {
+                                const batchDocRef = db.doc(`${col}/batch_${acc.batchId}`), batchSnap = await batchDocRef.get();
+                                if (batchSnap.exists) {
+                                    const b = batchSnap.data(), currentDetails = b.penDetails || [];
+                                    if (currentDetails[acc.penIndex] !== undefined) {
+                                        currentDetails[acc.penIndex] += acc.count; const pigs = currentDetails.reduce((a, c) => a + c, 0);
+                                        await batchDocRef.update({ penDetails: currentDetails, pigs: pigs, pens: currentDetails.filter(c => c > 0).length, status: pigs > 0 ? 'active' : 'empty' });
+                                    }
                                 }
+                                isRestored = true;
                             }
                             await db.collection(COLS.ACCIDENTS).doc(dbId).delete();
                         }
                     }
-                    utils.showToast("도태/폐사 삭제 및 두수 원복 완료!");
-                    const remaining = state.accidents.filter(a => a.date === date && a.dbId !== dbId && !a.archived);
+                    utils.showToast(isRestored ? "삭제 및 두수 복원 완료!" : "과거 기록 삭제 완료 (두수 복원 없음)");
+                    const remaining = state.accidents.filter(a => a.date === date && a.dbId !== dbId);
                     if (remaining.length > 0) window.openModal('accident_day_detail', date);
                     else window.closeModal();
                     if (isLocalEnv) renderAll();
-                } catch (e) { utils.showToast("기록 삭제 및 복원 실패: " + e.message); }
+                } catch (e) { utils.showToast("기록 삭제 실패: " + e.message); }
             };
 
             window.filterSowList = (query) => {
