@@ -1358,16 +1358,19 @@
                                 <span className="text-[12px] font-black text-indigo-800">
                                   [{idx + 1}순위] 약제 투여 일정
                                 </span>
-                                <div className="flex flex-col gap-0.5 mt-1 border-t border-indigo-200 pt-1">
-                                  <span className="text-[10px] font-bold text-indigo-600">
-                                    ▶ 시작: {medInfo.medStartDate.substring(5).replace('-', '/')}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-amber-600">
-                                    ▶ 종료(이유): {medInfo.medEndDate.substring(5).replace('-', '/')}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-rose-500">
-                                    ▶ 종부: {medInfo.estMatingDate.substring(5).replace('-', '/')} 예정
-                                  </span>
+                                <div className="flex flex-col gap-1.5 mt-1.5 border-t border-indigo-200/70 pt-2 w-full">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-white border border-indigo-200 px-1.5 py-0.5 rounded shadow-sm w-[64px] text-center tracking-tighter">약제 시작</span>
+                                    <span className="text-[12px] font-black text-slate-700">{medInfo.medStartDate.substring(5).replace('-', '/')}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-amber-600 bg-white border border-amber-200 px-1.5 py-0.5 rounded shadow-sm w-[64px] text-center tracking-tighter">종료(이유)</span>
+                                    <span className="text-[12px] font-black text-slate-700">{medInfo.medEndDate.substring(5).replace('-', '/')}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-rose-500 bg-white border border-rose-200 px-1.5 py-0.5 rounded shadow-sm w-[64px] text-center tracking-tighter">종부 예정</span>
+                                    <span className="text-[12px] font-black text-rose-600">{medInfo.estMatingDate.substring(5).replace('-', '/')}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
