@@ -51,7 +51,7 @@
                 </svg>
             </div>
             <div>
-                <h1 class="text-lg font-bold tracking-tight">PIG-ONEPASS</h1>
+                <h1 class="text-lg font-bold tracking-tight">성암농장 출하분석</h1>
                 <p class="text-xs text-slate-400 font-medium">축산물원패스 판정 데이터 자동 정산 & 분석기</p>
             </div>
         </div>
@@ -130,9 +130,28 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
                 </button>
             </div>
+            <!-- 모달 요약 통계 -->
+            <div class="bg-slate-50/50 p-4 border-b border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-xs text-slate-500 font-medium">평균 도체중</p>
+                    <p id="modal-summary-weight" class="text-lg font-bold text-slate-800 mt-0.5">- kg</p>
+                </div>
+                <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-100">
+                    <p class="text-xs text-slate-500 font-medium">평균 등지방</p>
+                    <p id="modal-summary-fat" class="text-lg font-bold text-slate-800 mt-0.5">- mm</p>
+                </div>
+                <div class="bg-indigo-50 p-3 rounded-xl shadow-sm border border-indigo-100">
+                    <p class="text-xs text-indigo-600 font-bold">장려금 총합</p>
+                    <p id="modal-summary-bonus" class="text-lg font-black text-indigo-700 mt-0.5">- 원</p>
+                </div>
+                <div class="bg-rose-50 p-3 rounded-xl shadow-sm border border-rose-100">
+                    <p class="text-xs text-rose-600 font-bold">페널티 총합</p>
+                    <p id="modal-summary-penalty" class="text-lg font-black text-rose-600 mt-0.5">- 원</p>
+                </div>
+            </div>
             <!-- 모달 바디 (스크롤 테이블) -->
-            <div class="p-0 overflow-auto flex-grow rounded-b-2xl sm:rounded-none bg-white">
-                <table class="w-full text-left border-collapse text-sm min-w-[600px]">
+            <div class="p-0 overflow-auto flex-grow bg-white">
+                <table class="w-full text-left border-collapse text-sm min-w-[800px]">
                     <thead>
                         <tr class="bg-white border-b border-slate-200 text-slate-600 font-semibold sticky top-0 z-10 shadow-sm">
                             <th class="p-3 text-center">번호</th>
@@ -141,6 +160,8 @@
                             <th class="p-3 text-center">육질등급</th>
                             <th class="p-3 text-right">도체중(kg)</th>
                             <th class="p-3 text-right">등지방(mm)</th>
+                            <th class="p-3 text-right text-indigo-600">장려금</th>
+                            <th class="p-3 text-right text-rose-600">공제(페널티)</th>
                             <th class="p-3 text-right font-semibold text-emerald-700">개별 정산액(원)</th>
                         </tr>
                     </thead>
@@ -264,6 +285,8 @@
                                     <th class="p-3 text-right">도체중(kg)</th>
                                     <th class="p-3 text-right">등지방(mm)</th>
                                     <th class="p-3 text-right">최종지급율</th>
+                                    <th class="p-3 text-right text-indigo-600">장려금</th>
+                                    <th class="p-3 text-right text-rose-600">공제(페널티)</th>
                                     <th class="p-3 text-right font-semibold text-emerald-700">예상 판매금액</th>
                                 </tr>
                             </thead>
@@ -1042,23 +1065,26 @@
             const estimatedLiveWeight = divisorRate > 0 ? (row.weight / divisorRate) : row.weight;
             const basePrice = Math.round(estimatedLiveWeight * marketPrice * (finalRatio / 100));
 
-            let bonusPenalty = 0;
-            if (row.grade === '1+') bonusPenalty += extraBonus;
+            let currentBonus = 0;
+            if (row.grade === '1+') currentBonus += extraBonus;
 
+            let penalty = 0;
             // 지급율 50% 타격시 페널티 면제
             if (!isSpecial50) {
-                if (row.weight >= 71.0 && row.weight < 75.0) bonusPenalty -= 40000;
-                else if (row.weight >= 75.0 && row.weight < 80.0) bonusPenalty -= 20000;
-                else if (row.weight >= 99.0 && row.weight < 106.0) bonusPenalty -= 20000;
-                else if (row.weight >= 106.0 && row.weight < 110.0) bonusPenalty -= 40000;
+                if (row.weight >= 71.0 && row.weight < 75.0) penalty -= 40000;
+                else if (row.weight >= 75.0 && row.weight < 80.0) penalty -= 20000;
+                else if (row.weight >= 99.0 && row.weight < 106.0) penalty -= 20000;
+                else if (row.weight >= 106.0 && row.weight < 110.0) penalty -= 40000;
 
                 if (row.fat > 0) {
-                    if (row.fat < 15) bonusPenalty -= 20000;
-                    else if (row.fat >= 30) bonusPenalty -= 10000;
+                    if (row.fat < 15) penalty -= 20000;
+                    else if (row.fat >= 30) penalty -= 10000;
                 }
             }
 
-            bonusPenalty -= fixedExpense;
+            let totalDeduction = penalty - fixedExpense;
+            let bonusPenalty = currentBonus + totalDeduction;
+
             const salePrice = Math.max(0, basePrice + bonusPenalty);
 
             totalWeight += row.weight;
@@ -1069,6 +1095,10 @@
             tr.className = 'hover:bg-slate-50 transition-colors';
             
             const ratioStr = isSpecial50 ? `<span class="text-rose-500 font-bold bg-rose-50 px-1 rounded">50.0%</span>` : `${finalRatio.toFixed(1)}%`;
+            let bonusStr = currentBonus > 0 ? `<span class="text-indigo-600 font-bold">+${currentBonus.toLocaleString()}</span>` : `<span class="text-slate-300">-</span>`;
+            
+            // 고정공제를 제외한 순수 페널티만 표시
+            let penaltyStr = penalty < 0 ? `<span class="text-rose-500 font-bold">${penalty.toLocaleString()}</span>` : `<span class="text-slate-300">-</span>`;
 
             tr.innerHTML = `
                 <td class="p-3 text-center text-slate-400 font-medium">${index + 1}</td>
@@ -1082,6 +1112,8 @@
                 <td class="p-3 text-right font-black text-slate-700">${row.weight.toFixed(1)}</td>
                 <td class="p-3 text-right text-slate-500 text-xs">${row.fat.toFixed(1)}</td>
                 <td class="p-3 text-right text-slate-600 text-xs">${ratioStr}</td>
+                <td class="p-3 text-right text-xs">${bonusStr}</td>
+                <td class="p-3 text-right text-xs cursor-help border-b border-dashed border-transparent hover:border-rose-300 transition-colors" title="자조금/수수료 등 고정공제(-${fixedExpense.toLocaleString()}원)는 정산액에서 별도 차감됨">${penaltyStr}</td>
                 <td class="p-3 text-right font-black text-emerald-600 tracking-tight">${salePrice.toLocaleString()} 원</td>
             `;
             tbody.appendChild(tr);
@@ -1501,9 +1533,48 @@
         const tbody = document.getElementById('modal-batch-tbody');
         tbody.innerHTML = '';
 
+        let totalWeight = 0;
+        let totalFat = 0;
+        let totalBonus = 0;
+        let totalPenalty = 0;
+        let validCount = 0;
+
         // 상세 목록 렌더링
         if(batch.details && batch.details.length > 0) {
             batch.details.forEach((row, index) => {
+                validCount++;
+                totalWeight += row.weight || 0;
+                totalFat += row.fat || 0;
+
+                // 실시간 장려금/공제 계산
+                let gradeBonus = (row.grade === '1+') ? STATE.settings.formula.bonus : 0;
+                totalBonus += gradeBonus;
+                
+                let isSpecial50 = false;
+                if (row.gender === '수' || row.grade === '등외') isSpecial50 = true;
+                if (row.weight < 71.0 || row.weight >= 110.0) isSpecial50 = true;
+
+                let penalty = 0;
+                if (!isSpecial50) {
+                    if (row.weight >= 71.0 && row.weight < 75.0) penalty -= 40000;
+                    else if (row.weight >= 75.0 && row.weight < 80.0) penalty -= 20000;
+                    else if (row.weight >= 99.0 && row.weight < 106.0) penalty -= 20000;
+                    else if (row.weight >= 106.0 && row.weight < 110.0) penalty -= 40000;
+
+                    if (row.fat > 0) {
+                        if (row.fat < 15) penalty -= 20000;
+                        else if (row.fat >= 30) penalty -= 10000;
+                    }
+                }
+                totalPenalty += penalty;
+
+                let fixedExpense = STATE.settings.formula.expense;
+
+                let bonusStr = gradeBonus > 0 ? `<span class="text-indigo-600 font-bold">+${gradeBonus.toLocaleString()}</span>` : `<span class="text-slate-300">-</span>`;
+                
+                // 고정공제를 제외한 순수 페널티만 표시
+                let penaltyStr = penalty < 0 ? `<span class="text-rose-500 font-bold">${penalty.toLocaleString()}</span>` : `<span class="text-slate-300">-</span>`;
+
                 const tr = document.createElement('tr');
                 tr.className = 'hover:bg-slate-50 transition-colors';
                 
@@ -1518,13 +1589,23 @@
                     </td>
                     <td class="p-3 text-right font-black text-slate-700">${row.weight ? row.weight.toFixed(1) : '-'}</td>
                     <td class="p-3 text-right text-slate-500 text-xs">${row.fat ? row.fat.toFixed(1) : '-'}</td>
+                    <td class="p-3 text-right text-xs">${bonusStr}</td>
+                    <td class="p-3 text-right text-xs cursor-help border-b border-dashed border-transparent hover:border-rose-300 transition-colors" title="자조금/수수료 등 고정공제(-${fixedExpense.toLocaleString()}원)는 정산액에서 별도 차감됨">${penaltyStr}</td>
                     <td class="p-3 text-right font-black text-emerald-600 tracking-tight">${row.price ? row.price.toLocaleString() : '-'} 원</td>
                 `;
                 tbody.appendChild(tr);
             });
         } else {
-            tbody.innerHTML = `<tr><td colspan="7" class="p-8 text-center text-slate-400 font-medium">상세 기록이 존재하지 않습니다.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-slate-400 font-medium">상세 기록이 존재하지 않습니다.</td></tr>`;
         }
+
+        // 요약 통계 업데이트
+        const avgWeight = validCount > 0 ? (totalWeight / validCount).toFixed(1) : 0;
+        const avgFat = validCount > 0 ? (totalFat / validCount).toFixed(1) : 0;
+        document.getElementById('modal-summary-weight').innerText = `${avgWeight} kg`;
+        document.getElementById('modal-summary-fat').innerText = `${avgFat} mm`;
+        document.getElementById('modal-summary-bonus').innerText = totalBonus > 0 ? `+${totalBonus.toLocaleString()} 원` : `0 원`;
+        document.getElementById('modal-summary-penalty').innerText = totalPenalty < 0 ? `${totalPenalty.toLocaleString()} 원` : `0 원`;
 
         // 모달 띄우기 (애니메이션 처리)
         const modal = document.getElementById('batch-details-modal');
