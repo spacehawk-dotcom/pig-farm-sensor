@@ -96,63 +96,210 @@
     const FEEDS_COLLECTION_PATH = 'farms/sungamfarm/feed_orders';
 
     const TempTable = ({ shipment, onAvgCalculated }) => {
+      const [calcTemps, setCalcTemps] = useState(null);
+      const [loadingTemp, setLoadingTemp] = useState(true);
+
       useEffect(() => {
-        if (onAvgCalculated) onAvgCalculated('26.5');
+        if (!shipment || !shipment.date) {
+          setCalcTemps(null);
+          setLoadingTemp(false);
+          return;
+        }
+
+        const rtdb = firebase.database();
+        
+        // 입식일자 파악 (20일령 기준)
+        const stockDate = shipment.stockingDate && shipment.stockingDate !== '9999-99-99'
+          ? new Date(shipment.stockingDate)
+          : new Date(new Date(shipment.date).getTime() - (115 * 86400000)); 
+
+        const addDays = (date, days) => {
+          const d = new Date(date);
+          d.setDate(d.getDate() + days);
+          return d;
+        };
+
+        // 구간별 날짜(시간) 범위 세팅
+        const pStart = addDays(stockDate, 10);
+        const pEnd = addDays(stockDate, 40);
+        const gStart = addDays(stockDate, 41);
+        const gEnd = addDays(stockDate, 80);
+        const fStart = addDays(stockDate, 81);
+        
+        const fEnd = new Date(shipment.date);
+        fEnd.setHours(23, 59, 59, 999);
+
+        // 조기 출하 시, 각 구간의 마지막 날짜가 출하일을 넘지 못하게 차단
+        const actualPEnd = new Date(Math.min(pEnd.getTime(), fEnd.getTime()));
+        const actualGEnd = new Date(Math.min(gEnd.getTime(), fEnd.getTime()));
+        const actualFEnd = fEnd;
+
+        const startTimeStr = pStart.getTime().toString();
+        const endTimeStr = fEnd.getTime().toString();
+
+        rtdb.ref('history_logs').orderByKey().startAt(startTimeStr).endAt(endTimeStr).once('value')
+          .then(snapshot => {
+            const logs = snapshot.val();
+            if (!logs) {
+              setCalcTemps(null);
+              setLoadingTemp(false);
+              if (onAvgCalculated) onAvgCalculated('-');
+              return;
+            }
+
+            let pSum = 0, pCount = 0;
+            let gSum = 0, gCount = 0;
+            let fSum = 0, fCount = 0;
+
+            const batchIds = shipment.batchIds || [];
+
+            // 해당 배치의 온도만 정밀하게 솎아내는 로직
+            Object.entries(logs).forEach(([timestampMs, zones]) => {
+              const logTime = Number(timestampMs);
+              if (logTime > fEnd.getTime()) return; // 출하 이후 데이터 스킵
+
+              Object.entries(zones).forEach(([zoneName, zoneData]) => {
+                if (!zoneData || !zoneData.temp || zoneData.temp === "--") return;
+                if (zoneName.includes('외부')) return;
+
+                const t = Number(zoneData.temp);
+                if (isNaN(t) || t < -10 || t > 50) return; // 통신 불량 등 비정상 온도(-99도 등) 배제
+
+                let isTargetZone = false;
+
+                // 1순위: 완벽한 배치 매칭 ('1배치' 찾을 때 '11배치'가 끌려오지 않도록 정규식 사용)
+                if (batchIds.length > 0) {
+                  isTargetZone = batchIds.some(bId => {
+                    const regex = new RegExp(`(^|[^0-9])${bId}배치`);
+                    return regex.test(zoneName);
+                  });
+                }
+
+                // 2순위: 엉뚱한 배치(다른 방)의 기록이 내 데이터에 섞이는 현상 원천 차단
+                if (zoneName.includes('배치') && !isTargetZone) return;
+
+                // 타겟으로 확정된 배치(방)의 온도만 기간에 맞춰 합산
+                if (isTargetZone || (!zoneName.includes('배치') && batchIds.length === 0)) {
+                  if (logTime >= pStart.getTime() && logTime <= actualPEnd.getTime()) {
+                    if (isTargetZone || zoneName.includes('이유') || zoneName.includes('자돈') || zoneName.includes('포유')) {
+                      pSum += t; pCount++;
+                    }
+                  } 
+                  else if (logTime >= gStart.getTime() && logTime <= actualGEnd.getTime()) {
+                    if (isTargetZone || zoneName.includes('육성') || zoneName.includes('비육')) {
+                      gSum += t; gCount++;
+                    }
+                  } 
+                  else if (logTime >= fStart.getTime() && logTime <= actualFEnd.getTime()) {
+                    if (isTargetZone || zoneName.includes('육성') || zoneName.includes('비육')) {
+                      fSum += t; fCount++;
+                    }
+                  }
+                }
+              });
+            });
+
+            const pigletTemp = pCount > 0 ? (pSum / pCount).toFixed(1) : null;
+            const growerTemp = gCount > 0 ? (gSum / gCount).toFixed(1) : null;
+            const finisherTemp = fCount > 0 ? (fSum / fCount).toFixed(1) : null;
+
+            setCalcTemps({ piglet: pigletTemp, grower: growerTemp, finisher: finisherTemp });
+            
+            let validSums = 0; let validCounts = 0;
+            if(pigletTemp) { validSums += parseFloat(pigletTemp); validCounts++; }
+            if(growerTemp) { validSums += parseFloat(growerTemp); validCounts++; }
+            if(finisherTemp) { validSums += parseFloat(finisherTemp); validCounts++; }
+            
+            if (onAvgCalculated) {
+              onAvgCalculated(validCounts > 0 ? (validSums / validCounts).toFixed(1) : '-');
+            }
+            setLoadingTemp(false);
+          })
+          .catch(err => {
+            console.error("온도 데이터 로드 실패:", err);
+            setLoadingTemp(false);
+            if (onAvgCalculated) onAvgCalculated('-');
+          });
       }, [shipment, onAvgCalculated]);
-      return <div className="text-center text-xs text-slate-500 py-2">온도 데이터 연동 준비중</div>;
+
+      if (loadingTemp) {
+        return <div className="text-center py-4 text-xs font-bold text-slate-400 animate-pulse">온도 데이터 조회 중...</div>;
+      }
+
+      if (!calcTemps) {
+        return <div className="text-center py-4 text-xs font-bold text-slate-400">온도 데이터 없음</div>;
+      }
+
+      return (
+        <div className="grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-700">
+          <div className="bg-white p-2 rounded-lg border border-slate-200">
+            <span className="block text-[10px] text-slate-400 mb-1">자돈 (30~60일)</span>
+            <span className="text-blue-600">{calcTemps.piglet || '-'}℃</span>
+          </div>
+          <div className="bg-white p-2 rounded-lg border border-slate-200">
+            <span className="block text-[10px] text-slate-400 mb-1">육성 (61~100일)</span>
+            <span className="text-emerald-600">{calcTemps.grower || '-'}℃</span>
+          </div>
+          <div className="bg-white p-2 rounded-lg border border-slate-200">
+            <span className="block text-[10px] text-slate-400 mb-1">비육 (101일~출하)</span>
+            <span className="text-rose-600">{calcTemps.finisher || '-'}℃</span>
+          </div>
+        </div>
+      );
     };
 
-    function App() {
+    const App = () => {
       const [user, setUser] = useState(null);
-      const [sows, setSows] = useState([]);
-      const [weaningRecords, setWeaningRecords] = useState({}); 
-      const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0 }); 
-      const [shipments, setShipments] = useState([]); 
-      const [shipmentSummaries, setShipmentSummaries] = useState({}); 
-      const [gBatches, setGBatches] = useState([]); 
-      const [wBatches, setWBatches] = useState([]); 
-      const [accidents, setAccidents] = useState([]); 
-      const [feedRecords, setFeedRecords] = useState([]); 
-      const [onepassBatches, setOnepassBatches] = useState([]); 
       const [loading, setLoading] = useState(true);
       
-      const [alertMsg, setAlertMsg] = useState(null);
-      const [confirmConfig, setConfirmConfig] = useState(null);
-      const [toastMsg, setToastMsg] = useState(null);
+      const [sows, setSows] = useState([]);
+      const [weaningRecords, setWeaningRecords] = useState({});
+      const [farmSettings, setFarmSettings] = useState({});
+      const [shipments, setShipments] = useState([]);
+      const [shipmentSummaries, setShipmentSummaries] = useState({});
+      const [gBatches, setGBatches] = useState([]);
+      const [wBatches, setWBatches] = useState([]);
+      const [accidents, setAccidents] = useState([]);
+      const [feedRecords, setFeedRecords] = useState([]);
+      const [onepassBatches, setOnepassBatches] = useState([]);
 
-      const showAlert = (msg) => setAlertMsg(msg);
-      const showConfirm = (msg, onConfirm) => setConfirmConfig({ message: msg, onConfirm: () => { onConfirm(); setConfirmConfig(null); }, onCancel: () => setConfirmConfig(null) });
-      const showToast = (msg) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
+      const [alertMsg, setAlertMsg] = useState(null);
+      const [toastMsg, setToastMsg] = useState(null);
+      const [confirmConfig, setConfirmConfig] = useState(null);
 
       const [searchQuery, setSearchQuery] = useState('');
-      const [selectedSowId, setSelectedSowId] = useState(null);
-      const [showAddSow, setShowAddSow] = useState(false);
-      const [showSowListModal, setShowSowListModal] = useState(false);
       const [listFilter, setListFilter] = useState(null);
+
+      const [selectedSowId, setSelectedSowId] = useState(null);
+      const [showSowListModal, setShowSowListModal] = useState(false);
       
       const [showWeaningModal, setShowWeaningModal] = useState(false);
       const [isEditingWeaning, setIsEditingWeaning] = useState(false);
-      const [confirmWeaningDelete, setConfirmWeaningDelete] = useState(false); 
       const [weaningForm, setWeaningForm] = useState({ date: '', sowCount: '', totalWeaned: '' });
+      const [confirmWeaningDelete, setConfirmWeaningDelete] = useState(false);
       
       const [showFormulaModal, setShowFormulaModal] = useState(false);
       const [showParityModal, setShowParityModal] = useState(false);
       const [showMonthlySowModal, setShowMonthlySowModal] = useState(false);
       const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
       
-      const [selectedFeedMonth, setSelectedFeedMonth] = useState(null);
-      const [selectedMortalityDetail, setSelectedMortalityDetail] = useState(null);
-      const [selectedSettlementMonth, setSelectedSettlementMonth] = useState(null);
+      const [showAddSow, setShowAddSow] = useState(false);
+      const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
+
       const [selectedShipment, setSelectedShipment] = useState(null);
       const [modalAvgTemp, setModalAvgTemp] = useState('-');
-      
-      const [isFarrowingScheduleOpen, setIsFarrowingScheduleOpen] = useState(false);
+      const [selectedFeedMonth, setSelectedFeedMonth] = useState(null);
+      const [selectedSettlementMonth, setSelectedSettlementMonth] = useState(null);
+      const [selectedMortalityDetail, setSelectedMortalityDetail] = useState(null);
+
       const [isFeedScheduleOpen, setIsFeedScheduleOpen] = useState(false);
-      const [isSettlementScheduleOpen, setIsSettlementScheduleOpen] = useState(false);
+      const [isFarrowingScheduleOpen, setIsFarrowingScheduleOpen] = useState(false);
       const [isMortalityScheduleOpen, setIsMortalityScheduleOpen] = useState(false);
       const [isShipmentScheduleOpen, setIsShipmentScheduleOpen] = useState(false);
+      const [isSettlementScheduleOpen, setIsSettlementScheduleOpen] = useState(false);
 
-      const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
+      const showToast = (msg) => { setToastMsg(msg); setTimeout(() => setToastMsg(null), 3000); };
+      const showAlert = (msg) => setAlertMsg(msg);
 
       useEffect(() => {
         auth.signInAnonymously().catch(err => console.warn(err));
@@ -234,8 +381,6 @@
         if (searchQuery) result = result.filter(s => String(s.sowNo || '').toLowerCase().includes(searchQuery.toLowerCase()));
         return result;
       }, [sows, searchQuery, listFilter]);
-
-      const currentSow = useMemo(() => sows.find(s => s.id === selectedSowId) || null, [sows, selectedSowId]);
 
       const dashboardStats = useMemo(() => {
         const stats = {
@@ -340,17 +485,35 @@
       }, [feedRecords]);
 
       const monthlyCategoryDeathStats = useMemo(() => {
-        const cy = new Date().getFullYear().toString(); const stats = { '이유': {}, '육성': {} };
-        ['이유', '육성'].forEach(cat => { for (let m = 1; m <= 12; m++) stats[cat][String(m).padStart(2,'0')] = { total: 0, details: [] }; });
+        const currentYear = new Date().getFullYear().toString();
+        const stats = { '이유': {}, '육성': {} };
+        ['이유', '육성'].forEach(cat => {
+            for (let m = 1; m <= 12; m++) {
+                const mm = String(m).padStart(2, '0');
+                stats[cat][mm] = { total: 0, details: [] };
+            }
+        });
+        
         accidents.forEach(acc => {
-          if (!acc || !acc.date || !acc.date.startsWith(cy)) return;
-          const m = acc.date.substring(5, 7); const cnt = Number(acc.count) || 0; if (cnt <= 0) return;
-          const cat = acc.stage === 'weaning' ? '이유' : '육성'; const bId = acc.batchId || "알수없음";
-          if (stats[cat] && stats[cat][m]) {
-            stats[cat][m].total += cnt;
-            const ex = stats[cat][m].details.find(d => String(d.batchId) === String(bId));
-            if (ex) ex.count += cnt; else stats[cat][m].details.push({ batchId: bId, count: cnt });
-          }
+            if (!acc) return;
+            const dateStr = acc.date || '';
+            if (dateStr && dateStr.startsWith(currentYear)) {
+                const m = dateStr.substring(5, 7);
+                const count = Number(acc.count) || 0;
+                if (count <= 0) return;
+                const stage = acc.stage || '';
+                const cat = (stage === 'weaning') ? '이유' : '육성';
+                const batchId = acc.batchId || "알수없음";
+                if (stats[cat] && stats[cat][m]) {
+                    stats[cat][m].total += count;
+                    const existing = stats[cat][m].details.find(d => String(d.batchId) === String(batchId));
+                    if (existing) {
+                        existing.count += count;
+                    } else {
+                        stats[cat][m].details.push({ batchId, count });
+                    }
+                }
+            }
         });
         return stats;
       }, [accidents]);
@@ -558,6 +721,7 @@
           <main className="max-w-3xl mx-auto p-4">
             {sows.length > 0 ? (
               <div className="mb-6 space-y-5 animate-[slideUp_0.3s_ease-out]">
+                
                 {/* 생산성 주요 연산 카드 그리드 */}
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                   <div onClick={() => setShowMonthlySowModal(true)} className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md cursor-pointer hover:shadow-lg active:scale-95 transition-all relative overflow-hidden">
@@ -566,7 +730,7 @@
                   </div>
                   <div className="bg-slate-800 text-white p-3.5 rounded-2xl flex flex-col justify-between shadow-md">
                     <div className="flex flex-col mb-2"><span className="text-[11px] font-bold text-slate-300">최근 1년 출하두수</span><span className="text-[9px] text-slate-500">사육현황(실제 출하) 우선</span></div>
-                    <div className="flex items-baseline"><span className="text-3xl font-black text-white px-1">{((dashboardStats || {}).yearlyShipped || 0).toLocaleString()}</span><span className="text-xs ml-1 font-bold text-slate-400">두</span></div>
+                    <div className="flex items-baseline"><span className="text-3xl font-black text-white px-1">{((dashboardStats || {}).dbYearlyShipped || 0) > 0 ? ((dashboardStats || {}).dbYearlyShipped || 0).toLocaleString() : ((dashboardStats || {}).autoShipped || 0).toLocaleString()}</span><span className="text-xs ml-1 font-bold text-slate-400">두</span></div>
                   </div>
                   <div onClick={() => setShowFormulaModal(true)} className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md cursor-pointer hover:shadow-lg active:scale-95 transition-all">
                     <div className="flex items-center justify-between mb-1"><div className="flex flex-col"><span className="text-[11px] font-bold text-indigo-200">현재 PSY</span><span className="text-[9px] text-indigo-300 mt-0.5">수기 이유두수 기준</span></div><Activity c="w-4 h-4 text-indigo-300 opacity-50" /></div>
@@ -605,7 +769,7 @@
                     {sortedWeaningRecords.length === 0 ? <div className="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">직접 기록된 이유 성적이 없습니다.</div> : sortedWeaningRecords.map(stat => {
                       const st = stat || {};
                       return (
-                        <button key={st.date} type="button" onClick={() => openWeaningModal(st)} className="min-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all text-left outline-none appearance-none">
+                        <button key={st.date} type="button" onClick={() => openWeaningModal(st)} className="min-w-[120px] max-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all text-left outline-none appearance-none">
                           <span className="text-[11px] font-black text-slate-500 mb-2">{(st.date||'').substring(5).replace('-','/')} 이유</span>
                           <div className="flex flex-col gap-1.5 w-full">
                             <div className="flex justify-between items-center w-full bg-slate-50 px-1.5 py-1 rounded"><span className="text-[10px] font-bold text-slate-500">모돈</span><span className="text-[13px] font-black text-slate-800">{st.sowCount||0}<span className="text-[9px] font-normal ml-0.5">복</span></span></div>
@@ -687,16 +851,24 @@
                       {monthlySettlementStats.length === 0 ? <div className="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">등록된 출하 정산 데이터가 없습니다.</div> : monthlySettlementStats.map((stat) => {
                         const [yyyy, mm] = stat.ym.split('-');
                         return (
-                          <div key={stat.ym} onClick={() => setSelectedSettlementMonth(stat)} className="min-w-[145px] bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group">
+                          <button key={stat.ym} type="button" onClick={() => setSelectedSettlementMonth(stat)} className="min-w-[145px] max-w-[145px] bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group text-left outline-none appearance-none">
                             <div className="flex justify-between items-center mb-2"><span className="text-[11px] font-black text-slate-500 group-hover:text-emerald-700">{yyyy}년 {parseInt(mm)}월</span><TableIcon c="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500" /></div>
                             <div className="flex flex-col gap-1 flex-1">
                               <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded"><span className="text-[10px] font-bold text-slate-500">출하두수</span><span className="text-[11px] font-black text-slate-800">{stat.count.toLocaleString()}두</span></div>
                               <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded"><span className="text-[10px] font-bold text-slate-500">총 생체중</span><span className="text-[11px] font-black text-indigo-700">{stat.liveWeight.toLocaleString()}kg</span></div>
                             </div>
                             <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center"><span className="text-[10px] font-black text-emerald-600">예상 매출</span><span className="text-[11px] font-black text-emerald-700">{Math.round(stat.revenue).toLocaleString()} <span className="text-[9px] font-normal">원</span></span></div>
-                          </div>
+                          </button>
                         );
                       })}
+                    </div>
+                  )}
+                  {isSettlementScheduleOpen && monthlySettlementStats.length > 0 && (
+                    <div className="mt-3 bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex justify-between items-center shadow-sm animate-[slideUp_0.2s_ease-out]">
+                      <span className="text-xs font-black text-emerald-700">💰 올해 누적 총 매출액</span>
+                      <span className="text-lg font-black text-emerald-800 tracking-tight">
+                        {Math.round(monthlySettlementStats.reduce((sum, stat) => sum + stat.revenue, 0)).toLocaleString()} <span className="text-xs font-bold">원</span>
+                      </span>
                     </div>
                   )}
                 </div>
@@ -784,7 +956,6 @@
           </main>
 
           {}
-          {/* 검색 및 분류 리스트 팝업 */}
           {showSowListModal && (
             <div className="fixed inset-0 bg-slate-50 z-50 flex flex-col animate-[slideUp_0.2s_ease-out]">
               <header className="bg-white border-b border-slate-200 p-4 sticky top-0 z-10 shadow-sm flex items-center gap-3">
@@ -851,7 +1022,6 @@
             </div>
           )}
 
-          {/* 주간 이유 모달 */}
           {showWeaningModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -869,7 +1039,6 @@
             </div>
           )}
 
-          {/* FCR/PSY/MSY 계산식 안내 팝업 */}
           {showFormulaModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center p-4">
               <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out] max-h-[85vh] overflow-y-auto no-scrollbar">
@@ -907,7 +1076,6 @@
             </div>
           )}
 
-          {/* 산차별 현황 모달 */}
           {showParityModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -921,7 +1089,6 @@
             </div>
           )}
 
-          {/* 월말 모돈수 관리 모달 */}
           {showMonthlySowModal && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -964,7 +1131,7 @@
             </div>
           )}
 
-          {/* 사육현황 연동 출하 상세 모달 (TempTable 포함) */}
+          {}
           {selectedShipment && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
               <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
@@ -987,7 +1154,6 @@
             </div>
           )}
 
-          {/* 사료 입고 엑셀 모달 */}
           {selectedFeedMonth && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4">
               <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-[slideUp_0.2s_ease-out] max-h-[85vh]">
@@ -1025,7 +1191,6 @@
             </div>
           )}
 
-          {/* 원패스 출하 정산 엑셀 모달 */}
           {selectedSettlementMonth && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
@@ -1059,7 +1224,6 @@
             </div>
           )}
 
-          {/* 폐사/도태 상세 내역 모달 */}
           {selectedMortalityDetail && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
@@ -1093,6 +1257,7 @@
         </div>
       );
     }
+    
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
