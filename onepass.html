@@ -904,15 +904,27 @@
 
     // 이중 탐색 기반(Dual-Anchor) 엑셀 파서 로직
     function interpretAndProcessData(rawRows) {
-        let globalDate = getTodayFormatted();
+        let globalDate = '';
+        
+        // 1. 엑셀 상단(주로 1~15행)에서 명시적인 날짜(판정일자 등) 찾기 강화
         for (let i = 0; i < Math.min(rawRows.length, 15); i++) {
             if(!rawRows[i] || !Array.isArray(rawRows[i])) continue;
-            const rowStr = rawRows[i].join(' ');
-            const match = rowStr.match(/(20\d{2})[-.년 ]+(0[1-9]|1[0-2])[-.월 ]+(0[1-9]|[12]\d|3[01])/);
+            const rowStr = rawRows[i].join(' ').replace(/\s+/g, ' '); // 공백 정규화
+            
+            // "판정일자 : 2026-08-12" 또는 "출하일 : 2026년 8월 12일" 등 다양한 패턴 대응
+            const match = rowStr.match(/(20\d{2})[-.년 /]+([0-1]?[0-9])[-.월 /]+([0-3]?[0-9])/);
             if (match) {
-                globalDate = `${match[1]}-${match[2]}-${match[3]}`;
-                break;
+                // 한 자리 수 날짜에 0을 붙여 포맷 통일 (예: 2026-08-04)
+                const month = match[2].padStart(2, '0');
+                const day = match[3].padStart(2, '0');
+                globalDate = `${match[1]}-${month}-${day}`;
+                break; // 날짜를 찾으면 즉시 루프 종료
             }
+        }
+        
+        // 엑셀 내에서 날짜를 찾지 못한 경우에만 강제로 오늘 날짜 기입
+        if (!globalDate) {
+            globalDate = getTodayFormatted();
         }
 
         const processedList = [];
@@ -957,25 +969,26 @@
 
             if (anchorIdx === -1 || !foundFinalGrade) continue;
 
-            let numsBefore = [];
-            for (let j = anchorIdx - 1; j >= Math.max(0, anchorIdx - 15); j--) {
+            let weight = 0, fat = 0;
+            // 등급 열(Anchor)을 기준으로 바로 앞(왼쪽)에 있는 숫자들을 탐색
+            for (let j = anchorIdx - 1; j >= Math.max(0, anchorIdx - 10); j--) {
                 if (!textRow[j]) continue;
                 const valRaw = textRow[j].replace(/,/g, '');
                 const val = parseFloat(valRaw);
-                if (!isNaN(val) && val > 0 && val < 300) {
-                    numsBefore.push(val);
+                
+                if (!isNaN(val) && val > 0) {
+                    // 보통 1차등급 바로 앞이 등지방(5~45), 그 앞이 도체중(45~160)입니다.
+                    // 기존의 Math.max(가장 큰 값 채택) 오류를 제거하고, 조건에 맞는 가장 '가까운' 숫자를 우선 채택합니다.
+                    if (val < 45 && fat === 0) {
+                        fat = val;
+                    } else if (val >= 45 && val <= 180 && weight === 0) {
+                        weight = val;
+                    }
+                    
+                    // 도체중과 등지방 두 값을 모두 찾았다면 더 이상 왼쪽으로 가지 않고 탐색 종료 (일련번호 등 혼동 방지)
+                    if (weight !== 0 && fat !== 0) break;
                 }
             }
-
-            let weight = 0, fat = 0;
-            numsBefore.forEach(val => {
-                if (val >= 45 && val <= 200) {
-                    if (weight === 0) weight = val;
-                    else weight = Math.max(weight, val);
-                } else if (val >= 5 && val < 45) {
-                    if (fat === 0) fat = val;
-                }
-            });
 
             if (weight === 0) continue;
 
@@ -1283,8 +1296,12 @@
             
             showToast("실 정산 대금이 실시간 동기화되었습니다.", "success");
             
-            // UI 전체 및 차트 갱신 (실 지급율 즉시 반영을 위해)
-            syncDatabaseUI();
+            // 필터 유지한 상태로 차트 다시 그리기
+            const filterMonth = document.getElementById('month-selector').value;
+            const filterDate = document.getElementById('date-selector') ? document.getElementById('date-selector').value : '';
+            if (filterDate) filterDashboardData('date', filterDate);
+            else if (filterMonth) filterDashboardData('month', filterMonth);
+            else filterDashboardData('all');
         }
     }
 
@@ -1367,21 +1384,21 @@
             const realPriceVal = batch.realPrice !== undefined ? batch.realPrice : batch.totalPrice;
             const topRatioStr = batch.topRatio !== undefined ? batch.topRatio.toFixed(1) : '-';
 
-            // --- 실 지급율 (역산) 계산 ---
-            const currentMarketPrice = batch.marketPrice > 0 ? batch.marketPrice : STATE.settings.marketPrice;
-            const effectiveLiveWeight = batch.liveWeight > 0 ? batch.liveWeight : (batch.totalWeight / ((batch.yieldRate || 76.5) / 100));
-            let realPaymentRate = 0;
-            if (effectiveLiveWeight > 0 && currentMarketPrice > 0) {
-                realPaymentRate = (realPriceVal / (effectiveLiveWeight * currentMarketPrice)) * 100;
-            }
+            const actualYieldPercent = batch.liveWeight > 0 ? (realPriceVal / (batch.liveWeight * (batch.marketPrice > 0 ? batch.marketPrice : STATE.settings.marketPrice))) * 100 : 0;
+            const actualYieldStr = actualYieldPercent > 0 ? `<div class="mt-1.5"><span class="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full shadow-sm">실 지급율 ${actualYieldPercent.toFixed(1)}%</span></div>` : `<div class="mt-1.5"><span class="text-[10px] text-slate-400 font-medium">총 생체중 미입력</span></div>`;
 
             tr.innerHTML = `
-                <td class="p-4 text-left">
-                    <button onclick="openBatchDetails('${batch.id}')" class="font-black text-slate-700 hover:text-emerald-600 group flex items-center transition-colors">
-                        ${batch.date}
-                        <svg class="w-4 h-4 ml-1.5 opacity-0 group-hover:opacity-100 transition-opacity text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                    </button>
-                    <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded mt-1 inline-block">상세보기</span>
+                <td class="p-4 text-left align-top">
+                    <input type="date" value="${batch.date}" onchange="updateBatchDate('${batch.id}', this.value)" class="text-sm font-black text-slate-700 bg-transparent border border-transparent hover:border-slate-300 rounded-md p-1.5 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all cursor-pointer w-36" title="날짜 클릭하여 수정" />
+                    <div class="flex items-center gap-1.5 mt-1.5">
+                        <button onclick="openBatchDetails('${batch.id}')" class="flex items-center text-[10px] font-bold bg-slate-100 hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 px-2 py-1.5 rounded border border-slate-200 hover:border-emerald-200 transition-colors w-max shadow-sm">
+                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                            상세내역
+                        </button>
+                        <button onclick="deleteBatch('${batch.id}')" class="flex items-center text-[10px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-500 hover:text-rose-700 px-2 py-1.5 rounded border border-rose-200 transition-colors w-max shadow-sm" title="이 기록 삭제">
+                            삭제
+                        </button>
+                    </div>
                 </td>
                 <td class="p-4 font-black text-indigo-600">
                     ${batch.headCount} 두<br>
@@ -1400,12 +1417,12 @@
                 </td>
                 <td class="p-4 text-right font-black text-slate-400 tracking-tight">${batch.totalPrice.toLocaleString()} 원</td>
                 <td class="p-4 text-center">
-                    <div class="flex items-center space-x-1 justify-center relative">
-                        <input type="text" value="${realPriceVal.toLocaleString()}" onchange="updateRealPrice('${batch.id}', this)" oninput="formatNumberInput(this)" class="w-36 text-right border border-emerald-300 rounded-lg p-2 text-sm font-black text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm bg-emerald-50/50 pr-7" />
-                        <span class="text-[10px] text-slate-400 font-black absolute right-2 pointer-events-none">원</span>
-                    </div>
-                    <div class="text-[11px] text-emerald-600 font-bold mt-1.5">
-                        실 지급율: <span class="font-black text-emerald-700">${realPaymentRate.toFixed(2)}%</span>
+                    <div class="flex flex-col items-center justify-center relative">
+                        <div class="flex items-center space-x-1 justify-center relative w-full">
+                            <input type="text" value="${realPriceVal.toLocaleString()}" onchange="updateRealPrice('${batch.id}', this)" oninput="formatNumberInput(this)" class="w-36 text-right border border-emerald-300 rounded-lg p-2 text-sm font-black text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm bg-emerald-50/50 pr-7" />
+                            <span class="text-[10px] text-slate-400 font-black absolute right-2 pointer-events-none">원</span>
+                        </div>
+                        ${actualYieldStr}
                     </div>
                 </td>
             `;
@@ -1419,6 +1436,48 @@
         if (filterMonth) filterDashboardData('month', filterMonth);
         else if (is12m) filterDashboardData('12m');
         else renderDashboardCharts(STATE.database);
+    }
+
+    // --- 수기 날짜 변경 함수 ---
+    function updateBatchDate(batchId, newDate) {
+        if (!newDate) return;
+        const index = STATE.database.findIndex(b => b.id === batchId);
+        if (index !== -1) {
+            STATE.database[index].date = newDate;
+            
+            // 날짜 변경 후 오름차순 재정렬
+            STATE.database.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            saveHistoryToStorage();
+            
+            if (firestoreDB) {
+                firestoreDB.collection('pig_onepass_batches').doc(batchId).update({ date: newDate })
+                    .catch(err => {
+                        console.error("Firestore date update error:", err);
+                        if (unsubFirestore) { unsubFirestore(); unsubFirestore = null; updateDbBadge(false); }
+                    });
+            }
+            
+            showToast("출하 일자가 수정되어 재배치되었습니다.", "success");
+            syncDatabaseUI(); // UI 재렌더링 및 차트 업데이트
+        }
+    }
+
+    function deleteBatch(batchId) {
+        showCustomConfirm('해당 일자의 출하 기록을 완전히 삭제하시겠습니까? 관련 차트에서도 제거됩니다.', function() {
+            // 로컬 우선 반영
+            STATE.database = STATE.database.filter(b => b.id !== batchId);
+            saveHistoryToStorage();
+            
+            // Firestore 연동
+            if (firestoreDB) {
+                firestoreDB.collection('pig_onepass_batches').doc(batchId).delete()
+                    .catch(err => console.error("Firestore delete error:", err));
+            }
+            
+            showToast("해당 배치 기록이 삭제되었습니다.", "info");
+            syncDatabaseUI();
+        });
     }
 
     function clearAllHistory() {
