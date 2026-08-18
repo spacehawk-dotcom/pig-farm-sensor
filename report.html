@@ -768,17 +768,43 @@
                   <div className="flex overflow-x-auto gap-2 pb-2 snap-x no-scrollbar">
                     {sortedWeaningRecords.length === 0 ? <div className="w-full text-center py-4 bg-white/50 border border-dashed border-blue-200 rounded-xl text-xs font-bold text-blue-400">직접 기록된 이유 성적이 없습니다.</div> : sortedWeaningRecords.map(stat => {
                       const st = stat || {};
+                      const weanedPerSow = (st.sowCount && st.sowCount > 0) ? (st.totalWeaned / st.sowCount).toFixed(1) : '0.0';
                       return (
-                        <button key={st.date} type="button" onClick={() => openWeaningModal(st)} className="min-w-[120px] max-w-[120px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all text-left outline-none appearance-none">
+                        <button key={st.date} type="button" onClick={() => openWeaningModal(st)} className="min-w-[125px] max-w-[125px] bg-white border border-blue-200 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-400 active:scale-95 transition-all text-left outline-none appearance-none">
                           <span className="text-[11px] font-black text-slate-500 mb-2">{(st.date||'').substring(5).replace('-','/')} 이유</span>
-                          <div className="flex flex-col gap-1.5 w-full">
-                            <div className="flex justify-between items-center w-full bg-slate-50 px-1.5 py-1 rounded"><span className="text-[10px] font-bold text-slate-500">모돈</span><span className="text-[13px] font-black text-slate-800">{st.sowCount||0}<span className="text-[9px] font-normal ml-0.5">복</span></span></div>
-                            <div className="flex justify-between items-center w-full bg-blue-100/50 px-1.5 py-1 rounded border border-blue-100"><span className="text-[10px] font-bold text-blue-600">이유</span><span className="text-[14px] font-black text-blue-700">{st.totalWeaned||0}<span className="text-[9px] font-normal ml-0.5">두</span></span></div>
+                          <div className="flex flex-col gap-1 w-full">
+                            <div className="flex justify-between items-center w-full bg-slate-50 px-1.5 py-1 rounded"><span className="text-[9px] font-bold text-slate-500">모돈</span><span className="text-[11px] font-black text-slate-800">{st.sowCount||0}<span className="text-[8px] font-normal ml-0.5">복</span></span></div>
+                            <div className="flex justify-between items-center w-full bg-blue-50 px-1.5 py-1 rounded border border-blue-100"><span className="text-[9px] font-bold text-blue-600">총 이유</span><span className="text-[11px] font-black text-blue-700">{st.totalWeaned||0}<span className="text-[8px] font-normal ml-0.5">두</span></span></div>
+                            <div className="flex justify-between items-center w-full bg-indigo-50 border border-indigo-200 px-1.5 py-1 rounded"><span className="text-[10px] font-black text-indigo-700">복당</span><span className="text-[12px] font-black text-indigo-900">{weanedPerSow}</span></div>
                           </div>
                         </button>
                       );
                     })}
                   </div>
+                  {(() => {
+                    const currentYearStr = new Date().getFullYear().toString();
+                    let yearlyTotalWeaned = 0;
+                    let yearlyTotalSows = 0;
+                    sortedWeaningRecords.forEach(r => {
+                        if (r.date && r.date.startsWith(currentYearStr)) {
+                            yearlyTotalWeaned += Number(r.totalWeaned || 0);
+                            yearlyTotalSows += Number(r.sowCount || 0);
+                        }
+                    });
+                    const yearlyAvgWeanedPerSow = yearlyTotalSows > 0 ? (yearlyTotalWeaned / yearlyTotalSows).toFixed(1) : '0.0';
+                    
+                    if (sortedWeaningRecords.length > 0) {
+                        return (
+                            <div className="mt-3 bg-indigo-50 border border-indigo-200 rounded-xl p-3 flex justify-between items-center shadow-sm">
+                              <span className="text-xs font-black text-indigo-800">🤱 올해 평균 복당 이유두수</span>
+                              <span className="text-lg font-black text-indigo-900 tracking-tight">
+                                {yearlyAvgWeanedPerSow} <span className="text-xs font-bold">두</span>
+                              </span>
+                            </div>
+                        );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 {/* 월별 교배 및 분만 실적 (Accordion) */}
