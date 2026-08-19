@@ -833,7 +833,7 @@
                         const q = parseFloat(o.quantity) || 0;
                         dayTotal += q;
                         currentMonthTotal += q;
-                        return { type: o.feedType, bin: o.bulkBin, qty: q };
+                        return { id: o.id, type: o.feedType, bin: o.bulkBin, qty: q };
                     });
 
                     cells.push({
@@ -1651,19 +1651,28 @@
                                                             const bgStyle = isBag ? 'bg-amber-50 text-amber-700 border-amber-200 font-bold' : (badgeColors[badge.type] || 'bg-slate-100 text-slate-700 border-slate-200');
                                                             
                                                             return (
-                                                                <div key={bIdx} className={`px-1 py-0.5 rounded text-[8.5px] font-sans font-black flex justify-between items-center border ${bgStyle} tracking-tighter`}>
-                                                                    {isBag ? (
-                                                                        <React.Fragment>
-                                                                            <span className="font-bold">{badge.bin.replace(' ', '')}</span>
-                                                                            <span className="text-right">{bagsVal}포({badge.qty.toFixed(2)}t)</span>
-                                                                        </React.Fragment>
-                                                                    ) : (
-                                                                        <React.Fragment>
-                                                                            <span className="truncate w-1/3">{badge.type}</span>
-                                                                            <span className="text-center w-1/3 opacity-75">{badge.bin}번</span>
-                                                                            <span className="text-right w-1/3">{badge.qty.toFixed(1)}t</span>
-                                                                        </React.Fragment>
-                                                                    )}
+                                                                <div key={bIdx} className={`px-1 py-0.5 rounded text-[8.5px] font-sans font-black flex justify-between items-center border ${bgStyle} tracking-tighter gap-1`}>
+                                                                    <div className="flex-1 flex justify-between items-center">
+                                                                        {isBag ? (
+                                                                            <React.Fragment>
+                                                                                <span className="font-bold">{badge.bin.replace(' ', '')}</span>
+                                                                                <span className="text-right">{bagsVal}포({badge.qty.toFixed(2)}t)</span>
+                                                                            </React.Fragment>
+                                                                        ) : (
+                                                                            <React.Fragment>
+                                                                                <span className="truncate w-1/3">{badge.type}</span>
+                                                                                <span className="text-center w-1/3 opacity-75">{badge.bin}번</span>
+                                                                                <span className="text-right w-1/3">{badge.qty.toFixed(1)}t</span>
+                                                                            </React.Fragment>
+                                                                        )}
+                                                                    </div>
+                                                                    <button 
+                                                                        onClick={(e) => { e.stopPropagation(); handleDeleteClick(badge.id); }} 
+                                                                        className="p-0.5 text-slate-400 hover:text-rose-600 bg-white/50 rounded-sm shrink-0 transition-colors"
+                                                                        title="삭제"
+                                                                    >
+                                                                        <X className="w-2.5 h-2.5" />
+                                                                    </button>
                                                                 </div>
                                                             );
                                                         })}
