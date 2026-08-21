@@ -129,7 +129,6 @@
         const fEnd = new Date(shipment.date);
         fEnd.setHours(23, 59, 59, 999);
 
-        // 조기 출하 시, 각 구간의 마지막 날짜가 출하일을 넘지 못하게 차단
         const actualPEnd = new Date(Math.min(pEnd.getTime(), fEnd.getTime()));
         const actualGEnd = new Date(Math.min(gEnd.getTime(), fEnd.getTime()));
         const actualFEnd = fEnd;
@@ -153,21 +152,18 @@
 
             const batchIds = shipment.batchIds || [];
 
-            // 해당 배치의 온도만 정밀하게 솎아내는 로직
             Object.entries(logs).forEach(([timestampMs, zones]) => {
               const logTime = Number(timestampMs);
-              if (logTime > fEnd.getTime()) return; // 출하 이후 데이터 스킵
+              if (logTime > fEnd.getTime()) return; 
 
               Object.entries(zones).forEach(([zoneName, zoneData]) => {
                 if (!zoneData || !zoneData.temp || zoneData.temp === "--") return;
                 if (zoneName.includes('외부')) return;
 
                 const t = Number(zoneData.temp);
-                if (isNaN(t) || t < -10 || t > 50) return; // 통신 불량 등 비정상 온도(-99도 등) 배제
+                if (isNaN(t) || t < -10 || t > 50) return; 
 
                 let isTargetZone = false;
-
-                // 1순위: 완벽한 배치 매칭 ('1배치' 찾을 때 '11배치'가 끌려오지 않도록 정규식 사용)
                 if (batchIds.length > 0) {
                   isTargetZone = batchIds.some(bId => {
                     const regex = new RegExp(`(^|[^0-9])${bId}배치`);
@@ -175,10 +171,8 @@
                   });
                 }
 
-                // 2순위: 엉뚱한 배치(다른 방)의 기록이 내 데이터에 섞이는 현상 원천 차단
                 if (zoneName.includes('배치') && !isTargetZone) return;
 
-                // 타겟으로 확정된 배치(방)의 온도만 기간에 맞춰 합산
                 if (isTargetZone || (!zoneName.includes('배치') && batchIds.length === 0)) {
                   if (logTime >= pStart.getTime() && logTime <= actualPEnd.getTime()) {
                     if (isTargetZone || zoneName.includes('이유') || zoneName.includes('자돈') || zoneName.includes('포유')) {
@@ -232,17 +226,17 @@
 
       return (
         <div className="grid grid-cols-3 gap-2 text-center text-xs font-bold text-slate-700">
-          <div className="bg-white p-2 rounded-lg border border-slate-200">
+          <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center">
             <span className="block text-[10px] text-slate-400 mb-1">자돈 (30~60일)</span>
-            <span className="text-blue-600">{calcTemps.piglet || '-'}℃</span>
+            <span className="text-blue-600 font-black">{calcTemps.piglet || '-'}℃</span>
           </div>
-          <div className="bg-white p-2 rounded-lg border border-slate-200">
+          <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center">
             <span className="block text-[10px] text-slate-400 mb-1">육성 (61~100일)</span>
-            <span className="text-emerald-600">{calcTemps.grower || '-'}℃</span>
+            <span className="text-emerald-600 font-black">{calcTemps.grower || '-'}℃</span>
           </div>
-          <div className="bg-white p-2 rounded-lg border border-slate-200">
+          <div className="bg-white p-2 rounded-lg border border-slate-200 shadow-sm flex flex-col justify-center">
             <span className="block text-[10px] text-slate-400 mb-1">비육 (101일~출하)</span>
-            <span className="text-rose-600">{calcTemps.finisher || '-'}℃</span>
+            <span className="text-rose-600 font-black">{calcTemps.finisher || '-'}℃</span>
           </div>
         </div>
       );
@@ -286,12 +280,14 @@
       const [showAddSow, setShowAddSow] = useState(false);
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
 
+      // 모달 상태변수
       const [selectedShipment, setSelectedShipment] = useState(null);
       const [modalAvgTemp, setModalAvgTemp] = useState('-');
       const [selectedFeedMonth, setSelectedFeedMonth] = useState(null);
       const [selectedSettlementMonth, setSelectedSettlementMonth] = useState(null);
       const [selectedMortalityDetail, setSelectedMortalityDetail] = useState(null);
 
+      // 아코디언 토글 상태변수 (모두 기본 닫힘)
       const [isFeedScheduleOpen, setIsFeedScheduleOpen] = useState(false);
       const [isFarrowingScheduleOpen, setIsFarrowingScheduleOpen] = useState(false);
       const [isMortalityScheduleOpen, setIsMortalityScheduleOpen] = useState(false);
@@ -490,7 +486,7 @@
         ['이유', '육성'].forEach(cat => {
             for (let m = 1; m <= 12; m++) {
                 const mm = String(m).padStart(2, '0');
-                stats[cat][mm] = { total: 0, details: [] };
+                stats[cat][mm] = { total: 0, details: {} };
             }
         });
         
@@ -503,20 +499,51 @@
                 if (count <= 0) return;
                 const stage = acc.stage || '';
                 const cat = (stage === 'weaning') ? '이유' : '육성';
-                const batchId = acc.batchId || "알수없음";
+                const batchId = acc.batchId;
+
+                let targetBatch = null;
+                if (cat === '이유') targetBatch = wBatches.find(b => String(b.id) === String(batchId));
+                else targetBatch = gBatches.find(b => String(b.id) === String(batchId));
+
+                let ageRange = "알 수 없음 (기준일 누락)";
+                
+                if (targetBatch) {
+                    const startDate = targetBatch.weaningDate || (targetBatch.penDates && targetBatch.penDates[0]) || targetBatch.date;
+                    if (startDate) {
+                        const tAcc = new Date(dateStr).getTime();
+                        const tStart = new Date(startDate).getTime();
+                        
+                        if (!isNaN(tAcc) && !isNaN(tStart)) {
+                            const diffDays = Math.floor((tAcc - tStart) / 86400000);
+                            let age = diffDays;
+                            
+                            // 전입 시점 기본 일령 더하기
+                            if (cat === '이유') age += 24; 
+                            else age += 70; 
+
+                            if (cat === '이유') {
+                                if (age < 30) ageRange = "30일령 미만";
+                                else if (age < 50) ageRange = "30 ~ 49일령";
+                                else if (age < 70) ageRange = "50 ~ 69일령";
+                                else ageRange = "70일령 이상";
+                            } else {
+                                if (age < 70) ageRange = "70일령 미만 (최근 전입)";
+                                else if (age < 100) ageRange = "70 ~ 99일령";
+                                else if (age < 130) ageRange = "100 ~ 129일령";
+                                else ageRange = "130일령 이상 (비육)";
+                            }
+                        }
+                    }
+                }
+
                 if (stats[cat] && stats[cat][m]) {
                     stats[cat][m].total += count;
-                    const existing = stats[cat][m].details.find(d => String(d.batchId) === String(batchId));
-                    if (existing) {
-                        existing.count += count;
-                    } else {
-                        stats[cat][m].details.push({ batchId, count });
-                    }
+                    stats[cat][m].details[ageRange] = (stats[cat][m].details[ageRange] || 0) + count;
                 }
             }
         });
         return stats;
-      }, [accidents]);
+      }, [accidents, wBatches, gBatches]);
 
       const monthlySettlementStats = useMemo(() => {
         const cy = new Date().getFullYear().toString(); 
@@ -550,7 +577,7 @@
               count: data.count,
               revenue: data.revenue,
               liveWeight: data.weight,
-              gradeCount: data.count,
+              gradeCount: data.count, // mock
               topGradeCount: Math.round(data.count * (data.topRatio / 100)),
               batches: [{ 
                 date: `${ym}-28`, 
@@ -569,7 +596,7 @@
         return Object.entries(weaningRecords)
           .filter(([_, data]) => Boolean(data))
           .map(([date, data]) => ({ date, ...data }))
-          .sort((a, b) => b.date.localeCompare(a.date));
+          .sort((a, b) => String((b || {}).date || '').localeCompare(String((a || {}).date || '')));
       }, [weaningRecords]);
 
       const groupedShipments = useMemo(() => {
@@ -687,8 +714,8 @@
         ['이유', '육성'].forEach(cat => {
             Object.entries(monthlyCategoryDeathStats[cat]).forEach(([mm, data]) => {
                 if(data.total > 0) {
-                    data.details.forEach(d => {
-                        ed.push({ '사육단계': cat, '월': `${mm}월`, '배치': String(d.batchId) === '8' ? '후보사' : `${d.batchId} 배치`, '폐사/도태(두)': d.count });
+                    Object.entries(data.details).forEach(([ageRange, count]) => {
+                        ed.push({ '사육단계': cat, '월': `${mm}월`, '일령구간': ageRange, '폐사/도태(두)': count });
                     });
                 }
             });
@@ -751,7 +778,7 @@
                 </div>
 
                 <div className="grid grid-cols-1 gap-2 mt-2">
-                  <button onClick={() => setShowParityModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform">
+                  <button onClick={() => setShowParityModal(true)} className="bg-white border border-slate-200 text-slate-800 p-4 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-2 font-black active:scale-95 transition-transform appearance-none outline-none w-full text-center">
                     <div className="bg-indigo-50 p-2 rounded-full"><Activity c="w-5 h-5 text-indigo-500" /></div><span className="text-xs">산차별 현황</span>
                   </button>
                 </div>
@@ -818,13 +845,13 @@
                       {monthlyActivityStats.length === 0 ? <div className="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">기록된 실적이 없습니다.</div> : monthlyActivityStats.map(stat => {
                         const [yyyy, mm] = stat.month.split('-');
                         return (
-                          <div key={stat.month} onClick={() => openFilteredList('activityMonth', stat.month)} className="min-w-[120px] bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 active:scale-95 transition-all">
+                          <button key={stat.month} type="button" onClick={() => openFilteredList('activityMonth', stat.month)} className="min-w-[120px] bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 active:scale-95 transition-all outline-none appearance-none text-left">
                             <span className="text-[11px] font-black text-slate-500 mb-2">{yyyy}년 {parseInt(mm)}월</span>
-                            <div className="flex flex-col gap-1.5">
+                            <div className="flex flex-col gap-1.5 w-full">
                               <div className="flex justify-between items-center bg-blue-50 px-1.5 py-1 rounded border border-blue-100"><span className="text-[10px] font-bold text-blue-600">교배(임신)</span><span className="text-[13px] font-black text-blue-700">{stat.mated}<span className="text-[9px] font-normal ml-0.5">복</span></span></div>
                               <div className="flex justify-between items-center bg-emerald-50 px-1.5 py-1 rounded border border-emerald-100"><span className="text-[10px] font-bold text-emerald-600">분만(포유)</span><span className="text-[13px] font-black text-emerald-700">{stat.farrowed}<span className="text-[9px] font-normal ml-0.5">복</span></span></div>
                             </div>
-                          </div>
+                          </button>
                         );
                       })}
                     </div>
@@ -847,15 +874,15 @@
                         const [yyyy, mm] = stat.ym.split('-');
                         const typesArr = Object.entries(stat.types).sort((a, b) => b[1] - a[1]);
                         return (
-                          <div key={stat.ym} onClick={() => setSelectedFeedMonth(stat)} className="min-w-[145px] bg-slate-50 border border-slate-200 hover:border-amber-400 hover:bg-amber-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group">
-                            <div className="flex justify-between items-center mb-2"><span className="text-[11px] font-black text-slate-500 group-hover:text-amber-700">{yyyy}년 {parseInt(mm)}월</span><TableIcon c="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-500" /></div>
-                            <div className="flex flex-col gap-1.5 flex-1">
+                          <button key={stat.ym} type="button" onClick={() => setSelectedFeedMonth(stat)} className="min-w-[145px] bg-slate-50 border border-slate-200 hover:border-amber-400 hover:bg-amber-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group outline-none appearance-none text-left">
+                            <div className="flex justify-between items-center mb-2 w-full"><span className="text-[11px] font-black text-slate-500 group-hover:text-amber-700">{yyyy}년 {parseInt(mm)}월</span><TableIcon c="w-3.5 h-3.5 text-slate-300 group-hover:text-amber-500" /></div>
+                            <div className="flex flex-col gap-1.5 flex-1 w-full">
                               {typesArr.length === 0 ? <span className="text-[10px] text-slate-400 text-center py-2 flex-1">주문내역 없음</span> : typesArr.map(([type, amount]) => (
                                 <div key={type} className="flex justify-between items-center bg-white px-1.5 py-1 rounded border border-slate-100"><span className="text-[10px] font-bold text-slate-600 truncate mr-2">{type}</span><span className="text-[11px] font-black text-slate-800 whitespace-nowrap">{amount.toFixed(1)} <span className="text-[9px] font-normal text-slate-400">톤</span></span></div>
                               ))}
                             </div>
-                            <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center"><span className="text-[10px] font-black text-amber-600">총합계</span><span className="text-[13px] font-black text-amber-700">{stat.total.toFixed(1)} <span className="text-[9px] font-normal text-amber-500">톤</span></span></div>
-                          </div>
+                            <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center w-full"><span className="text-[10px] font-black text-amber-600">총합계</span><span className="text-[13px] font-black text-amber-700">{stat.total.toFixed(1)} <span className="text-[9px] font-normal text-amber-500">톤</span></span></div>
+                          </button>
                         );
                       })}
                     </div>
@@ -904,7 +931,7 @@
                   <div className="flex justify-between items-center mb-3">
                     <div className="flex flex-col flex-1 cursor-pointer select-none" onClick={() => setIsMortalityScheduleOpen(!isMortalityScheduleOpen)}>
                       <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5">올해 사육단계별 월간 폐사/도태 현황</h3>
-                      <span className="text-[10px] font-bold text-slate-400 mt-0.5">※ 칸 클릭 시, 해당 월의 상세 배치별 폐사/도태 보고서가 열립니다</span>
+                      <span className="text-[10px] font-bold text-slate-400 mt-0.5">※ 칸 클릭 시, 해당 월의 상세 일령별 폐사/도태 보고서가 열립니다</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {isMortalityScheduleOpen && <button onClick={(e) => { e.stopPropagation(); downloadMortalityExcel(); }} className="bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1 transition-all"><Download c="w-3.5 h-3.5" /> 엑셀</button>}
@@ -929,7 +956,7 @@
                                 <td className="p-3.5 font-black text-center bg-slate-50/50 text-slate-700 border-r border-slate-200 text-sm">{cat}</td>
                                 {Array.from({length: 12}, (_, i) => {
                                   const mm = String(i + 1).padStart(2, '0'); 
-                                  const mData = monthlyCategoryDeathStats[cat][mm] || { total: 0, details: [] };
+                                  const mData = monthlyCategoryDeathStats[cat][mm] || { total: 0, details: {} };
                                   catTotalSum += mData.total; 
                                   const hasLoss = mData.total > 0;
                                   return (
@@ -1049,8 +1076,8 @@
           )}
 
           {showWeaningModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-end md:items-center justify-center p-4">
+              <div className="bg-white rounded-2xl w-full max-w-md p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6"><div className="flex flex-col"><h3 className="text-lg font-black text-slate-800">이유 성적 기록</h3><span className="text-xs font-bold text-blue-600">{isEditingWeaning ? '기록 수정' : '새 기록 추가'}</span></div><button onClick={() => setShowWeaningModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800"><X c="w-5 h-5" /></button></div>
                 <form onSubmit={handleSaveWeaning} className="space-y-4 border-t border-slate-100 pt-4">
                   <div><label className="text-[11px] font-bold text-slate-500 block mb-1">이유일 (날짜)</label><input type="date" required value={weaningForm.date || ''} onChange={e => setWeaningForm({...weaningForm, date: e.target.value})} disabled={isEditingWeaning} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400 disabled:opacity-50 disabled:cursor-not-allowed" />{isEditingWeaning && <p className="text-[9px] text-slate-400 mt-1">수정 시 날짜는 변경할 수 없습니다. 삭제 후 다시 등록해주세요.</p>}</div>
@@ -1103,12 +1130,12 @@
           )}
 
           {showParityModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center p-4">
+              <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6"><div className="flex flex-col"><h3 className="text-lg font-black text-slate-800">산차별 현황</h3><span className="text-xs font-bold text-indigo-500">클릭하여 해당 산차 목록 확인</span></div><button onClick={() => setShowParityModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X c="w-5 h-5" /></button></div>
                 <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto no-scrollbar pb-4">
                   {Object.keys((dashboardStats || {}).parity || {}).sort((a,b) => Number(a) - Number(b)).map(p => (
-                    <div key={p} onClick={() => { setShowParityModal(false); openFilteredList('parity', Number(p)); }} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col items-center shadow-sm cursor-pointer hover:border-blue-300 hover:bg-blue-50 active:scale-95 transition-all"><span className="text-[10px] font-bold text-slate-400 mb-0.5">{p}산</span><span className="text-lg font-black text-slate-800">{((dashboardStats || {}).parity || {})[p] || 0}<span className="text-[10px] font-bold ml-0.5">두</span></span></div>
+                    <button type="button" key={p} onClick={() => { setShowParityModal(false); openFilteredList('parity', Number(p)); }} className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col items-center shadow-sm cursor-pointer hover:border-blue-300 hover:bg-blue-50 active:scale-95 transition-all appearance-none outline-none"><span className="text-[10px] font-bold text-slate-400 mb-0.5">{p}산</span><span className="text-lg font-black text-slate-800">{((dashboardStats || {}).parity || {})[p] || 0}<span className="text-[10px] font-bold ml-0.5">두</span></span></button>
                   ))}
                 </div>
               </div>
@@ -1116,8 +1143,8 @@
           )}
 
           {showMonthlySowModal && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center p-4">
+              <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6"><div className="flex flex-col"><h3 className="text-lg font-black text-slate-800">월말 상시 모돈수 기록</h3><span className="text-xs font-bold text-blue-600">현재 달은 실시간 연동되어 고정됩니다</span></div><button onClick={() => setShowMonthlySowModal(false)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X c="w-5 h-5" /></button></div>
                 <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-2 rounded-xl mb-4"><button onClick={() => setSelectedYear(y => y - 1)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors"><ArrowLeft c="w-4 h-4 text-slate-600"/></button><span className="font-black text-slate-800">{selectedYear}년</span><button onClick={() => setSelectedYear(y => y + 1)} className="p-2 hover:bg-slate-200 rounded-lg transition-colors"><ChevronRight c="w-4 h-4 text-slate-600"/></button></div>
                 <div className="grid grid-cols-3 gap-2 mb-4 max-h-[45vh] overflow-y-auto no-scrollbar pb-2">
@@ -1142,8 +1169,8 @@
           {/* 모돈 추가 플로팅 버튼 및 팝업 */}
           <button onClick={() => { setShowSowListModal(false); setShowAddSow(true); }} className="fixed bottom-6 right-6 bg-slate-800 text-white w-14 h-14 rounded-full shadow-xl flex items-center justify-center hover:bg-slate-700 active:scale-95 transition-transform z-[60]"><Plus c="w-6 h-6" /></button>
           {showAddSow && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[70] flex items-end md:items-center justify-center p-4">
+              <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6"><h3 className="text-lg font-black text-slate-800">새 모돈 등록</h3><button onClick={() => setShowAddSow(false)} className="p-2 bg-slate-100 rounded-full text-slate-500"><X c="w-5 h-5" /></button></div>
                 <form onSubmit={handleAddSow} className="space-y-4">
                   <div><label className="text-[11px] font-bold text-slate-500 block mb-1">개체 관리 번호</label><input type="text" required value={newSow.sowNo} onChange={e => setNewSow({...newSow, sowNo: e.target.value})} className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm font-black outline-none focus:border-blue-400" placeholder="예: 23-11" /></div>
@@ -1157,10 +1184,9 @@
             </div>
           )}
 
-          {}
           {selectedShipment && (
-            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center">
-              <div className="bg-white rounded-t-[2rem] md:rounded-[2rem] w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[80] flex items-end md:items-center justify-center p-4">
+              <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-[slideUp_0.2s_ease-out]">
                 <div className="flex justify-between items-center mb-6">
                   <div className="flex flex-col"><h3 className="text-lg font-black text-slate-800">출하 상세 정보</h3><span className="text-xs font-bold text-indigo-500">{selectedShipment.date ? selectedShipment.date.replace(/-/g, '/') : '-'} 기준</span></div>
                   <button onClick={() => setSelectedShipment(null)} className="p-2 bg-slate-100 rounded-full text-slate-500 hover:text-slate-800 transition-colors"><X c="w-5 h-5" /></button>
@@ -1172,7 +1198,7 @@
                   <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-center flex flex-col justify-center shadow-sm"><span className="text-[10px] font-bold text-slate-500 mb-1">평균 사육온도</span><p className="text-lg font-black text-rose-500">{modalAvgTemp}<span className="text-[10px] font-bold ml-0.5 text-rose-400">℃</span></p></div>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 shadow-sm mb-4">
-                  <div className="flex items-center gap-1.5 mb-2"><Activity c="w-4 h-4 text-blue-500" /><span className="text-xs font-black text-slate-700">일령별 평균 사육온도 <span className="text-[9px] font-normal text-slate-400 ml-0.5">(환경 모니터링 연동)</span></span></div>
+                  <div className="flex items-center gap-1.5 mb-2"><Activity c="w-4 h-4 text-blue-500" /><span className="text-xs font-black text-slate-700">일령별 평균 사육온도 <span className="text-[9px] font-normal text-slate-400 ml-0.5">(환경 센서 RTDB 연동)</span></span></div>
                   <TempTable shipment={selectedShipment} onAvgCalculated={setModalAvgTemp} />
                 </div>
                 <button onClick={() => setSelectedShipment(null)} className="w-full mt-2 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
@@ -1253,25 +1279,25 @@
           {selectedMortalityDetail && (
             <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[90] flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden max-h-[85vh]">
-                <div className="bg-slate-800 p-4 text-white flex justify-between items-center"><div className="flex items-center gap-2"><TableIcon c="w-5 h-5 text-rose-400" /><span className="font-black text-sm">성암농장 [{selectedMortalityDetail.category}] - {selectedMortalityDetail.monthLabel} 상세 기록</span></div><button onClick={() => setSelectedMortalityDetail(null)} className="p-2 bg-slate-100 rounded-lg transition-colors"><X c="w-5 h-5" /></button></div>
+                <div className="bg-slate-800 p-4 text-white flex justify-between items-center"><div className="flex items-center gap-2"><TableIcon c="w-5 h-5 text-rose-400" /><span className="font-black text-sm">성암농장 [{selectedMortalityDetail.category}] - {selectedMortalityDetail.monthLabel} 상세 기록</span></div><button onClick={() => setSelectedMortalityDetail(null)} className="p-2 bg-slate-100 rounded-lg transition-colors text-slate-800"><X c="w-5 h-5" /></button></div>
                 <div className="p-5 flex-1 overflow-y-auto space-y-4">
-                  <p className="text-xs font-bold text-slate-500">* {selectedMortalityDetail.category} 사육단계의 해당 월 상세 배치별 폐사/도태 수합 내역입니다.</p>
+                  <p className="text-xs font-bold text-slate-500">* {selectedMortalityDetail.category} 사육단계의 해당 월 상세 <strong>일령 구간별</strong> 폐사/도태 수합 내역입니다.</p>
                   <div className="overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-inner max-h-[350px] no-scrollbar">
                     <table className="w-full text-xs font-mono border-collapse excel-table text-slate-700">
                       <thead>
                         <tr className="bg-slate-100 text-slate-500 font-bold text-center select-none"><th className="p-1 bg-slate-200 border border-slate-300 w-10"></th><th className="p-1 bg-slate-200 border border-slate-300">A</th><th className="p-1 bg-slate-200 border border-slate-300">B</th><th className="p-1 bg-slate-200 border border-slate-300">C</th></tr>
-                        <tr className="bg-slate-50 text-slate-700 font-black text-center"><th className="p-2 bg-slate-100 border border-slate-300 text-slate-400">1</th><th className="p-2 border border-slate-300">배치 번호 (Batch ID)</th><th className="p-2 border border-slate-300 text-right">폐사/도태 수합 (Loss)</th><th className="p-2 border border-slate-300 text-right bg-rose-50/50">비중 (%)</th></tr>
+                        <tr className="bg-slate-50 text-slate-700 font-black text-center"><th className="p-2 bg-slate-100 border border-slate-300 text-slate-400">1</th><th className="p-2 border border-slate-300">일령 구간 (Age Group)</th><th className="p-2 border border-slate-300 text-right">폐사/도태 수합 (Loss)</th><th className="p-2 border border-slate-300 text-right bg-rose-50/50">비중 (%)</th></tr>
                       </thead>
                       <tbody>
-                        {selectedMortalityDetail.details.length === 0 ? <tr><td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">2</td><td colSpan="3" className="p-6 text-center text-slate-400 font-sans">해당 기간에 보고된 폐사/도태 데이터가 없습니다.</td></tr> : selectedMortalityDetail.details.map((item, idx) => {
-                          const pct = selectedMortalityDetail.total > 0 ? ((item.count / selectedMortalityDetail.total) * 100).toFixed(1) : 0;
+                        {Object.keys(selectedMortalityDetail.details).length === 0 ? <tr><td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">2</td><td colSpan="3" className="p-6 text-center text-slate-400 font-sans">해당 기간에 보고된 폐사/도태 데이터가 없습니다.</td></tr> : Object.entries(selectedMortalityDetail.details).map(([ageRange, count], idx) => {
+                          const pct = selectedMortalityDetail.total > 0 ? ((count / selectedMortalityDetail.total) * 100).toFixed(1) : 0;
                           return (
                             <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                              <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">{idx + 2}</td><td className="p-2 border border-slate-300 text-center font-black text-slate-800">{String(item.batchId) === '8' ? '후보사' : `${item.batchId} 배치`}</td><td className="p-2 border border-slate-300 text-right text-rose-600 font-black">{item.count} 두</td><td className="p-2 border border-slate-300 text-right font-black bg-rose-50/20 text-rose-800">{pct}%</td>
+                              <td className="p-2 bg-slate-100 border border-slate-300 font-black text-center text-slate-400">{idx + 2}</td><td className="p-2 border border-slate-300 text-center font-black text-slate-800">{ageRange}</td><td className="p-2 border border-slate-300 text-right text-rose-600 font-black">{count} 두</td><td className="p-2 border border-slate-300 text-right font-black bg-rose-50/20 text-rose-800">{pct}%</td>
                             </tr>
                           );
                         })}
-                        <tr className="bg-amber-50/50 font-black text-slate-900"><td className="p-2.5 bg-slate-200 border border-slate-300 text-center text-slate-500">{selectedMortalityDetail.details.length + 2}</td><td className="p-2.5 border border-slate-300 text-center font-sans">합계 (Total)</td><td className="p-2.5 border border-slate-300 text-right text-rose-700">{selectedMortalityDetail.total} 두</td><td className="p-2.5 border border-slate-300 text-right">100%</td></tr>
+                        <tr className="bg-amber-50/50 font-black text-slate-900"><td className="p-2.5 bg-slate-200 border border-slate-300 text-center text-slate-500">{Object.keys(selectedMortalityDetail.details).length + 2}</td><td className="p-2.5 border border-slate-300 text-center font-sans">합계 (Total)</td><td className="p-2.5 border border-slate-300 text-right text-rose-700">{selectedMortalityDetail.total} 두</td><td className="p-2.5 border border-slate-300 text-right">100%</td></tr>
                       </tbody>
                     </table>
                   </div>
