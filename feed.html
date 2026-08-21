@@ -74,8 +74,8 @@
         const Send = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>;
         const Share2 = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" x2="15.42" y1="13.51" y2="17.49"/><line x1="15.41" x2="8.59" y1="6.51" y2="10.49"/></svg>;
         const Copy = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" class={className}><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+        const Archive = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>;
 
-        // --- Firebase Init ---
         const firebaseConfig = {
             apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
             authDomain: "sungamfarm.firebaseapp.com",
@@ -158,6 +158,7 @@
             // 공유 및 달력 모달 제어
             const [showShareModal, setShowShareModal] = useState(false);
             const [showCalendarModal, setShowCalendarModal] = useState(false);
+            const [showUnsentModal, setShowUnsentModal] = useState(false);
             const [shareNote, setShareNote] = useState('');
             const [shareType, setShareType] = useState('bag'); // 'bag' or 'bulk'
             
@@ -435,12 +436,17 @@
                 return dailyOrders.filter(o => !o.bulkBin || !o.bulkBin.startsWith('지대'));
             }, [dailyOrders]);
 
+            // 과거 미전송 데이터 추출 메모
+            const unsentPastOrders = useMemo(() => {
+                const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+                return orders.filter(o => o.isShared === false && !o.date.startsWith(todayStr))
+                             .sort((a, b) => b.date.localeCompare(a.date));
+            }, [orders]);
+
+            // Computing sum statistics for today
             const dailySummaryStats = useMemo(() => {
-                const stats = { 
-                    '젖돈': 0, '육성': 0, '임신': 0, '포유': 0, '후보돈': 0, 
-                    '1호': 0, '2호': 0, '3호': 0, '어분': 0, '스페셜플러스': 0, 
-                    'total': 0 
-                };
+                const stats = { '젖돈': 0, '육성': 0, '임신': 0, '포유': 0, '후보돈': 0, '1호': 0, '2호': 0, '3호': 0, '어분': 0, '스페셜플러스': 0, 'total': 0 };
+                
                 dailyOrders.forEach(order => {
                     const q = parseFloat(order.quantity) || 0;
                     const bin = order.bulkBin || '';
@@ -538,47 +544,45 @@
                     try {
                         const now = new Date();
                         const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                        const deliveryDateString = calcDeliveryDate; // 계산기 입고 날짜 적용
-                        
-                        const batch = db.batch();
-                        let count = 0;
-
-                        if (nF1 > 0) {
+                        if (netF1 > 0) {
                             const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((nF1 * 10 / 1000).toFixed(3));
+                            const qtyTons = parseFloat((netF1 * 10 / 1000).toFixed(3));
                             batch.set(ref, {
                                 feedType: '젖돈',
                                 bulkBin: '지대 1',
                                 quantity: qtyTons,
                                 unit: '톤',
                                 date: dateString,
-                                deliveryDate: deliveryDateString
+                                deliveryDate: calcDeliveryDate,
+                                isShared: false
                             });
                             count++;
                         }
-                        if (nF2 > 0) {
+                        if (netF2 > 0) {
                             const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((nF2 * 20 / 1000).toFixed(3));
+                            const qtyTons = parseFloat((netF2 * 20 / 1000).toFixed(3));
                             batch.set(ref, {
                                 feedType: '젖돈',
                                 bulkBin: '지대 2',
                                 quantity: qtyTons,
                                 unit: '톤',
                                 date: dateString,
-                                deliveryDate: deliveryDateString
+                                deliveryDate: calcDeliveryDate,
+                                isShared: false
                             });
                             count++;
                         }
-                        if (nF3 > 0) {
+                        if (netF3 > 0) {
                             const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc();
-                            const qtyTons = parseFloat((nF3 * 20 / 1000).toFixed(3));
+                            const qtyTons = parseFloat((netF3 * 20 / 1000).toFixed(3));
                             batch.set(ref, {
                                 feedType: '젖돈',
                                 bulkBin: '지대 3',
                                 quantity: qtyTons,
                                 unit: '톤',
                                 date: dateString,
-                                deliveryDate: deliveryDateString
+                                deliveryDate: calcDeliveryDate,
+                                isShared: false
                             });
                             count++;
                         }
@@ -593,7 +597,8 @@
                                 quantity: parseFloat((fMeal * 20 / 1000).toFixed(3)),
                                 unit: '톤',
                                 date: dateString,
-                                deliveryDate: deliveryDateString
+                                deliveryDate: calcDeliveryDate,
+                                isShared: false
                             });
                             count++;
                         }
@@ -608,7 +613,8 @@
                                 quantity: parseFloat((sPlus * 20 / 1000).toFixed(3)),
                                 unit: '톤',
                                 date: dateString,
-                                deliveryDate: deliveryDateString
+                                deliveryDate: calcDeliveryDate,
+                                isShared: false
                             });
                             count++;
                         }
@@ -668,7 +674,8 @@
                             quantity: qVal, 
                             unit: '톤', 
                             date: dateString,
-                            deliveryDate: bulkDeliveryDate
+                            deliveryDate: bulkDeliveryDate,
+                            isShared: false
                         });
                         showToast("✨ 새 벌크 주문이 등록되었습니다!", "bg-emerald-600");
                     }
@@ -774,21 +781,44 @@
                 return text.trim();
             }, [dailyOrders, bagOrders, bulkOrders, shareNote, shareType, alloc]);
 
+            // 카톡 전송 시 DB에 완료(isShared) 상태를 기록하는 함수
+            const markOrdersAsShared = async () => {
+                const batch = db.batch();
+                const targetOrders = shareType === 'bag' ? bagOrders : bulkOrders;
+                let updatedCount = 0;
+                
+                targetOrders.forEach(order => {
+                    if (order.isShared === false) {
+                        const ref = db.collection(FEED_ORDERS_COLLECTION_PATH).doc(order.id);
+                        batch.update(ref, { isShared: true });
+                        updatedCount++;
+                    }
+                });
+                
+                if (updatedCount > 0) {
+                    await batch.commit();
+                }
+            };
+
             const sendNativeShare = async () => {
+                await markOrdersAsShared(); // 전송 성공 시 달력에 즉시 표시되도록 업데이트
                 if (navigator.share) {
                     try {
                         await navigator.share({ title: '성암농장 사료 주문서', text: generatedKakaoText });
-                        showToast('💬 주문서 공유가 완료되었습니다.', 'bg-emerald-600');
+                        showToast('💬 카톡 공유 및 달력 저장이 완료되었습니다.', 'bg-emerald-600');
                         setShowShareModal(false);
                     } catch (err) {
                         if (err.name !== 'AbortError') showToast('공유가 중단되었습니다.');
                     }
                 } else {
-                    copyShareText();
+                    copyShareText(true);
                 }
             };
 
-            const copyShareText = () => {
+            const copyShareText = async (eOrSkip = false) => {
+                if (eOrSkip !== true) {
+                    await markOrdersAsShared(); // 복사 성공 시 달력에 표시되도록 업데이트
+                }
                 const tempTextArea = document.createElement("textarea");
                 tempTextArea.value = generatedKakaoText;
                 tempTextArea.style.position = "fixed";
@@ -797,7 +827,7 @@
                 tempTextArea.setSelectionRange(0, 99999);
                 try {
                     if (document.execCommand('copy')) {
-                        showToast('📋 텍스트가 복사되었습니다! 카톡을 실행합니다.', 'bg-indigo-600');
+                        showToast('📋 복사 및 달력 저장이 완료되었습니다! 카톡을 실행합니다.', 'bg-indigo-600');
                         setTimeout(() => window.location.href = "kakaolink://", 800);
                     } else {
                         showToast('❌ 복사에 실패했습니다.', 'bg-rose-600');
@@ -822,9 +852,10 @@
                     const compareDateStr = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     
                     // 매치 타겟: 입고 예정일(deliveryDate)이 있으면 사용하고, 없을 시 등록 시각(date)의 앞 10자리를 기준으로 달력 매칭
+                    // 신규 조건: 카톡 전송이 완료된 데이터(isShared !== false)만 달력에 노출 (과거 데이터는 true처리하여 보호)
                     const dayOrders = orders.filter(o => {
                         const targetDate = o.deliveryDate ? o.deliveryDate : o.date.substring(0, 10);
-                        return targetDate === compareDateStr;
+                        return targetDate === compareDateStr && o.isShared !== false; 
                     });
                     
                     let dayTotal = 0;
@@ -1529,8 +1560,8 @@
                         </section>
 
                         {/* 달력 일정표 실행 버튼 */}
-                        <div className="pb-10">
-                            <section className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 flex items-center justify-center">
+                        <div className="pb-10 space-y-4">
+                            <section className="bg-white rounded-2xl p-5 shadow-sm border border-stone-200/60 flex flex-col sm:flex-row gap-4 items-center justify-center">
                                 <button onClick={() => {
                                         const today = new Date();
                                         setCalendarYear(today.getFullYear());
@@ -1542,6 +1573,15 @@
                                     <CalendarRange className="w-5 h-5 text-amber-400" />
                                     <span>📅 달력으로 전체 일정 보기</span>
                                 </button>
+                                
+                                {unsentPastOrders.length > 0 && (
+                                    <button onClick={() => setShowUnsentModal(true)} 
+                                        className="w-full sm:max-w-md mx-auto bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold py-4 rounded-xl border border-rose-200 shadow-sm transition-all flex items-center justify-center gap-3"
+                                    >
+                                        <Archive className="w-5 h-5" />
+                                        <span>🗃️ 미전송 보관함 ({unsentPastOrders.length}건)</span>
+                                    </button>
+                                )}
                             </section>
                         </div>
                     </div>
@@ -1684,6 +1724,75 @@
                                 </div>
                                 <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
                                     <button onClick={() => setShowCalendarModal(false)} className="bg-slate-800 hover:bg-slate-950 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition-all">닫기</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* --- 미전송 과거 주문 보관함 모달 --- */}
+                    {showUnsentModal && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-[slideUp_0.2s_ease-out] max-h-[90vh]">
+                                <div className="bg-rose-600 p-4 text-white flex justify-between items-center">
+                                    <div className="flex items-center gap-2 font-bold text-base"><Archive className="w-5 h-5" /><span>미전송 과거 주문 보관함</span></div>
+                                    <button onClick={() => setShowUnsentModal(false)} className="text-white hover:bg-white/20 p-1.5 rounded-lg transition-all"><X className="w-5 h-5" /></button>
+                                </div>
+                                <div className="p-4 sm:p-6 overflow-y-auto flex-1">
+                                    <div className="text-sm font-bold text-slate-700 mb-4 bg-rose-50 p-4 rounded-xl border border-rose-100 flex gap-2 items-start">
+                                        <span>💡</span>
+                                        <p>과거에 작성만 해두고 <strong>카카오톡으로 전송하지 않아 달력에 미등록된 임시 데이터</strong>입니다. 불필요한 데이터는 우측 휴지통 버튼을 눌러 삭제해 주세요.</p>
+                                    </div>
+                                    <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                                        <table className="w-full text-xs font-mono excel-table border-collapse text-slate-700 min-w-[600px]">
+                                            <thead>
+                                                <tr className="text-center font-bold bg-slate-100">
+                                                    <th className="p-3 w-32">작성일시</th>
+                                                    <th className="p-3 w-28 text-rose-600">입고예정일</th>
+                                                    <th className="p-3 w-24">구분</th>
+                                                    <th className="p-3 w-28">호수/종류</th>
+                                                    <th className="p-3 text-right pr-5 w-24">수량</th>
+                                                    <th className="p-3 w-20">관리</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {unsentPastOrders.length === 0 ? (
+                                                    <tr><td colSpan="6" className="p-8 text-center text-slate-400 bg-slate-50 font-sans">미전송 내역이 없습니다.</td></tr>
+                                                ) : (
+                                                    unsentPastOrders.map(order => {
+                                                        const isBag = order.bulkBin && order.bulkBin.startsWith('지대');
+                                                        let qtyDisplay = `${parseFloat(order.quantity).toFixed(1)} 톤`;
+                                                        let binDisplay = order.bulkBin;
+                                                        
+                                                        if (isBag) {
+                                                            const bags = order.bulkBin === '지대 1' ? Math.round(parseFloat(order.quantity) * 100) : Math.round(parseFloat(order.quantity) * 50);
+                                                            qtyDisplay = `${bags} 포`;
+                                                            binDisplay = order.bulkBin.replace('지대 1', '1호').replace('지대 2', '2호').replace('지대 3', '3호').replace('지대 ', '');
+                                                        } else {
+                                                            binDisplay = `${order.bulkBin}번`;
+                                                        }
+
+                                                        return (
+                                                            <tr key={order.id} className="hover:bg-slate-50/50 transition-all text-sm font-sans">
+                                                                <td className="p-3 text-center text-slate-500 font-mono text-[11px]">{order.date.substring(0, 16)}</td>
+                                                                <td className="p-3 text-center font-bold text-rose-500">{order.deliveryDate || '-'}</td>
+                                                                <td className="p-3 text-center font-bold text-slate-700">{order.feedType}</td>
+                                                                <td className="p-3 text-center font-black text-blue-600">{binDisplay}</td>
+                                                                <td className="p-3 text-right pr-5 font-black text-slate-800">{qtyDisplay}</td>
+                                                                <td className="p-2 text-center">
+                                                                    <div className="flex justify-center">
+                                                                        <button onClick={() => handleDeleteClick(order.id)} className="p-1.5 bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-300 rounded shadow-sm transition-all"><Trash2 className="w-4 h-4" /></button>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
+                                    <button onClick={() => setShowUnsentModal(false)} className="bg-slate-800 hover:bg-slate-950 text-white font-bold py-2.5 px-6 rounded-xl text-xs transition-all shadow-sm">닫기</button>
                                 </div>
                             </div>
                         </div>
