@@ -314,7 +314,7 @@
       const [selectedSettlementMonth, setSelectedSettlementMonth] = useState(null);
       const [selectedMortalityDetail, setSelectedMortalityDetail] = useState(null);
 
-      // 아코디언 토글 상태변수 (모두 기본 닫힘)
+      // 아코디언 토글 상태변수
       const [isFeedScheduleOpen, setIsFeedScheduleOpen] = useState(false);
       const [isFarrowingScheduleOpen, setIsFarrowingScheduleOpen] = useState(false);
       const [isMortalityScheduleOpen, setIsMortalityScheduleOpen] = useState(false);
@@ -470,7 +470,9 @@
         
         stats.yearlyTotalFeedKg = yearlyTotalFeedKg; stats.yearlyMarketFeedKg = yearlyMarketFeedKg;
         stats.yearlyWeightGainKg = yearlyWeightGainKg; stats.yearlyTotalShippedWeight = yearlyTotalShippedWeight;
-        stats.totalFcr = yearlyWeightGainKg > 0 ? (yearlyTotalFeedKg / yearlyWeightGainKg).toFixed(2) : "0.00";
+        
+        // 농장 전체 FCR 산식 변경 (총 사료량 / 총 출하체중)
+        stats.totalFcr = yearlyTotalShippedWeight > 0 ? (yearlyTotalFeedKg / yearlyTotalShippedWeight).toFixed(2) : "0.00";
         stats.marketFcr = yearlyWeightGainKg > 0 ? (yearlyMarketFeedKg / yearlyWeightGainKg).toFixed(2) : "0.00";
 
         return stats;
@@ -797,10 +799,6 @@
                   <div onClick={() => setShowFormulaModal(true)} className="bg-gradient-to-br from-violet-500 to-violet-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all">
                     <div className="flex items-center justify-between mb-1"><div className="flex flex-col"><span className="text-[11px] font-bold text-violet-200">현재 MSY</span><span className="text-[9px] text-violet-300 mt-0.5">최근 출하량 기준</span></div><Activity c="w-4 h-4 text-violet-300 opacity-50" /></div>
                     <div className="flex items-baseline"><span className="text-3xl font-black">{(dashboardStats || {}).msy || '0.0'}</span><span className="text-sm font-bold ml-1 text-violet-100">두</span></div>
-                  </div>
-                  <div onClick={() => setShowFormulaModal(true)} className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all">
-                    <div className="flex items-center justify-between mb-1"><div className="flex flex-col"><span className="text-[11px] font-bold text-emerald-100">비육돈 전용 FCR</span><span className="text-[9px] text-emerald-200 mt-0.5">자돈(6kg)~출하 사료 효율</span></div><Activity c="w-4 h-4 text-emerald-200 opacity-50" /></div>
-                    <div className="flex items-baseline"><span className="text-3xl font-black">{(dashboardStats || {}).marketFcr || '0.00'}</span><span className="text-xs font-bold ml-1 text-emerald-100">(젖돈/육성)</span></div>
                   </div>
                   <div onClick={() => setShowFormulaModal(true)} className="bg-gradient-to-br from-slate-600 to-slate-700 text-white p-4 rounded-2xl flex flex-col justify-center shadow-md relative overflow-hidden cursor-pointer hover:shadow-lg active:scale-95 transition-all">
                     <div className="flex items-center justify-between mb-1"><div className="flex flex-col"><span className="text-[11px] font-bold text-slate-200">농장 전체 FCR</span><span className="text-[9px] text-slate-300 mt-0.5">번식돈 사료 등 전체 포함</span></div><Activity c="w-4 h-4 text-slate-400 opacity-50" /></div>
@@ -1136,23 +1134,13 @@
                     <h4 className="text-xs font-black text-violet-600 mb-2">현재 MSY (모돈당 연간 출하두수)</h4><p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 총 출하두수 ÷ 연평균 상시 모돈수</p>
                     <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">{(dashboardStats || {}).yearlyShipped || 0}두 ÷ {(dashboardStats || {}).avgSows || 0}두 = <span className="text-violet-600">{(dashboardStats || {}).msy || '0.0'}</span></div>
                   </div>
-                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
-                    <h4 className="text-xs font-black text-emerald-700 mb-2">비육돈 전용 FCR (사료요구율)</h4><p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 육성사 사료섭취량(kg) ÷ 최근 1년 총 증체량(kg)</p>
-                    <div className="bg-white p-3 rounded-lg text-xs font-bold text-slate-700 shadow-sm space-y-2 mb-2 font-mono">
-                      <div className="flex justify-between border-b border-slate-100 pb-1.5"><span>1. 육성사 사료량 (젖돈+육성)</span><span className="font-black text-emerald-600">{((dashboardStats || {}).yearlyMarketFeedKg || 0).toLocaleString()} kg</span></div>
-                      <div className="flex justify-between border-b border-slate-100 pb-1.5"><span>2. 연간 총 출하 생체중</span><span className="font-black text-slate-800">{((dashboardStats || {}).yearlyTotalShippedWeight || 0).toLocaleString()} kg</span></div>
-                      <div className="flex justify-between border-b border-slate-100 pb-1.5"><span>3. 전입 자돈 총체중 (두당 6kg)</span><span className="font-black text-rose-500">-{(((dashboardStats || {}).dbYearlyShipped || 0) * 6).toLocaleString()} kg</span></div>
-                      <div className="flex justify-between text-slate-900 bg-slate-50 p-1.5 rounded"><span>4. 연간 알짜 증체량 (Gain)</span><span className="font-black text-blue-600">{((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()} kg</span></div>
-                    </div>
-                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">{((dashboardStats || {}).yearlyMarketFeedKg || 0).toLocaleString()}kg ÷ {((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()}kg = <span className="text-emerald-600">{(dashboardStats || {}).marketFcr || '0.00'}</span></div>
-                  </div>
                   <div className="bg-slate-100 p-4 rounded-xl border border-slate-200">
-                    <h4 className="text-xs font-black text-slate-700 mb-2">농장 전체 FCR</h4><p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 농장 내 모든 사료섭취량(kg) ÷ 최근 1년 총 증체량(kg)</p>
+                    <h4 className="text-xs font-black text-slate-700 mb-2">농장 전체 FCR</h4><p className="text-[11px] font-bold text-slate-600 mb-2">최근 1년 농장 내 모든 사료섭취량(kg) ÷ 최근 1년 총 출하 생체중(kg)</p>
                     <div className="bg-white p-3 rounded-lg text-xs font-bold text-slate-700 shadow-sm space-y-2 mb-2 font-mono">
                       <div className="flex justify-between border-b border-slate-100 pb-1.5"><span>1. 연간 전체 사료량</span><span className="font-black text-slate-700">{((dashboardStats || {}).yearlyTotalFeedKg || 0).toLocaleString()} kg</span></div>
-                      <div className="flex justify-between border-b border-slate-100 pb-1.5"><span>2. 연간 알짜 증체량 (Gain)</span><span className="font-black text-blue-600">{((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()} kg</span></div>
+                      <div className="flex justify-between text-slate-900 bg-slate-50 p-1.5 rounded"><span>2. 연간 총 출하 생체중</span><span className="font-black text-blue-600">{((dashboardStats || {}).yearlyTotalShippedWeight || 0).toLocaleString()} kg</span></div>
                     </div>
-                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">{((dashboardStats || {}).yearlyTotalFeedKg || 0).toLocaleString()}kg ÷ {((dashboardStats || {}).yearlyWeightGainKg || 0).toLocaleString()}kg = <span className="text-slate-700">{(dashboardStats || {}).totalFcr || '0.00'}</span></div>
+                    <div className="bg-white p-2 rounded-lg text-center font-black text-slate-800 text-sm shadow-sm">{((dashboardStats || {}).yearlyTotalFeedKg || 0).toLocaleString()}kg ÷ {((dashboardStats || {}).yearlyTotalShippedWeight || 0).toLocaleString()}kg = <span className="text-slate-700">{(dashboardStats || {}).totalFcr || '0.00'}</span></div>
                   </div>
                 </div>
                 <button onClick={() => setShowFormulaModal(false)} className="w-full mt-5 py-4 bg-slate-800 text-white rounded-2xl font-black shadow-lg hover:bg-slate-700 active:scale-95 transition-all">닫기</button>
@@ -1255,8 +1243,8 @@
                           let typeStr = order.feedType || '-'; 
                           let binStr = order.bulkBin ? `벌크 ${order.bulkBin}호` : '-';
                           if (order.isMock) {
-                              if (typeStr.includes('지대')) { binStr = typeStr.replace('지대 ', ''); typeStr = '지대'; }
-                              else { binStr = <span className="text-[9px] text-gray-400 font-normal">엑셀 합산</span>; }
+                              if (typeStr.includes('지대')) { binStr = typeStr.replace('지대 ', ''); typeStr = '지대사료'; }
+                              else { binStr = <span className="text-[9px] text-gray-400 font-normal">엑셀 합산분</span>; }
                           } else if (String(order.bulkBin).includes('지대')) { 
                               const n = String(order.bulkBin).match(/\d+/); 
                               binStr = n ? `${n[0]}` : '-'; 
