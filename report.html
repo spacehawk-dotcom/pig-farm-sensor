@@ -107,8 +107,6 @@
         }
 
         const rtdb = firebase.database();
-        
-        // 입식일자 파악 (20일령 기준)
         const stockDate = shipment.stockingDate && shipment.stockingDate !== '9999-99-99'
           ? new Date(shipment.stockingDate)
           : new Date(new Date(shipment.date).getTime() - (115 * 86400000)); 
@@ -119,7 +117,6 @@
           return d;
         };
 
-        // 구간별 날짜(시간) 범위 세팅
         const pStart = addDays(stockDate, 10);
         const pEnd = addDays(stockDate, 40);
         const gStart = addDays(stockDate, 41);
@@ -221,7 +218,7 @@
       }
 
       if (!calcTemps) {
-        return <div className="text-center py-4 text-xs font-bold text-slate-400">온도 데이터 없음</div>;
+        return <div className="text-center py-4 text-xs font-bold text-slate-400">데이터 없음 (센서 미설치 시점)</div>;
       }
 
       return (
@@ -256,6 +253,36 @@
       const [accidents, setAccidents] = useState([]);
       const [feedRecords, setFeedRecords] = useState([]);
       const [onepassBatches, setOnepassBatches] = useState([]);
+
+      const mockFeedRecords = useMemo(() => {
+          const cy = new Date().getFullYear().toString();
+          if (cy !== '2026') return [];
+          const records = [];
+          const hData = {
+              '2026-01': { '젖돈': 44.19, '육성': 63.28, '후보돈': 1.0, '임신': 18.94, '포유': 6.05, '지대 1호': 0.65, '지대 2호': 2.2, '지대 3호': 3.5 },
+              '2026-02': { '젖돈': 39.82, '육성': 73.2, '임신': 17.22, '포유': 4.0, '지대 1호': 0.85, '지대 2호': 2.0, '지대 3호': 3.5 },
+              '2026-03': { '젖돈': 45.32, '육성': 65.47, '임신': 15.19, '포유': 4.04, '지대 1호': 0.55, '지대 2호': 2.2, '지대 3호': 3.9 },
+              '2026-04': { '젖돈': 49.17, '육성': 68.34, '임신': 15.16, '포유': 6.06, '지대 1호': 0.7, '지대 2호': 2.6, '지대 3호': 3.7 },
+              '2026-05': { '젖돈': 43.21, '육성': 70.49, '후보돈': 2.06, '임신': 19.13, '포유': 6.01, '지대 1호': 0.9, '지대 2호': 2.9, '지대 3호': 4.2 },
+              '2026-06': { '젖돈': 36.93, '육성': 77.13, '후보돈': 2.0, '임신': 15.0, '포유': 4.12, '지대 1호': 0.55, '지대 2호': 2.1, '지대 3호': 4.3 }
+          };
+          Object.entries(hData).forEach(([ym, types]) => {
+              Object.entries(types).forEach(([type, amt]) => {
+                  records.push({ date: `${ym}-28`, feedType: type, quantity: amt, unit: '톤', isMock: true });
+              });
+          });
+          return records;
+      }, []);
+
+      const allFeedRecords = useMemo(() => {
+          const realFiltered = feedRecords.filter(r => {
+               const dt = r.deliveryDate || r.receivingDate || r.date || '';
+               const ym = dt.substring(0, 7);
+               if (['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06'].includes(ym)) return false; 
+               return true;
+          });
+          return [...realFiltered, ...mockFeedRecords];
+      }, [feedRecords, mockFeedRecords]);
 
       const [alertMsg, setAlertMsg] = useState(null);
       const [toastMsg, setToastMsg] = useState(null);
@@ -422,7 +449,7 @@
         }
 
         let yearlyTotalFeedKg = 0; let yearlyMarketFeedKg = 0;  
-        feedRecords.forEach(record => {
+        allFeedRecords.forEach(record => {
           const receiptDate = record.deliveryDate || record.receivingDate || record.date || '';
           if (receiptDate >= oneYearAgoStr) {
             const weightKg = (Number(record.quantity) || Number(record.amount) || Number(record.weight) || 0) * 1000; 
@@ -447,7 +474,7 @@
         stats.marketFcr = yearlyWeightGainKg > 0 ? (yearlyMarketFeedKg / yearlyWeightGainKg).toFixed(2) : "0.00";
 
         return stats;
-      }, [sows, weaningRecords, farmSettings, shipments, shipmentSummaries, feedRecords, onepassBatches]);
+      }, [sows, weaningRecords, farmSettings, shipments, shipmentSummaries, allFeedRecords, onepassBatches]);
 
       const monthlyActivityStats = useMemo(() => {
         const sm = {};
@@ -460,25 +487,26 @@
 
       const monthlyFeedStats = useMemo(() => {
         const cy = new Date().getFullYear().toString(); const stats = {};
-        for (let i = 1; i <= new Date().getMonth() + 1; i++) stats[`${cy}-${String(i).padStart(2,'0')}`] = { total: 0, types: {}, orders: [] };
-        feedRecords.forEach(r => {
+        for (let i = 1; i <= new Date().getMonth() + 1; i++) stats[`${cy}-${String(i).padStart(2,'0')}`] = { ym: `${cy}-${String(i).padStart(2,'0')}`, total: 0, types: {}, orders: [] };
+        
+        allFeedRecords.forEach(r => {
           const dt = r.deliveryDate || r.receivingDate || r.date || ''; if (!dt.startsWith(cy)) return;
           const ym = dt.substring(0, 7); 
           let type = r.feedType || r.type || r.feedName || '기타 사료'; 
           const bulkBin = r.bulkBin || '';
           const amt = Number(r.quantity) || Number(r.amount) || Number(r.weight) || Number(r.kg) || 0;
           
-          if (String(bulkBin).includes('지대') && !String(type).includes('첨가제')) {
+          if (!r.isMock && String(bulkBin).includes('지대') && !String(type).includes('첨가제')) {
             const num = String(bulkBin).match(/\d+/); 
             type = num ? `지대 ${num[0]}` : '지대';
           }
           
-          if (!stats[ym]) stats[ym] = { total: 0, types: {}, orders: [] };
+          if (!stats[ym]) stats[ym] = { ym, total: 0, types: {}, orders: [] };
           stats[ym].total += amt; stats[ym].types[type] = (stats[ym].types[type] || 0) + amt; stats[ym].orders.push(r);
         });
         Object.keys(stats).forEach(ym => stats[ym].orders.sort((a,b) => (b.deliveryDate||b.date||'').localeCompare(a.deliveryDate||a.date||'')));
-        return Object.entries(stats).map(([ym, d]) => ({ ym, ...d })).sort((a, b) => b.ym.localeCompare(a.ym));
-      }, [feedRecords]);
+        return Object.values(stats).sort((a, b) => b.ym.localeCompare(a.ym));
+      }, [allFeedRecords]);
 
       const monthlyCategoryDeathStats = useMemo(() => {
         const currentYear = new Date().getFullYear().toString();
@@ -517,7 +545,6 @@
                             const diffDays = Math.floor((tAcc - tStart) / 86400000);
                             let age = diffDays;
                             
-                            // 전입 시점 기본 일령 더하기
                             if (cat === '이유') age += 24; 
                             else age += 70; 
 
@@ -577,7 +604,7 @@
               count: data.count,
               revenue: data.revenue,
               liveWeight: data.weight,
-              gradeCount: data.count, // mock
+              gradeCount: data.count, 
               topGradeCount: Math.round(data.count * (data.topRatio / 100)),
               batches: [{ 
                 date: `${ym}-28`, 
@@ -679,11 +706,15 @@
         if (!mStat?.orders?.length) return;
         const ed = mStat.orders.map((o, i) => {
             const rd = o.deliveryDate || o.receivingDate || o.date || '-';
-            let bStr = `벌크 ${o.bulkBin}호`; let tStr = o.feedType || '-';
-            if (String(o.bulkBin).includes('지대')) { 
-              const n = String(o.bulkBin).match(/\d+/); 
-              bStr = n ? `${n[0]}` : '-'; 
-              if (!tStr.includes('첨가제')) tStr = '지대'; 
+            let bStr = o.bulkBin ? `벌크 ${o.bulkBin}호` : '-'; 
+            let tStr = o.feedType || '-';
+            if (o.isMock) {
+                if (tStr.includes('지대')) { bStr = tStr.replace('지대 ', ''); tStr = '지대사료'; }
+                else { bStr = '엑셀 합산분'; }
+            } else if (String(o.bulkBin).includes('지대')) { 
+                const n = String(o.bulkBin).match(/\d+/); 
+                bStr = n ? `${n[0]}` : '-'; 
+                if (!tStr.includes('첨가제')) tStr = '지대'; 
             }
             return { 'No.': i+1, '입고 일시': rd, '사료 종류': tStr, '벌크통 번호': bStr, '주문량 (톤)': parseFloat(o.quantity||0).toFixed(1), '단위': o.unit||'톤' };
         });
@@ -845,7 +876,7 @@
                       {monthlyActivityStats.length === 0 ? <div className="w-full text-center py-4 bg-slate-50 border border-dashed border-slate-200 rounded-xl text-xs font-bold text-slate-400">기록된 실적이 없습니다.</div> : monthlyActivityStats.map(stat => {
                         const [yyyy, mm] = stat.month.split('-');
                         return (
-                          <button key={stat.month} type="button" onClick={() => openFilteredList('activityMonth', stat.month)} className="min-w-[120px] bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 active:scale-95 transition-all outline-none appearance-none text-left">
+                          <button key={stat.month} type="button" onClick={() => openFilteredList('activityMonth', stat.month)} className="min-w-[120px] max-w-[120px] bg-slate-50 border border-slate-100 rounded-xl p-3 flex flex-col justify-center relative shadow-sm snap-start shrink-0 cursor-pointer hover:border-blue-300 hover:bg-blue-50/50 active:scale-95 transition-all outline-none appearance-none text-left">
                             <span className="text-[11px] font-black text-slate-500 mb-2">{yyyy}년 {parseInt(mm)}월</span>
                             <div className="flex flex-col gap-1.5 w-full">
                               <div className="flex justify-between items-center bg-blue-50 px-1.5 py-1 rounded border border-blue-100"><span className="text-[10px] font-bold text-blue-600">교배(임신)</span><span className="text-[13px] font-black text-blue-700">{stat.mated}<span className="text-[9px] font-normal ml-0.5">복</span></span></div>
@@ -862,7 +893,7 @@
                 <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-1 cursor-pointer select-none" onClick={() => setIsFeedScheduleOpen(!isFeedScheduleOpen)}>
                     <h3 className="text-sm font-black text-slate-800 flex flex-wrap items-center gap-1.5">
-                      올해 월별 사료 주문 요약 (입고일 기준)
+                      올해 월별 사료 주문 요약
                       <span className="text-[10px] bg-amber-50 text-amber-600 px-1.5 py-0.5 rounded font-bold">사료 발주 연동</span>
                       <span className="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold animate-pulse">💡 카드 클릭 시 엑셀 보기</span>
                     </h3>
@@ -905,12 +936,12 @@
                         const [yyyy, mm] = stat.ym.split('-');
                         return (
                           <button key={stat.ym} type="button" onClick={() => setSelectedSettlementMonth(stat)} className="min-w-[145px] max-w-[145px] bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/20 rounded-xl p-3 flex flex-col justify-between relative shadow-sm snap-start shrink-0 cursor-pointer transition-all active:scale-95 group text-left outline-none appearance-none">
-                            <div className="flex justify-between items-center mb-2"><span className="text-[11px] font-black text-slate-500 group-hover:text-emerald-700">{yyyy}년 {parseInt(mm)}월</span><TableIcon c="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500" /></div>
-                            <div className="flex flex-col gap-1 flex-1">
-                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded"><span className="text-[10px] font-bold text-slate-500">출하두수</span><span className="text-[11px] font-black text-slate-800">{stat.count.toLocaleString()}두</span></div>
-                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded"><span className="text-[10px] font-bold text-slate-500">총 생체중</span><span className="text-[11px] font-black text-indigo-700">{stat.liveWeight.toLocaleString()}kg</span></div>
+                            <div className="flex justify-between items-center mb-2 w-full"><span className="text-[11px] font-black text-slate-500 group-hover:text-emerald-700">{yyyy}년 {parseInt(mm)}월</span><TableIcon c="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-500" /></div>
+                            <div className="flex flex-col gap-1 flex-1 w-full">
+                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded w-full"><span className="text-[10px] font-bold text-slate-500">출하두수</span><span className="text-[11px] font-black text-slate-800">{stat.count.toLocaleString()}두</span></div>
+                              <div className="flex justify-between items-center bg-slate-50 px-1.5 py-1 rounded w-full"><span className="text-[10px] font-bold text-slate-500">총 생체중</span><span className="text-[11px] font-black text-indigo-700">{stat.liveWeight.toLocaleString()}kg</span></div>
                             </div>
-                            <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center"><span className="text-[10px] font-black text-emerald-600">예상 매출</span><span className="text-[11px] font-black text-emerald-700">{Math.round(stat.revenue).toLocaleString()} <span className="text-[9px] font-normal">원</span></span></div>
+                            <div className="border-t border-slate-200 mt-2.5 pt-1.5 flex justify-between items-center w-full"><span className="text-[10px] font-black text-emerald-600">예상 매출</span><span className="text-[11px] font-black text-emerald-700">{Math.round(stat.revenue).toLocaleString()} <span className="text-[9px] font-normal">원</span></span></div>
                           </button>
                         );
                       })}
@@ -1221,11 +1252,15 @@
                       <tbody>
                         {selectedFeedMonth.orders.length === 0 ? <tr><td colSpan="6" className="p-6 text-center text-slate-400 font-sans">이 달에 입고된 사료 기록이 없습니다.</td></tr> : selectedFeedMonth.orders.map((order, idx) => {
                           const actualReceiptDate = order.deliveryDate || order.receivingDate || order.date || '-';
-                          let typeStr = order.feedType || '-'; let binStr = `벌크 ${order.bulkBin}호`;
-                          if (String(order.bulkBin).includes('지대')) { 
-                            const n = String(order.bulkBin).match(/\d+/); 
-                            binStr = n ? `${n[0]}` : '-'; 
-                            if (!typeStr.includes('첨가제')) typeStr = '지대'; 
+                          let typeStr = order.feedType || '-'; 
+                          let binStr = order.bulkBin ? `벌크 ${order.bulkBin}호` : '-';
+                          if (order.isMock) {
+                              if (typeStr.includes('지대')) { binStr = typeStr.replace('지대 ', ''); typeStr = '지대'; }
+                              else { binStr = <span className="text-[9px] text-gray-400 font-normal">엑셀 합산</span>; }
+                          } else if (String(order.bulkBin).includes('지대')) { 
+                              const n = String(order.bulkBin).match(/\d+/); 
+                              binStr = n ? `${n[0]}` : '-'; 
+                              if (!typeStr.includes('첨가제')) typeStr = '지대'; 
                           }
                           return (
                             <tr key={idx} className="hover:bg-slate-50 transition-colors">
