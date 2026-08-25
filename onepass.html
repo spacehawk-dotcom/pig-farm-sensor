@@ -423,6 +423,32 @@
                 </div>
             </div>
 
+            <!-- 신규 추가된 꺾은선 그래프 영역 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- 상위등급 출현율 꺾은선 그래프 -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-800 mb-2 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+                        출하 배치별 상위등급(1+,1) 출현율
+                    </h3>
+                    <div class="flex-grow flex items-center justify-center h-64 relative">
+                        <canvas id="trendChartGrade"></canvas>
+                    </div>
+                </div>
+
+                <!-- 실 지급율 꺾은선 그래프 -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
+                    <h3 class="text-base font-bold text-slate-800 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg>
+                        출하 배치별 실 지급율 추이
+                    </h3>
+                    <p class="text-[10px] text-slate-400 mb-3">* 총 생체중 미입력 배치는 점선으로 연결되어 건너뜁니다.</p>
+                    <div class="flex-grow flex items-center justify-center h-64 relative">
+                        <canvas id="trendChartYield"></canvas>
+                    </div>
+                </div>
+            </div>
+
             <div class="grid grid-cols-1 gap-6">
                 <!-- 1. 도체중-등지방 산점도 (Scatter Plot) -->
                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
@@ -1702,15 +1728,17 @@
             document.getElementById('kpi-avg-weight').innerText = `0.0 kg`;
             document.getElementById('kpi-avg-yield').innerText = `0.00%`;
             document.getElementById('kpi-avg-fat').innerText = `0.0 mm`;
-            document.getElementById('kpi-total-revenue').innerText = `0 원`;
-            document.getElementById('kpi-top-ratio').innerText = `0%`;
-            document.getElementById('kpi-top-bar').style.width = `0%`;
+        document.getElementById('kpi-total-revenue').innerText = `0 원`;
+        document.getElementById('kpi-top-ratio').innerText = `0%`;
+        document.getElementById('kpi-top-bar').style.width = `0%`;
 
-            if (STATE.charts.scatter) { STATE.charts.scatter.destroy(); STATE.charts.scatter = null; }
-            return;
-        }
+        if (STATE.charts.scatter) { STATE.charts.scatter.destroy(); STATE.charts.scatter = null; }
+        if (STATE.charts.trendGrade) { STATE.charts.trendGrade.destroy(); STATE.charts.trendGrade = null; }
+        if (STATE.charts.trendYield) { STATE.charts.trendYield.destroy(); STATE.charts.trendYield = null; }
+        return;
+    }
 
-        let totalHead = 0;
+    let totalHead = 0;
         let totalWeight = 0;
         let totalRev = 0;
         let topGradeCount = 0;
@@ -1750,12 +1778,98 @@
         document.getElementById('kpi-avg-yield').innerText = `${overallAvgYield.toFixed(2)}%`;
         document.getElementById('kpi-avg-fat').innerText = `${overallAvgFat.toFixed(1)} mm`;
         document.getElementById('kpi-total-revenue').innerText = `${totalRev.toLocaleString()} 원`;
-        document.getElementById('kpi-top-ratio').innerText = `${overallTopRatio}%`;
-        document.getElementById('kpi-top-bar').style.width = `${overallTopRatio}%`;
+    document.getElementById('kpi-top-ratio').innerText = `${overallTopRatio}%`;
+    document.getElementById('kpi-top-bar').style.width = `${overallTopRatio}%`;
 
-        // 1. 도체중-등지방 분포 산점도 (Scatter Chart)
-        if (STATE.charts.scatter) STATE.charts.scatter.destroy();
-        const ctxScatter = document.getElementById('scatterChart').getContext('2d');
+    // --- 시간순(과거->최신) 차트용 배열 변환 ---
+    const timeSeriesData = [...dataToRender].reverse();
+    const trendLabels = timeSeriesData.map(b => b.date.substring(5)); // 'MM-DD' 형태 출력
+    
+    // 1. 상위등급 출현율 꺾은선 그래프
+    if (STATE.charts.trendGrade) STATE.charts.trendGrade.destroy();
+    const ctxGrade = document.getElementById('trendChartGrade').getContext('2d');
+    const gradeTrendData = timeSeriesData.map(b => b.topRatio || 0);
+
+    STATE.charts.trendGrade = new Chart(ctxGrade, {
+        type: 'line',
+        data: {
+            labels: trendLabels,
+            datasets: [{
+                label: '1+·1등급 출현율(%)',
+                data: gradeTrendData,
+                borderColor: '#4f46e5', // indigo-600
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                borderWidth: 2,
+                pointBackgroundColor: '#4f46e5',
+                pointRadius: 4,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => `출현율: ${ctx.raw}%` } }
+            },
+            scales: {
+                x: { ticks: { font: { family: 'Inter', size: 10 } } },
+                y: { 
+                    ticks: { callback: v => v + '%', font: { size: 10 } } 
+                }
+            }
+        }
+    });
+
+    // 2. 실 지급율 꺾은선 그래프
+    if (STATE.charts.trendYield) STATE.charts.trendYield.destroy();
+    const ctxYield = document.getElementById('trendChartYield').getContext('2d');
+    const yieldTrendData = timeSeriesData.map(b => {
+        const marketPrice = b.marketPrice > 0 ? b.marketPrice : STATE.settings.marketPrice;
+        const realPriceVal = b.realPrice !== undefined ? b.realPrice : b.totalPrice;
+        if (b.liveWeight > 0) {
+            return parseFloat(((realPriceVal / (b.liveWeight * marketPrice)) * 100).toFixed(2));
+        }
+        return null; // 생체중 미입력시 null 반환하여 그래프 연결 끊음
+    });
+
+    STATE.charts.trendYield = new Chart(ctxYield, {
+        type: 'line',
+        data: {
+            labels: trendLabels,
+            datasets: [{
+                label: '실 지급율(%)',
+                data: yieldTrendData,
+                spanGaps: true, // null 데이터를 건너뛰고 부드럽게 점선 연결
+                borderColor: '#059669', // emerald-600
+                backgroundColor: 'rgba(5, 150, 105, 0.1)',
+                borderWidth: 2,
+                pointBackgroundColor: '#059669',
+                pointRadius: 4,
+                fill: true,
+                tension: 0.3
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: (ctx) => `실 지급율: ${ctx.raw}%` } }
+            },
+            scales: {
+                x: { ticks: { font: { family: 'Inter', size: 10 } } },
+                y: { 
+                    ticks: { callback: v => v + '%', font: { size: 10 } } 
+                }
+            }
+        }
+    });
+
+    // 3. 도체중-등지방 분포 산점도 (Scatter Chart)
+    if (STATE.charts.scatter) STATE.charts.scatter.destroy();
+    const ctxScatter = document.getElementById('scatterChart').getContext('2d');
         
         // 등급 규격 박스를 그려주는 커스텀 플러그인
         const gradingBoxesPlugin = {
