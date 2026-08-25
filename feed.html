@@ -542,6 +542,9 @@
 
                 showConfirm(`재고 차감 및 확인된 최종 실주문량 1호(${nF1}포), 2호(${nF2}포), 3호(${nF3}포)를 당일 주문에 즉시 추가하시겠습니까?`, async () => {
                     try {
+                        const batch = db.batch();
+                        let count = 0;
+
                         const now = new Date();
                         const dateString = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
                         if (netF1 > 0) {
@@ -1805,4 +1808,4 @@
         root.render(App ? <App /> : <div>Loading...</div>);
     </script>
 </body>
-</html>
+</html>s
