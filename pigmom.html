@@ -54,6 +54,8 @@
     const ChevronRight = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="m9 18 6-6-6-6"/></svg>;
     const X = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>;
     const Bell = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
+    const CalendarHeart = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h7"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M21.29 14.7a2.43 2.43 0 0 0-2.65-.52c-.3.12-.57.3-.8.53l-.34.34-.35-.34a2.43 2.43 0 0 0-2.65-.53c-.3.12-.56.3-.79.53-.95.94-1 2.53.2 3.74L17.5 22l3.6-3.55c1.2-1.21 1.14-2.8.19-3.74Z"/></svg>;
+    const Download = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
 
     // --- 성암농장 실제 Firebase Configuration ---
     const firebaseConfig = {
@@ -154,6 +156,9 @@
       const [showMonthlySowModal, setShowMonthlySowModal] = useState(false);
       const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
       const [showDeletedMedicationsModal, setShowDeletedMedicationsModal] = useState(false);
+      
+      // 분만 완료 입력창 상태 저장용
+      const [farrowingInputs, setFarrowingInputs] = useState({});
 
       // 폼 상태 (산자/포유/이동/이유 필드 분리 적용)
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
@@ -161,6 +166,7 @@
 
       // 가로 스크롤 포커스를 위한 Ref
       const farrowingScrollRef = useRef(null);
+      const expectedFarrowingScrollRef = useRef(null);
       const weaning20ScrollRef = useRef(null);
 
       // --- Auth & Data Fetching ---
@@ -256,21 +262,20 @@
         return `${yy}-${mm}-${dd}`;
       };
 
-      // 헬퍼: 모돈의 '가장 최근 분만 기록'을 날짜 기준으로 확실하게 찾는 함수 (산차 꼬임 방지)
+      // 헬퍼: 모돈의 '가장 최근 분만 기록'을 날짜 기준으로 확실하게 찾는 함수
       const getLatestHistoryRecord = (sow) => {
         if (!sow || !sow.history || !Array.isArray(sow.history)) return null;
         const validRecords = sow.history.filter(r => r && r.date);
         if (validRecords.length === 0) return null;
-        // 날짜 기준 내림차순(최신순) 정렬
         validRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
-        return validRecords[0]; // 가장 최신 날짜의 기록 반환
+        return validRecords[0]; 
       };
 
       // 헬퍼: 분만 예정일 계산 (+115일)
       const getExpectedFarrow = (matingDate) => {
         const d = parseValidDate(matingDate);
         if (!d) return '';
-        d.setDate(d.getDate() + 115);
+        d.setDate(d.getDate() + 115); // 사육현황 앱 기준 114일/115일 혼용 방지를 위해 통일
         return formatDate(d);
       };
 
@@ -310,24 +315,20 @@
         return formatDate(d);
       };
 
-      // 💡 한국형 달력 주차 계산법 (사육현황 앱 동기화)
-      // 기준: "해당 주에 월의 1일이 포함되어 있으면 무조건 1주차" (일요일이 속한 달 기준)
+      // 💡 한국형 달력 주차 계산법 (사육현황 앱 동기화 - 달력 1일 기준)
       const getWeekOfMonthString = (mondayDateStr) => {
         const monday = parseValidDate(mondayDateStr);
         if (!monday) return '';
         
-        // 1. 해당 주의 일요일을 기준으로 '월(Month)'을 결정합니다.
         const sunday = new Date(monday);
         sunday.setDate(sunday.getDate() + 6);
         
         const targetMonth = sunday.getMonth();
         const targetYear = sunday.getFullYear();
         
-        // 2. 타깃 월의 1일 날짜 객체를 생성하고, 그 1일이 속한 주의 월요일을 구합니다.
         const firstDayOfMonth = new Date(targetYear, targetMonth, 1);
         const firstDayMonday = parseValidDate(getMonday(formatDate(firstDayOfMonth)));
         
-        // 3. 입력된 월요일과, 1일이 속한 월요일의 차이를 7일로 나누어 주차를 계산합니다.
         const diffInDays = Math.floor((monday - firstDayMonday) / (24 * 60 * 60 * 1000));
         const weekNumber = Math.floor(diffInDays / 7) + 1;
         
@@ -368,22 +369,24 @@
               return matchActual || matchExpected || matchFallback;
             });
           } else if (filterObj.type === 'weaning20Week') {
-             // 💡 필터링 시 모돈 색출 로직 (정확히 20일이 도래하는 날짜가 속한 주차로 묶음)
+             // 필터링 시 모돈 색출 로직 (정확히 20일이 도래하는 날짜가 속한 주차로 묶음)
              result = result.filter(sow => {
               const s = sow || {};
-              // 상태가 포유가 아니면 무조건 탈락
               if ((s.currentStatus || '').trim() !== '포유') return false;
-              
-              // 날짜 기준 가장 최근 분만일 가져오기
               const r = getLatestHistoryRecord(s);
               if (!r || !r.date) return false;
-              
-              // 분만일 + 20일 계산 후, 그 날짜가 속한 주차의 월요일 추출
               const targetWeaningDate = addDays(r.date, 20);
               const targetWeaningWeek = getMonday(targetWeaningDate);
-              
               return targetWeaningWeek === filterObj.value;
             });
+          } else if (filterObj.type === 'expectedFarrowingWeek') {
+             // 주간 예상 분만 복수 팝업용 필터
+             result = result.filter(sow => {
+                const s = sow || {};
+                if (!s.matingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false;
+                const expDateStr = getExpectedFarrow(s.matingDate);
+                return expDateStr && getMonday(expDateStr) === filterObj.value;
+             });
           } else if (filterObj.type === 'activityMonth') {
             result = result.filter(sow => {
               const s = sow || {};
@@ -501,7 +504,7 @@
         };
       }, [currentSow]);
 
-      // 주간별 분만 현황 산출
+      // 주간별 분만 현황 산출 (기존 로직 유지)
       const weeklyFarrowingStats = useMemo(() => {
         const statsMap = {};
         const todayStr = formatDate(new Date());
@@ -581,25 +584,50 @@
         return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
       }, [sows]);
 
-      // 💡 20일령(이유) 도래 복수 (정확히 20일이 되는 날짜가 속한 주차로 묶음)
-      const weeklyWeaning20DaysStats = useMemo(() => {
+      // 💡 주간 예상 분만 복수 로직 (새롭게 추가된 부분)
+      const expectedFarrowingStats = useMemo(() => {
         const statsMap = {};
         const todayStr = formatDate(new Date());
         const currentMonday = getMonday(todayStr);
-        // 약 한 달 전(4주 전) 데이터까지만 노출하여 밀린 오래된 데이터 방지
-        const fourWeeksAgo = subtractDays(currentMonday, 28); 
+        // 과거 데이터 정리를 위해 2주 전까지만 표시
+        const twoWeeksAgo = subtractDays(currentMonday, 14);
 
         sows.filter(Boolean).forEach(sow => {
           const s = sow || {};
           
-          // 현재 상태가 '포유'인 개체만 필터링 (이유 완료 모돈 제외)
-          if ((s.currentStatus || '').trim() !== '포유') return;
+          // 종부일이 있고, 아직 분만하지 않았으며, 재발이나 포유가 아닌 경우만
+          if (s.matingDate && s.currentStatus !== '재발' && s.currentStatus !== '포유') {
+            const expectedFarrowingDate = getExpectedFarrow(s.matingDate);
+            if (expectedFarrowingDate) {
+              const weekKey = getMonday(expectedFarrowingDate);
+              
+              if (weekKey && weekKey >= twoWeeksAgo) {
+                if (!statsMap[weekKey]) {
+                  statsMap[weekKey] = { date: weekKey, count: 0, sows: [] };
+                }
+                statsMap[weekKey].count += 1;
+                statsMap[weekKey].sows.push(s);
+              }
+            }
+          }
+        });
 
-          // 가장 최근 분만일 찾기
+        return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
+      }, [sows]);
+
+      // 20일령(이유) 도래 복수
+      const weeklyWeaning20DaysStats = useMemo(() => {
+        const statsMap = {};
+        const todayStr = formatDate(new Date());
+        const currentMonday = getMonday(todayStr);
+        const fourWeeksAgo = subtractDays(currentMonday, 28); 
+
+        sows.filter(Boolean).forEach(sow => {
+          const s = sow || {};
+          if ((s.currentStatus || '').trim() !== '포유') return;
           const r = getLatestHistoryRecord(s); 
           if (!r || !r.date) return;
           
-          // 💡 분만일 + 20일을 더해 실제 20일령이 되는 날짜를 구하고, 그 날짜가 속한 주의 월요일을 구함
           const targetWeaningDate = addDays(r.date, 20);
           const targetWeaningWeek = getMonday(targetWeaningDate); 
           
@@ -607,15 +635,18 @@
             if (!statsMap[targetWeaningWeek]) {
               statsMap[targetWeaningWeek] = { date: targetWeaningWeek, count: 0, sows: [] };
             }
-            statsMap[targetWeaningWeek].sows.push(s); 
-            statsMap[targetWeaningWeek].count += 1;
+            // 중복 방지를 위해 확인 후 삽입
+            if (!statsMap[targetWeaningWeek].sows.find(item => item && item.id === s.id)) {
+                statsMap[targetWeaningWeek].sows.push(s); 
+                statsMap[targetWeaningWeek].count += 1;
+            }
           }
         });
 
         return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
       }, [sows]);
 
-      // 월별 후보돈 예상 입수 두수 계산 (목표 12복 대비 미달분 - 6산 도태 반영)
+      // 월별 후보돈 예상 입수 두수 계산
       const monthlyGiltIntroStats = useMemo(() => {
         const statsMap = {};
         
@@ -730,45 +761,7 @@
         return Object.values(statsMap).sort((a, b) => String(b.month || '').localeCompare(String(a.month || '')));
       }, [sows]);
 
-      // 부드러운 가로 스크롤 이동 동기화
-      useEffect(() => {
-        if (farrowingScrollRef.current && weeklyFarrowingStats.length > 0) {
-          const todayStr = formatDate(new Date());
-          const currentMonday = getMonday(todayStr);
-          
-          let targetIndex = weeklyFarrowingStats.findIndex(stat => stat.date >= currentMonday);
-          if (targetIndex === -1) targetIndex = weeklyFarrowingStats.length - 1;
-
-          setTimeout(() => {
-            const container = farrowingScrollRef.current;
-            if (container && container.children && container.children[targetIndex]) {
-              const card = container.children[targetIndex];
-              container.scrollTo({
-                left: card.offsetLeft - container.offsetLeft - 16,
-                behavior: 'smooth'
-              });
-            }
-          }, 300);
-        }
-      }, [weeklyFarrowingStats]);
-
-      useEffect(() => {
-        if (weaning20ScrollRef.current && weeklyWeaning20DaysStats.length > 0) {
-          const todayStr = formatDate(new Date());
-          const currentMonday = getMonday(todayStr);
-          let targetIndex = weeklyWeaning20DaysStats.findIndex(stat => stat.date >= currentMonday);
-          if (targetIndex === -1) targetIndex = weeklyWeaning20DaysStats.length - 1;
-          setTimeout(() => {
-            const container = weaning20ScrollRef.current;
-            if (container && container.children && container.children[targetIndex]) {
-              const card = container.children[targetIndex];
-              container.scrollTo({ left: card.offsetLeft - container.offsetLeft - 16, behavior: 'smooth' });
-            }
-          }, 300);
-        }
-      }, [weeklyWeaning20DaysStats]);
-
-      // --- 매월 현재 모돈수 자동 기록 ---
+      // --- 매월 현재 모돈수 자동 기록 (후보돈 제외 적용) ---
       useEffect(() => {
         if (!user || loading) return;
         
@@ -833,6 +826,65 @@
             showAlert("복구 실패: " + err.message);
           });
       };
+
+      // 💡 개별 모돈 빠른 분만 완료 처리 (주간 예상 분만 팝업용)
+      const completeSingleSowFarrowing = async (sowId, weekKey) => {
+        const tInpVal = farrowingInputs[sowId];
+        const total = tInpVal && tInpVal !== '' ? parseInt(tInpVal) || 0 : 0;
+        const born = total;
+        
+        const sow = sows.find(s => s.id === sowId);
+        if (!sow) return;
+        
+        const today = new Date();
+        const todayStr = formatDate(today);
+        
+        let history = [...(sow.history || [])];
+        history.sort((a, b) => (Number(b.parity) || 0) - (Number(a.parity) || 0));
+        
+        if (history.length === 0 || history[0].date) {
+            const expDate = sow.matingDate ? getExpectedFarrow(sow.matingDate) : '';
+            history.push({ 
+              parity: Number(sow.parity) || 0, 
+              expDate: expDate, 
+              date: todayStr, 
+              totalBorn: total, 
+              born: born, 
+              weaned: 0, 
+              move: 0 
+            });
+        } else {
+            history[0].date = todayStr; 
+            history[0].totalBorn = total; 
+            history[0].born = born;
+        }
+        
+        try {
+            await db.collection(SOWS_COLLECTION_PATH).doc(sowId).update({
+              currentStatus: '포유',
+              history: history
+            });
+            showAlert(`${sow.sowNo}번 분만 완료 처리되었습니다.`);
+            
+            // 입력창 초기화
+            setFarrowingInputs(prev => ({...prev, [sowId]: ''}));
+            
+            // 만약 현재 팝업에 남은 돼지가 없다면 팝업을 닫음
+            setTimeout(() => {
+                const remaining = sows.filter(s => {
+                    if (s.id === sowId) return false; // 방금 처리한 돼지 제외
+                    if (!s.matingDate || s.currentStatus === '재발' || s.currentStatus === '포유') return false;
+                    const expectedFarrowingDate = getExpectedFarrow(s.matingDate);
+                    return expectedFarrowingDate && getMonday(expectedFarrowingDate) === weekKey;
+                });
+                if (remaining.length === 0) setShowSowListModal(false);
+            }, 500);
+
+        } catch (e) { 
+            showAlert("실패: " + e.message); 
+        }
+      };
+
 
       const handleAddSow = async (e) => {
         e.preventDefault();
@@ -1189,7 +1241,7 @@
                   </div>
                 </div>
 
-                {/* 상태별 현황 */}
+                {/* 상태별 현황 (클릭 시 필터) */}
                 <div className="grid grid-cols-4 gap-2">
                   <div onClick={() => openFilteredList('status', '이유')} className="bg-slate-200/60 p-3 rounded-2xl border border-slate-200 text-center flex flex-col justify-center cursor-pointer hover:border-slate-400 active:scale-95 transition-all">
                     <span className="text-[11px] font-bold text-slate-500 mb-1">이유/대기</span>
@@ -1209,50 +1261,38 @@
                   </div>
                 </div>
 
-                {/* 주간별 분만 현황 */}
-                <div>
-                  <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
-                    주간별 분만 복수 <span className="text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded ml-1 font-bold">포유 및 분만예정 포함</span>
-                  </h3>
-                  <div 
-                    ref={farrowingScrollRef}
-                    className="flex overflow-x-auto gap-2 pb-2 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
-                  >
-                    {weeklyFarrowingStats.length === 0 ? (
-                      <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
-                        등록된 분만 기록이나 예정 내역이 없습니다.
-                      </div>
-                    ) : (
-                      weeklyFarrowingStats.map(stat => (
-                        <div 
-                          key={stat.date} 
-                          onClick={() => openFilteredList('farrowingWeek', stat.date)} 
-                          className="min-w-[135px] bg-white border border-emerald-100 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm snap-start shrink-0 cursor-pointer hover:border-emerald-300 active:scale-95 transition-all"
-                        >
-                          <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>
-                          <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">
-                            {String(stat.date || '').substring(5).replace('-', '/')} (월) 주간
-                          </span>
-                          <div className="flex flex-col pl-1">
-                            <div className="flex items-baseline">
-                              <span className="text-2xl font-black text-emerald-600">{(stat.actual || 0) + (stat.expected || 0)}</span>
-                              <span className="text-[10px] font-bold ml-0.5 text-emerald-400">복</span>
-                            </div>
-                            <div className="flex text-[9px] font-bold text-slate-400 mt-0.5 gap-1.5 whitespace-nowrap">
-                              <span>포유 <span className="text-slate-600">{stat.actual || 0}</span>복(<span className="text-slate-500">{stat.nursingPiglets || 0}</span>두)</span>
-                              <span>예정 <span className="text-slate-600">{stat.expected || 0}</span>복</span>
-                              {stat.parity6Plus > 0 ? (
-                                <span className="text-rose-400">6산↑ <span className="text-rose-600 font-black">{stat.parity6Plus}</span></span>
-                              ) : (
-                                <span className="text-slate-300">6산↑ 0</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                {/* 💡 주간 예상 분만 복수 */}
+                <section>
+                    <div className="flex justify-between items-end mb-3 px-1">
+                        <h2 className="text-base font-black text-slate-800 flex items-center gap-2 w-full">
+                            <CalendarHeart className="text-rose-500 w-5 h-5" /> 주간 예상 분만 복수 
+                            <span className="text-[10px] text-rose-600 font-bold ml-1 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 hidden sm:inline">터치 시 기록 확인</span>
+                        </h2>
+                    </div>
+                    <div 
+                        ref={expectedFarrowingScrollRef}
+                        className="flex overflow-x-auto gap-3 pb-2 no-scrollbar"
+                    >
+                        {expectedFarrowingStats.length === 0 ? (
+                            <div className="w-full p-4 bg-white rounded-2xl border-dashed border-2 border-slate-200 text-center text-xs text-slate-400 font-bold">예정된 분만 없음</div>
+                        ) : (
+                            expectedFarrowingStats.map(stat => (
+                                <div 
+                                    key={stat.date} 
+                                    onClick={() => openFilteredList('expectedFarrowingWeek', stat.date)} 
+                                    className="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"
+                                >
+                                    <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div>
+                                    <p className="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">{getWeekOfMonthString(stat.date)}</p>
+                                    <div className="flex items-end justify-between pl-1">
+                                        <p className="text-3xl font-black text-rose-600">{stat.count}<span className="text-sm font-bold text-rose-400 ml-1">복</span></p>
+                                        <ChevronRight className="w-4 h-4 text-rose-200 mb-1" />
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </section>
 
                 {/* --- 20일령(이유) 도래 복수 --- */}
                 <section className="mt-4">
@@ -1271,30 +1311,34 @@
                         도래 예정인 개체 없음
                       </div>
                     ) : (
-                      weeklyWeaning20DaysStats.map(stat => (
-                        <div 
-                          key={stat.date} 
-                          onClick={() => openFilteredList('weaning20Week', stat.date)} 
-                          className="w-[110px] bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform hover:border-emerald-300"
-                        >
-                          <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>
-                          <p className="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">
-                            {getWeekOfMonthString(stat.date)}<br/>
-                            <span className="text-[11px] font-bold text-slate-400">({addDays(stat.date, 3).substring(5).replace('-', '/')} 이유)</span>
-                          </p>
-                          <div className="flex items-end justify-between pl-1">
-                            <p className="text-3xl font-black text-emerald-600">
-                              {stat.count}<span className="text-sm font-bold text-emerald-400 ml-1">복</span>
+                      weeklyWeaning20DaysStats.map(stat => {
+                        // 수정된 부분: stat.date는 이미 '이유 주차의 월요일'이므로, 중복 계산 없이 단순 +3일(목요일)만 더해줍니다.
+                        const thursdayStr = addDays(stat.date, 3);
+                        return (
+                          <div 
+                            key={stat.date} 
+                            onClick={() => openFilteredList('weaning20Week', stat.date)} 
+                            className="w-[110px] bg-white p-4 rounded-2xl border border-emerald-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform hover:border-emerald-300"
+                          >
+                            <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-400"></div>
+                            <p className="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">
+                              {getWeekOfMonthString(stat.date)}<br/>
+                              <span className="text-[11px] font-bold text-slate-400 font-normal">({thursdayStr ? thursdayStr.substring(5).replace('-', '/') : ''} 이유)</span>
                             </p>
-                            <ChevronRight className="w-4 h-4 text-emerald-200 mb-1" />
+                            <div className="flex items-end justify-between pl-1">
+                              <p className="text-3xl font-black text-emerald-600">
+                                {stat.count}<span className="text-sm font-bold text-emerald-400 ml-1">복</span>
+                              </p>
+                              <ChevronRight className="w-4 h-4 text-emerald-200 mb-1" />
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </section>
 
-                {/* 월별 후보돈 예상 입수 두수 */}
+                {/* 월별 후보돈 입수 예상 두수 */}
                 <div className="mt-4">
                   <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
                     월별 후보돈 입수 예상 두수 <span className="text-[9px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded ml-1 font-bold">분만 목표 미달분 누적</span>
@@ -1350,42 +1394,44 @@
 
                         return (
                           <div key={medInfo.medWeekMonday} className="bg-indigo-50 border border-indigo-200 p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
-                            <div className="flex items-start gap-3">
-                              <div className="bg-indigo-100 p-2 rounded-full mt-0.5">
+                            <div className="flex items-start gap-3 w-full">
+                              <div className="bg-indigo-100 p-2 rounded-full mt-0.5 shrink-0">
                                 <Bell className="w-5 h-5 text-indigo-600" />
                               </div>
-                              <div className="flex flex-col">
-                                <span className="text-[12px] font-black text-indigo-800">
-                                  [{idx + 1}순위] 약제 투여 일정
-                                </span>
-                                <div className="flex flex-col gap-1.5 mt-1.5 border-t border-indigo-200/70 pt-2 w-full">
+                              <div className="flex flex-col w-full">
+                                <div className="flex justify-between items-center w-full">
+                                  <span className="text-[13px] font-black text-indigo-800">
+                                    [{idx + 1}순위] 약제 투여 일정
+                                  </span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[10px] text-indigo-500 font-bold tracking-tighter">자동: {medInfo.autoCount}두</span>
+                                    <button 
+                                      onClick={() => handleDeleteMedicationSchedule(medInfo.medWeekMonday)}
+                                      className="text-indigo-300 hover:text-rose-500 transition-colors"
+                                      title="이 일정 삭제"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2 mt-2 border-t border-indigo-200/70 pt-2.5 w-full">
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-indigo-600 bg-white border border-indigo-200 px-1.5 py-0.5 rounded shadow-sm w-[64px] text-center tracking-tighter">약제 시작</span>
-                                    <span className="text-[12px] font-black text-slate-700">{medInfo.medStartDate.substring(5).replace('-', '/')}</span>
+                                    <span className="text-[12px] font-black text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-md shadow-sm w-[76px] text-center tracking-tighter shrink-0">시작</span>
+                                    <span className="text-[14px] font-black text-slate-700">{medInfo.medStartDate.substring(5).replace('-', '/')}</span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-amber-600 bg-white border border-amber-200 px-1.5 py-0.5 rounded shadow-sm w-[64px] text-center tracking-tighter">종료(이유)</span>
-                                    <span className="text-[12px] font-black text-slate-700">{medInfo.medEndDate.substring(5).replace('-', '/')}</span>
+                                    <span className="text-[12px] font-black text-amber-700 bg-white border border-amber-200 px-2 py-0.5 rounded-md shadow-sm w-[76px] text-center tracking-tighter shrink-0">종료(이유)</span>
+                                    <span className="text-[14px] font-black text-slate-700">{medInfo.medEndDate.substring(5).replace('-', '/')}</span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-rose-500 bg-white border border-rose-200 px-1.5 py-0.5 rounded shadow-sm w-[64px] text-center tracking-tighter">종부 예정</span>
-                                    <span className="text-[12px] font-black text-rose-600">{medInfo.estMatingDate.substring(5).replace('-', '/')}</span>
+                                    <span className="text-[12px] font-black text-rose-600 bg-white border border-rose-200 px-2 py-0.5 rounded-md shadow-sm w-[76px] text-center tracking-tighter shrink-0">종부 예정</span>
+                                    <span className="text-[14px] font-black text-rose-600">{medInfo.estMatingDate.substring(5).replace('-', '/')}</span>
                                   </div>
                                 </div>
                               </div>
                             </div>
-                            <div className="flex flex-col items-end">
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <span className="text-[9px] text-indigo-400 font-bold">자동 산출: {medInfo.autoCount}두</span>
-                                <button 
-                                  onClick={() => handleDeleteMedicationSchedule(medInfo.medWeekMonday)}
-                                  className="text-indigo-300 hover:text-rose-500 transition-colors"
-                                  title="이 일정 삭제"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                              <div className="flex items-baseline bg-white px-2 py-1.5 rounded-xl border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors">
+                            <div className="flex flex-col items-end pl-2">
+                              <div className="flex items-baseline bg-white px-2 py-1.5 rounded-xl border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors mt-auto">
                                 <input
                                    type="number"
                                    className="w-10 text-right text-xl font-black text-indigo-600 outline-none bg-transparent placeholder-indigo-300"
@@ -1503,6 +1549,7 @@
                         {(listFilter || {}).type === 'status' ? `${(listFilter || {}).value} 상태` : 
                          (listFilter || {}).type === 'parity' ? `${(listFilter || {}).value}산` :
                          (listFilter || {}).type === 'farrowingWeek' ? `${(listFilter || {}).value} 분만 및 예정` :
+                         (listFilter || {}).type === 'expectedFarrowingWeek' ? `${getWeekOfMonthString((listFilter || {}).value)} 분만 예정` :
                          (listFilter || {}).type === 'activityMonth' ? `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 교배 및 분만` :
                          (listFilter || {}).type === 'weaning20Week' ? `${getWeekOfMonthString((listFilter || {}).value)} 20일령 도래` :
                          `${String((listFilter || {}).value || '').split('-')[0]}년 ${parseInt(String((listFilter || {}).value || '').split('-')[1] || 0)}월 분만 예정`}
@@ -1544,7 +1591,6 @@
                     {(() => {
                       const farrowMonday = listFilter.value;
                       
-                      // 도태 예정(6산 이상) 모돈 수 계산
                       let cullCount = 0;
                       filteredSows.forEach(sow => {
                         const s = sow || {};
@@ -1564,7 +1610,6 @@
 
                       const weaningThursday = getWeaningThursday(farrowMonday);
                       const estMatingDate = addDays(weaningThursday, 4); 
-                      
                       const giltIntroDate = subtractDays(estMatingDate, 60); 
                       const medEndDate = subtractDays(estMatingDate, 4); 
                       const medStartDate = subtractDays(medEndDate, 17); 
@@ -1648,6 +1693,78 @@
                           </div>
                         );
                       })}
+                    </div>
+                  </div>
+                ) : (listFilter && listFilter.type === 'expectedFarrowingWeek') ? (
+                  // 💡 주간 예상 분만 복수 상세 리스트 화면 (표 형식)
+                  <div className="flex flex-col gap-3">
+                    <div className="bg-rose-800 p-3 rounded-xl shadow-md mb-1 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-[13px] font-black text-white flex items-center gap-1.5">
+                            <CalendarHeart className="w-4 h-4 text-rose-300" />
+                            {getWeekOfMonthString(listFilter.value)} 분만 예정
+                        </span>
+                        <span className="text-[10px] text-rose-200 mt-1">해당 모돈의 총 산자수를 적은 뒤 [분만완료]를 클릭하세요.</span>
+                      </div>
+                      <span className="text-[13px] font-black text-rose-300">{filteredSows.length}복</span>
+                    </div>
+
+                    <div className="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg relative shadow-sm">
+                        <div className="min-w-max">
+                            <div className="bg-slate-100 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2.5 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10">
+                                <span className="w-14 shrink-0">번호</span>
+                                <span className="w-10 shrink-0">산차</span>
+                                <span className="w-20 shrink-0">종부일</span>
+                                <span className="w-20 shrink-0">예상일</span>
+                                <span className="w-20 shrink-0">총 산자수</span>
+                                <span className="w-20 shrink-0">분만완료</span>
+                            </div>
+                            <div className="bg-slate-50 flex flex-col">
+                                {filteredSows.sort((a,b) => String(a.matingDate||'').localeCompare(String(b.matingDate||''))).map(sow => {
+                                    const s = sow || {};
+                                    const matingFormatted = s.matingDate ? s.matingDate.substring(5).replace('-', '/') : '-';
+                                    const expDate = s.matingDate ? getExpectedFarrow(s.matingDate) : '';
+                                    const expFormatted = expDate ? expDate.substring(5).replace('-', '/') : '-';
+                                    
+                                    return (
+                                        <div key={s.id} className="bg-white px-2 py-2 border-b border-slate-100 flex items-center gap-1.5 hover:bg-rose-50/50 transition-colors">
+                                            <span 
+                                                onClick={() => { setSelectedSowId(s.id); setShowSowListModal(false); }} 
+                                                className="w-14 shrink-0 text-blue-600 font-black cursor-pointer underline underline-offset-2 text-center text-[13px] active:scale-95 transition-transform hover:text-blue-800"
+                                            >
+                                                {s.sowNo}
+                                            </span>
+                                            <div className="w-10 shrink-0 px-0.5 text-center flex items-center justify-center">
+                                                <span className="text-[12px] font-black text-slate-700">{s.parity}산</span>
+                                            </div>
+                                            <div className="w-20 shrink-0 px-0.5 text-center flex items-center justify-center">
+                                                <span className="text-[12px] font-bold text-slate-500">{matingFormatted}</span>
+                                            </div>
+                                            <div className="w-20 shrink-0 px-0.5 text-center flex items-center justify-center">
+                                                <span className="text-[12px] font-bold text-rose-500">{expFormatted}</span>
+                                            </div>
+                                            <div className="w-20 shrink-0 px-0.5">
+                                                <input 
+                                                    type="number" 
+                                                    value={farrowingInputs[s.id] || ''}
+                                                    onChange={e => setFarrowingInputs({...farrowingInputs, [s.id]: e.target.value})}
+                                                    className="w-full bg-white border border-slate-200 shadow-sm rounded-lg py-1.5 text-[12px] font-black text-center outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400 transition-all" 
+                                                    placeholder="두수" 
+                                                />
+                                            </div>
+                                            <div className="w-20 shrink-0 px-0.5 text-center">
+                                                <button 
+                                                    onClick={() => completeSingleSowFarrowing(s.id, listFilter.value)} 
+                                                    className="w-full bg-rose-500 hover:bg-rose-600 text-white font-black text-[11px] py-1.5 rounded-lg active:scale-95 transition-all shadow-sm"
+                                                >
+                                                    처리
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     </div>
                   </div>
                 ) : (listFilter && listFilter.type === 'weaning20Week') ? (

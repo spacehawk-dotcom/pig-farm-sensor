@@ -62,14 +62,14 @@
         <main class="max-w-2xl mx-auto p-4 space-y-6">
             <!-- 바로가기 링크 섹션 -->
             <section class="flex gap-2">
-                <a class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm" href="/env">
-                    <i data-lucide="thermometer" class="w-5 h-5 text-rose-500"></i> 환경
-                </a>
                 <a class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm" href="/pigmom">
                     <i data-lucide="clipboard-list" class="text-indigo-500 w-5 h-5"></i> 모돈
                 </a>
                 <a class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm" href="https://sungamfarm.netlify.app/feed">
                     <i data-lucide="shopping-cart" class="text-amber-500 w-5 h-5"></i> 사료
+                </a>
+                <a class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm" href="/env">
+                    <i data-lucide="thermometer" class="text-rose-500 w-5 h-5"></i> 환경
                 </a>
             </section>
 
@@ -1451,11 +1451,132 @@
                         const rows = batchAccidents.map(a => `<div class="flex justify-between items-center py-1.5 border-b border-slate-100"><span class="text-xs text-slate-500 font-bold">${a.date} (${a.penIndex + 1}칸)</span><span class="text-xs font-black ${a.type === 'sick' ? 'text-amber-600 bg-amber-50' : 'text-red-600 bg-red-50'} px-2 py-0.5 rounded">${a.count}두 ${a.type === 'sick' ? '환돈' : '폐사'}</span></div>`).join('');
                         accHtml = `<div class="space-y-1 max-h-[150px] overflow-y-auto">${rows}</div>`;
                     }
+
+                    // 🌟 젖돈 급여일 및 백신 접종일 계산 로직 🌟
+                    let feedHtml = '';
+                    let vaccineHtml = '';
+                    
+                    let sumTime = 0, pigCount = 0;
+                    // 후보사(육성사 8번)만 1일령, 나머지는 이유/육성 모두 20일령 기준
+                    let baseAge = (t.stage === 'grower' && b.id === 8) ? 1 : 20; 
+                    
+                    // 1. 입식/이유일(날짜)을 기준으로 칸들을 그룹화하기 위한 객체
+                    const dateGroups = {};
+                    
+                    for (let i = 0; i < b.penDetails.length; i++) {
+                        if (b.penDetails[i] > 0) {
+                            const pd = b.penDates[i] || b.weaningDate || b.date;
+                            if (pd) {
+                                const parsedPd = utils.parseDate(pd);
+                                if (parsedPd) { 
+                                    sumTime += parsedPd.getTime() * b.penDetails[i]; 
+                                    pigCount += b.penDetails[i]; 
+                                    
+                                    // 날짜를 YYYY-MM-DD 형식의 문자열(Key)로 변환하여 같은 날짜끼리 묶음
+                                    const dateKey = `${parsedPd.getFullYear()}-${String(parsedPd.getMonth()+1).padStart(2,'0')}-${String(parsedPd.getDate()).padStart(2,'0')}`;
+                                    
+                                    if (!dateGroups[dateKey]) {
+                                        dateGroups[dateKey] = { parsedPd: parsedPd, pens: [], totalPigs: 0 };
+                                    }
+                                    dateGroups[dateKey].pens.push(`${i + 1}칸`);
+                                    dateGroups[dateKey].totalPigs += b.penDetails[i];
+                                }
+                            }
+                        }
+                    }
+                    
+                    let vaccineRows = '';
+                    // 2. 그룹화된 날짜들을 기준으로 중복 없이 행(Row) 생성
+                    const sortedKeys = Object.keys(dateGroups).sort();
+                    sortedKeys.forEach(key => {
+                        const group = dateGroups[key];
+                        const parsedPd = group.parsedPd;
+                        const birthTime = parsedPd.getTime() - (baseAge * 24 * 60 * 60 * 1000);
+                        const getVDateStr = (days) => {
+                            const d = new Date(birthTime + (days * 24 * 60 * 60 * 1000));
+                            return `${d.getMonth() + 1}/${d.getDate()}`;
+                        };
+                        
+                        // 묶여있는 칸 번호들을 쉼표로 연결 (예: "1칸, 2칸")
+                        const penLabels = group.pens.join(', ');
+                        
+                        vaccineRows += `
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="py-2 px-1 font-black text-slate-700 bg-slate-50/50 leading-tight break-keep whitespace-normal">
+                                    <div class="text-[11px]">${penLabels}</div>
+                                    <div class="text-[9px] text-slate-400 font-bold mt-0.5">(${group.totalPigs}두)</div>
+                                </td>
+                                <td class="py-2.5 px-1 font-bold text-slate-500 whitespace-nowrap">${parsedPd.getMonth()+1}/${parsedPd.getDate()}</td>
+                                <td class="py-2.5 px-1 font-black text-rose-600 bg-rose-50/40 whitespace-nowrap">${getVDateStr(42)}</td>
+                                <td class="py-2.5 px-1 font-black text-blue-600 bg-blue-50/40 whitespace-nowrap">${getVDateStr(49)}</td>
+                                ${t.stage === 'grower' ? `<td class="py-2.5 px-1 font-black text-purple-600 bg-purple-50/40 whitespace-nowrap">${getVDateStr(77)}</td>` : ''}
+                            </tr>`;
+                    });
+                    
+                    // 3. 백신 접종일 렌더링 (이유사 & 육성사 모두 표기)
+                    if (vaccineRows) {
+                        const dateLabel = t.stage === 'weaning' ? '이유' : '입식';
+                        vaccineHtml = `
+                        <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                            <div class="flex items-center gap-1.5 mb-2.5 px-1">
+                                <div class="w-1.5 h-3.5 bg-blue-400 rounded-full"></div>
+                                <h4 class="text-[12px] font-black text-slate-800 tracking-tight">백신 접종일 <span class="text-[9px] font-bold text-slate-400 ml-0.5 font-normal tracking-normal">(${dateLabel}일 기준)</span></h4>
+                            </div>
+                            <div class="overflow-x-auto w-full no-scrollbar border border-slate-100 rounded-lg">
+                                <table class="w-full text-center text-[11px] border-collapse bg-white">
+                                    <thead class="bg-slate-100/80 border-b border-slate-200 text-slate-500 font-black tracking-tighter whitespace-nowrap">
+                                        <tr>
+                                            <th class="py-2 px-1">위치</th>
+                                            <th class="py-2 px-1">${dateLabel}일</th>
+                                            <th class="py-2 px-1 text-rose-600">열병<span class="text-[9px] font-bold ml-0.5 opacity-70">6주</span></th>
+                                            <th class="py-2 px-1 text-blue-600">구제1<span class="text-[9px] font-bold ml-0.5 opacity-70">7주</span></th>
+                                            ${t.stage === 'grower' ? `<th class="py-2 px-1 text-purple-600">구제2<span class="text-[9px] font-bold ml-0.5 opacity-70">11주</span></th>` : ''}
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-100">
+                                        ${vaccineRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>`;
+                    }
+                    
+                    // 4. 젖돈 급여일 렌더링 (육성사만 표기)
+                    if (t.stage === 'grower' && pigCount > 0) {
+                        const avgTime = sumTime / pigCount;
+                        
+                        // 젖돈 급여일 (105일령)
+                        const daysToAdd = 105 - baseAge; // 105일령 - 입식일령
+                        const targetDate = new Date(avgTime + daysToAdd * 24 * 60 * 60 * 1000);
+                        
+                        const mmdd = `${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
+                        const isPast = targetDate < new Date();
+                        const colorCls = isPast ? 'indigo' : 'emerald';
+                        const badgeTxt = isPast ? '급여 중' : '예정';
+                        
+                        feedHtml = `
+                        <div class="bg-${colorCls}-50 p-3 rounded-xl border border-${colorCls}-100 flex justify-between items-center shadow-sm">
+                            <div class="flex items-center gap-2">
+                                <div class="p-1.5 bg-${colorCls}-100 rounded-lg"><i data-lucide="wheat" class="text-${colorCls}-600 w-4 h-4"></i></div>
+                                <div class="flex flex-col">
+                                    <span class="text-[11px] font-black text-${colorCls}-700 mb-0.5">젖돈 급여 기준 (105일령)</span>
+                                    <span class="text-[9px] font-bold text-${colorCls}-500">평균 입식일 + ${daysToAdd}일</span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-[9px] font-black text-${colorCls}-500 bg-${colorCls}-100 px-1.5 py-0.5 rounded mb-0.5">${badgeTxt}</span>
+                                <span class="text-lg font-black text-${colorCls}-800 leading-none">${targetDate.getFullYear()}년 ${mmdd}</span>
+                            </div>
+                        </div>`;
+                    }
+
                     return {
                         title: '배치 세부 정보 및 관리',
                         html: `<input type="hidden" id="m-stage" value="${t.stage}">
                         <input type="hidden" id="m-batch" value="${t.batchId}">
-                        <div class="space-y-4">
+                        <div class="space-y-3.5">
+                            ${feedHtml}
+                            ${vaccineHtml}
                             <div class="bg-slate-50 p-4 rounded-xl"><label class="text-[10px] font-black text-slate-500 block mb-2">현재 배치 메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none outline-none border border-slate-200 rounded p-2" placeholder="여기에 메모를 입력하세요...">${b.memo || ''}</textarea></div>
                             <div><label class="text-[10px] font-black text-slate-500 block mb-2 flex items-center gap-1"><i data-lucide="skull" class="w-3.5 h-3.5 text-slate-400"></i> 현재 배치 폐사/도태 내역</label>${accHtml}</div>
                             <div class="pt-4 border-t border-slate-100">
