@@ -61,15 +61,18 @@
         <!-- 메인 콘텐츠 영역 -->
         <main class="max-w-2xl mx-auto p-4 space-y-6">
             <!-- 바로가기 링크 섹션 -->
-            <section class="flex gap-2">
-                <a class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm" href="/pigmom">
-                    <i data-lucide="clipboard-list" class="text-indigo-500 w-5 h-5"></i> 모돈
+            <section class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <a class="bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all text-[13px] sm:text-sm tracking-tight" href="/pigmom">
+                    <i data-lucide="clipboard-list" class="text-indigo-500 w-4 h-4 sm:w-5 sm:h-5"></i> 모돈(임신사)
                 </a>
-                <a class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm" href="https://sungamfarm.netlify.app/feed">
-                    <i data-lucide="shopping-cart" class="text-amber-500 w-5 h-5"></i> 사료
+                <a class="bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all text-[13px] sm:text-sm tracking-tight" href="https://sungamfarm.netlify.app/feed">
+                    <i data-lucide="shopping-cart" class="text-amber-500 w-4 h-4 sm:w-5 sm:h-5"></i> 사료
                 </a>
-                <a class="flex-1 bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-2 hover:bg-slate-50 active:scale-95 transition-all text-sm" href="/env">
-                    <i data-lucide="thermometer" class="text-rose-500 w-5 h-5"></i> 환경
+                <a class="bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all text-[13px] sm:text-sm tracking-tight" href="https://sungamfarm.netlify.app/breeding">
+                    <i data-lucide="flask-conical" class="text-teal-500 w-4 h-4 sm:w-5 sm:h-5"></i> 사양관리(첨가제)
+                </a>
+                <a class="bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all text-[13px] sm:text-sm tracking-tight" href="/env">
+                    <i data-lucide="thermometer" class="text-rose-500 w-4 h-4 sm:w-5 sm:h-5"></i> 환경
                 </a>
             </section>
 
@@ -183,10 +186,20 @@
             <section>
                 <div class="flex justify-between items-end mb-3 px-1" id="grower-header">
                     <h2 class="text-base font-black text-slate-800 flex items-center gap-2">
-                        <div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 및 후보사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span>
+                        <div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span>
                     </h2>
                 </div>
                 <div id="grower-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
+            </section>
+
+            <!-- 후보사 돈방 배치도 -->
+            <section>
+                <div class="flex justify-between items-end mb-3 px-1" id="gilt-header">
+                    <h2 class="text-base font-black text-slate-800 flex items-center gap-2">
+                        <div class="w-3 h-3 bg-purple-500 rounded-sm"></div> 후보사 <span class="text-[10px] text-purple-600 font-bold ml-1 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">칸 터치 시 기록/이동</span>
+                    </h2>
+                </div>
+                <div id="gilt-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
             </section>
 
             <!-- 일령 분석 및 변동 통계 기록 -->
@@ -241,7 +254,8 @@
             };
 
             const WEANING_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-emerald-500 rounded-sm"></div> 이유사 <span class="text-[10px] text-emerald-600 font-bold ml-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">칸 터치 시 기록/이동</span></h2>`;
-            const GROWER_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 및 후보사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span></h2>`;
+            const GROWER_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span></h2>`;
+            const GILT_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-purple-500 rounded-sm"></div> 후보사 <span class="text-[10px] text-purple-600 font-bold ml-1 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">칸 터치 시 기록/이동</span></h2>`;
 
             let app, auth, db, isLocalEnv = false, appId = 'sungamfarm';
             const COLS = {
@@ -697,6 +711,31 @@
                     const isEmpty = b.status === 'empty' || b.pigs === 0, isRes = stage === 'grower' && b.id === 8;
                     const title = isRes ? '후보사' : `${type} ${b.id}배치`, actualCls = isRes ? 'pen-residual' : typeCls,
                           gateCls = isEmpty ? 'gate-empty' : (isRes ? 'gate-residual' : (stage === 'weaning' ? 'gate-wean' : 'gate-grow'));
+                          
+                    let alertBadgeHtml = '';
+                    if (stage === 'grower' && !isRes && !isEmpty) {
+                        let sumTime = 0, pigCount = 0;
+                        for (let i = 0; i < b.penDetails.length; i++) {
+                            if (b.penDetails[i] > 0) {
+                                const pd = b.penDates[i] || b.weaningDate || b.date;
+                                if (pd) {
+                                    const parsedPd = utils.parseDate(pd);
+                                    if (parsedPd) { sumTime += parsedPd.getTime() * b.penDetails[i]; pigCount += b.penDetails[i]; }
+                                }
+                            }
+                        }
+                        if (pigCount > 0) {
+                            const avgTime = sumTime / pigCount;
+                            const targetDate = new Date(avgTime + (125 - 20) * 24 * 60 * 60 * 1000);
+                            const today = new Date(); today.setHours(0,0,0,0); targetDate.setHours(0,0,0,0);
+                            
+                            // 125일령(락토파산 급여 시작일)이 지났거나 오늘인 경우 (출하 전까지 계속 표시)
+                            if (targetDate <= today) {
+                                alertBadgeHtml = `<div class="absolute -top-2.5 -right-2.5 bg-pink-500 text-white text-[10px] font-black px-2.5 py-1 rounded-xl shadow-md border border-pink-400 z-10 flex items-center gap-1"><span class="animate-pulse">💊</span> 락토파산</div>`;
+                            }
+                        }
+                    }
+
                     let pensHtml = '';
                     for (let i = 0; i < b.penDetails.length; i++) {
                         const c = b.penDetails[i] || 0, isFill = c > 0;
@@ -712,6 +751,7 @@
                         pensHtml += `<div onclick="window.handlePenClick(event, '${stage}', ${b.id}, ${i})" class="pen-box ${penClass}">${txt}</div>`;
                     }
                     return `<div onclick="window.handleBatchClick('${stage}', ${b.id})" class="bg-white p-4 rounded-2xl border ${isEmpty ? 'border-dashed border-slate-200 opacity-60' : bgCls} relative flex flex-col justify-between cursor-pointer hover:shadow-sm transition-all">
+                        ${alertBadgeHtml}
                         <div>
                             <div class="flex justify-between items-center mb-1">
                                 <div class="flex items-center gap-2 flex-1 mr-2"><h4 class="text-sm font-black text-slate-800 whitespace-nowrap">${title}</h4><input type="text" value="${b.memo || ''}" placeholder="메모 입력" class="${iptCls}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter') this.blur();" onchange="window.quickSaveBatchMemo('${stage}', ${b.id}, this.value)"></div>
@@ -724,7 +764,12 @@
             }
 
             function renderWeaning() { renderBatchList('weaning-list', state.wBatches, '이유', 'weaning', 'pen-wean', 'border-emerald-100', 'text-emerald-600'); }
-            function renderGrower() { renderBatchList('grower-list', state.gBatches, '육성', 'grower', 'pen-grow', 'border-indigo-100', 'text-indigo-600'); }
+            function renderGrower() { 
+                const trueGrowers = state.gBatches.filter(b => b.id !== 8);
+                const gilts = state.gBatches.filter(b => b.id === 8);
+                renderBatchList('grower-list', trueGrowers, '육성', 'grower', 'pen-grow', 'border-indigo-100', 'text-indigo-600'); 
+                renderBatchList('gilt-list', gilts, '후보', 'grower', 'pen-residual', 'border-purple-100', 'text-purple-600'); 
+            }
 
             window.handlePenClick = (e, stg, bId, pIdx) => {
                 e.stopPropagation();
@@ -771,12 +816,14 @@
                 
                 document.getElementById('weaning-header').innerHTML = `<h2 class="text-base font-black text-rose-600 flex items-center gap-2 animate-pulse"><i data-lucide="move-right" class="w-5 h-5"></i> 이동할 도착지 칸을 선택하세요</h2>`;
                 document.getElementById('grower-header').innerHTML = `<h2 class="text-base font-black text-rose-600 flex items-center gap-2 animate-pulse"><i data-lucide="move-right" class="w-5 h-5"></i> 이동할 도착지 칸을 선택하세요</h2>`;
+                document.getElementById('gilt-header').innerHTML = `<h2 class="text-base font-black text-rose-600 flex items-center gap-2 animate-pulse"><i data-lucide="move-right" class="w-5 h-5"></i> 이동할 도착지 칸을 선택하세요</h2>`;
                 if (typeof lucide !== 'undefined') lucide.createIcons();
             };
 
             function renderAllHeaders() {
                 document.getElementById('weaning-header').innerHTML = WEANING_HEADER_DEFAULT;
                 document.getElementById('grower-header').innerHTML = GROWER_HEADER_DEFAULT;
+                document.getElementById('gilt-header').innerHTML = GILT_HEADER_DEFAULT;
                 renderGrower(); renderWeaning();
             }
 
@@ -1249,7 +1296,7 @@
                     const titleStr = weekKey === 'Unknown' ? '날짜 미상' : utils.getWeekOfMonth(weekKey);
                     return {
                         title: `<div class="flex items-center gap-2"><i data-lucide="baby" class="text-emerald-500"></i> <span class="text-lg font-black leading-tight">${titleStr} 도래 <span class="text-emerald-600 ml-1 inline-block">${sows.length}복</span></span></div>`,
-                        html: `<p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 개체 선택 후 아래 '분만/이유 완료' 버튼을 누르면 산차가 1 증가하며 '이유' 상태로 변경됩니다.</p>
+                        html: `<p class="text-[10px] font-bold text-slate-400 px-1 mt-1 mb-2">* 개체 선택 후 아래 '분만/이유 완료 버튼'을 누르면 산차가 1 증가하며 '이유' 상태로 변경됩니다.</p>
                         <div class="overflow-x-auto w-full no-scrollbar border border-slate-200 rounded-lg max-h-[50vh] relative shadow-sm mb-4">
                             <div class="min-w-max">
                                 <div class="bg-slate-100/80 border-b border-slate-200 flex items-center gap-1.5 px-2 py-2 text-[10px] font-black text-slate-500 text-center sticky top-0 z-10 uppercase tracking-wider">
@@ -1300,8 +1347,7 @@
                         const isGilt = String(r.batchId) === '8', age = r.calculatedWeaningDate ? utils.getDiffDays(r.calculatedWeaningDate, date) + (isGilt ? 1 : 20) : '??';
                         return `<tr class="hover:bg-slate-50/50 transition-colors flex w-full justify-between items-center py-2"><td class="flex-1 text-center font-bold text-slate-700 text-sm">${mmdd}</td><td class="flex-1 text-center font-semibold text-slate-600 text-xs">${age}일</td><td class="flex-1 text-center font-black text-blue-600 text-sm">${r.count}두</td><td class="flex-1 text-center relative min-w-[70px] flex justify-center"><div class="flex justify-center items-center"><button id="del-btn-${r.dbId}" onclick="window.toggleDeleteConfirm('${r.dbId}')" class="text-slate-300 hover:text-rose-500 transition-colors p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button><button id="confirm-btn-${r.dbId}" onclick="window.deleteShipment('${r.dbId}', '${date}')" class="hidden absolute inset-0 bg-rose-500 text-white text-[10px] font-black rounded-lg flex items-center justify-center w-full h-full">삭제확인</button></div></td></tr>`;
                     }).join('');
-
-                    return {
+                   return {
                         title: '확정 출하 현황 상세',
                         html: `<input type="hidden" id="m-ship-date" value="${date}">
                         <div class="flex flex-col gap-3 mb-5">
@@ -1379,6 +1425,7 @@
                     const b = (t.stage === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(t.batchId));
                     if (!b) return { title: '오류', html: '<p>데이터를 찾을 수 없습니다.</p>', hideSave: true };
                     const count = b.penDetails[t.penIndex], pDate = count > 0 ? ((b.penDates && b.penDates[t.penIndex]) || b.weaningDate || b.date || utils.getTodayStr()) : utils.getTodayStr(), isGrower = t.stage === 'grower', isResidual = b.penIsResidual ? b.penIsResidual[t.penIndex] : false;
+                    const isGilt = isGrower && b.id === 8;
                     const relevantAccidents = state.accidents.filter(a => a.stage === t.stage && String(a.batchId) === String(t.batchId) && a.penIndex === t.penIndex && !a.archived).sort((a, b) => String(b.date).localeCompare(String(a.date)));
 
                     let accHistoryHtml = '<p class="text-[9px] text-amber-500 mt-2 text-center w-full">기록된 폐사/환돈 내역 없음</p>';
@@ -1399,7 +1446,7 @@
                             <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 flex flex-col justify-center"><label class="text-[9px] font-bold text-slate-500 block mb-1 text-center">${isGrower ? '입식/이유일' : '이유일'}</label><input id="m-pen-date" type="date" value="${pDate}" class="w-full bg-transparent font-bold text-xs text-slate-800 text-center"></div>
                         </div>`;
 
-                    if (!isGrower) {
+                    if (!isGrower || isGilt) {
                         html += `<div class="bg-amber-50 p-3 rounded-xl border border-amber-100 flex flex-col shadow-inner">
                             <label class="text-[9px] font-black text-amber-600 block mb-2 flex items-center gap-1 shrink-0"><i data-lucide="skull" class="w-3.5 h-3.5 text-amber-500"></i> 폐사/도태 기록</label>
                             <div class="flex flex-col gap-1.5 flex-1 justify-center">
@@ -1425,6 +1472,16 @@
                         </div>
                         <div class="flex flex-col justify-end">${accHistoryHtml}</div>
                     </div>`;
+                    }
+
+                    if (isGilt) {
+                        html += `<div class="mt-4 pt-4 border-t border-slate-100">
+                            <div id="pen-reset-btn-container" class="flex justify-center"><button onclick="window.togglePenResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> 이 칸 기록 초기화하기</button></div>
+                            <div id="pen-reset-confirm-container" class="hidden flex flex-col gap-2 items-center">
+                                <p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 칸의 돼지 수와 입식일이 0으로 초기화되며,<br>관련된 <strong>폐사/도태 기록은 화면에서 숨김(엑셀 보존)</strong> 처리됩니다.</p>
+                                <div class="flex gap-2 w-full mt-1"><button onclick="window.togglePenResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.resetPen('${t.stage}', ${t.batchId}, ${t.penIndex})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button></div>
+                            </div>
+                        </div>`;
                     }
 
                     if (count > 0) {
@@ -1513,8 +1570,8 @@
                             </tr>`;
                     });
                     
-                    // 3. 백신 접종일 렌더링 (이유사 & 육성사 모두 표기)
-                    if (vaccineRows) {
+                    // 3. 백신 접종일 렌더링 (이유사 & 육성사 모두 표기, 후보사 제외)
+                    if (vaccineRows && b.id !== 8) {
                         const dateLabel = t.stage === 'weaning' ? '이유' : '입식';
                         vaccineHtml = `
                         <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
@@ -1541,31 +1598,47 @@
                         </div>`;
                     }
                     
-                    // 4. 젖돈 급여일 렌더링 (육성사만 표기)
-                    if (t.stage === 'grower' && pigCount > 0) {
+                    // 4. 젖돈 급여일 렌더링 (육성사만 표기, 후보사 제외)
+                    if (t.stage === 'grower' && b.id !== 8 && pigCount > 0) {
                         const avgTime = sumTime / pigCount;
                         
                         // 젖돈 급여일 (105일령)
-                        const daysToAdd = 105 - baseAge; // 105일령 - 입식일령
-                        const targetDate = new Date(avgTime + daysToAdd * 24 * 60 * 60 * 1000);
-                        
-                        const mmdd = `${targetDate.getMonth() + 1}/${targetDate.getDate()}`;
-                        const isPast = targetDate < new Date();
-                        const colorCls = isPast ? 'indigo' : 'emerald';
-                        const badgeTxt = isPast ? '급여 중' : '예정';
+                        const daysToAdd105 = 105 - baseAge; // 105일령 - 입식일령
+                        const targetDate105 = new Date(avgTime + daysToAdd105 * 24 * 60 * 60 * 1000);
+                        const mmdd105 = `${targetDate105.getMonth() + 1}/${targetDate105.getDate()}`;
+                        const isPast105 = targetDate105 < new Date();
+                        const colorCls105 = isPast105 ? 'indigo' : 'emerald';
+                        const badgeTxt105 = isPast105 ? '급여 중' : '예정';
+
+                        // 락토파산 급여일 (125일령)
+                        const daysToAdd125 = 125 - baseAge;
+                        const targetDate125 = new Date(avgTime + daysToAdd125 * 24 * 60 * 60 * 1000);
+                        const mmdd125 = `${targetDate125.getMonth() + 1}/${targetDate125.getDate()}`;
+                        const isPast125 = targetDate125 < new Date();
+                        const colorCls125 = isPast125 ? 'pink' : 'amber';
+                        const badgeTxt125 = isPast125 ? '급여 중' : '예정';
                         
                         feedHtml = `
-                        <div class="bg-${colorCls}-50 p-3 rounded-xl border border-${colorCls}-100 flex justify-between items-center shadow-sm">
-                            <div class="flex items-center gap-2">
-                                <div class="p-1.5 bg-${colorCls}-100 rounded-lg"><i data-lucide="wheat" class="text-${colorCls}-600 w-4 h-4"></i></div>
-                                <div class="flex flex-col">
-                                    <span class="text-[11px] font-black text-${colorCls}-700 mb-0.5">젖돈 급여 기준 (105일령)</span>
-                                    <span class="text-[9px] font-bold text-${colorCls}-500">평균 입식일 + ${daysToAdd}일</span>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-${colorCls105}-50 p-2.5 rounded-xl border border-${colorCls105}-100 flex flex-col justify-between shadow-sm">
+                                <div class="flex items-center gap-1.5 mb-2">
+                                    <div class="p-1.5 bg-${colorCls105}-100 rounded-lg"><i data-lucide="wheat" class="text-${colorCls105}-600 w-3.5 h-3.5"></i></div>
+                                    <span class="text-[11px] font-black text-${colorCls105}-700 leading-tight">젖돈 (105일령)</span>
+                                </div>
+                                <div class="flex justify-between items-end">
+                                    <span class="text-[9px] font-black text-${colorCls105}-500 bg-${colorCls105}-100 px-1.5 py-0.5 rounded">${badgeTxt105}</span>
+                                    <span class="text-[14px] font-black text-${colorCls105}-800 leading-none">${targetDate105.getFullYear()}.${mmdd105}</span>
                                 </div>
                             </div>
-                            <div class="flex flex-col items-end">
-                                <span class="text-[9px] font-black text-${colorCls}-500 bg-${colorCls}-100 px-1.5 py-0.5 rounded mb-0.5">${badgeTxt}</span>
-                                <span class="text-lg font-black text-${colorCls}-800 leading-none">${targetDate.getFullYear()}년 ${mmdd}</span>
+                            <div class="bg-${colorCls125}-50 p-2.5 rounded-xl border border-${colorCls125}-100 flex flex-col justify-between shadow-sm">
+                                <div class="flex items-center gap-1.5 mb-2">
+                                    <div class="p-1.5 bg-${colorCls125}-100 rounded-lg"><i data-lucide="pill" class="text-${colorCls125}-600 w-3.5 h-3.5"></i></div>
+                                    <span class="text-[11px] font-black text-${colorCls125}-700 leading-tight">락토파산 (125일령)</span>
+                                </div>
+                                <div class="flex justify-between items-end">
+                                    <span class="text-[9px] font-black text-${colorCls125}-500 bg-${colorCls125}-100 px-1.5 py-0.5 rounded">${badgeTxt125}</span>
+                                    <span class="text-[14px] font-black text-${colorCls125}-800 leading-none">${targetDate125.getFullYear()}.${mmdd125}</span>
+                                </div>
                             </div>
                         </div>`;
                     }
@@ -1579,13 +1652,15 @@
                             ${vaccineHtml}
                             <div class="bg-slate-50 p-4 rounded-xl"><label class="text-[10px] font-black text-slate-500 block mb-2">현재 배치 메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none outline-none border border-slate-200 rounded p-2" placeholder="여기에 메모를 입력하세요...">${b.memo || ''}</textarea></div>
                             <div><label class="text-[10px] font-black text-slate-500 block mb-2 flex items-center gap-1"><i data-lucide="skull" class="w-3.5 h-3.5 text-slate-400"></i> 현재 배치 폐사/도태 내역</label>${accHtml}</div>
-                            <div class="pt-4 border-t border-slate-100">
+                            ${t.stage === 'grower' && b.id === 8 ? 
+                            `<div class="pt-4 border-t border-slate-100 text-center"><p class="text-[10px] font-bold text-slate-400">후보사의 초기화는 각 칸(Pen) 상세창에서 개별적으로 진행할 수 있습니다.</p></div>` :
+                            `<div class="pt-4 border-t border-slate-100">
                                 <div id="batch-reset-btn-container" class="flex justify-center"><button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기</button></div>
                                 <div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center">
                                     <p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화되며,<br>관련된 <strong>폐사/도태 기록은 화면에서 숨김(엑셀 보존)</strong> 처리됩니다.</p>
                                     <div class="flex gap-2 w-full mt-1"><button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button></div>
                                 </div>
-                            </div>
+                            </div>`}
                         </div>`
                     };
                 },
@@ -2239,6 +2314,65 @@
             window.toggleBatchResetConfirm = () => {
                 const btnContainer = document.getElementById('batch-reset-btn-container'), confirmContainer = document.getElementById('batch-reset-confirm-container');
                 if (btnContainer && confirmContainer) { btnContainer.classList.toggle('hidden'); confirmContainer.classList.toggle('hidden'); }
+            };
+
+            window.togglePenResetConfirm = () => {
+                const btnContainer = document.getElementById('pen-reset-btn-container'), confirmContainer = document.getElementById('pen-reset-confirm-container');
+                if (btnContainer && confirmContainer) { btnContainer.classList.toggle('hidden'); confirmContainer.classList.toggle('hidden'); }
+            };
+
+            window.resetPen = async (stage, batchId, penIndex) => {
+                try {
+                    const col = stage === 'weaning' ? COLS.WEANING : COLS.GROWER;
+                    const arr = stage === 'weaning' ? state.wBatches : state.gBatches;
+                    const b = arr.find(x => String(x.id) === String(batchId));
+
+                    if (!b) throw new Error("배치를 찾을 수 없습니다.");
+
+                    const accidentsToArchive = state.accidents.filter(a => a.stage === stage && String(a.batchId) === String(batchId) && a.penIndex === penIndex && !a.archived);
+
+                    const newPenDetails = [...b.penDetails];
+                    const newPenDates = [...(b.penDates || Array(newPenDetails.length).fill(''))];
+                    const newPenIsResidual = [...(b.penIsResidual || Array(newPenDetails.length).fill(false))];
+                    const newPenIsSick = [...(b.penIsSick || Array(newPenDetails.length).fill(false))];
+
+                    newPenDetails[penIndex] = 0;
+                    newPenDates[penIndex] = '';
+                    newPenIsResidual[penIndex] = false;
+                    newPenIsSick[penIndex] = false;
+
+                    const newPigs = newPenDetails.reduce((a, c) => a + c, 0);
+                    const newPens = newPenDetails.filter(c => c > 0).length;
+                    const newStatus = newPigs > 0 ? 'active' : 'empty';
+
+                    if (isLocalEnv) {
+                        b.penDetails = newPenDetails;
+                        b.penDates = newPenDates;
+                        b.penIsResidual = newPenIsResidual;
+                        b.penIsSick = newPenIsSick;
+                        b.pigs = newPigs;
+                        b.pens = newPens;
+                        b.status = newStatus;
+                        accidentsToArchive.forEach(a => a.archived = true);
+                    } else {
+                        await db.doc(`${col}/batch_${batchId}`).update({
+                            penDetails: newPenDetails, penDates: newPenDates, penIsResidual: newPenIsResidual, penIsSick: newPenIsSick, pigs: newPigs, pens: newPens, status: newStatus
+                        });
+                        if (accidentsToArchive.length > 0) {
+                            const batchWrite = db.batch();
+                            accidentsToArchive.forEach(acc => {
+                                const docRef = db.collection(COLS.ACCIDENTS).doc(acc.dbId);
+                                batchWrite.update(docRef, { archived: true });
+                            });
+                            await batchWrite.commit();
+                        }
+                    }
+                    utils.showToast(`${penIndex + 1}칸이 초기화 되었습니다.`); 
+                    window.closeModal(); 
+                    if (isLocalEnv) renderAll();
+                } catch (e) { 
+                    utils.showToast("칸 리셋 실패: " + e.message); 
+                }
             };
 
             window.resetBatch = async (stage, batchId) => {
