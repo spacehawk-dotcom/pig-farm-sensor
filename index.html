@@ -1602,13 +1602,13 @@
                     if (t.stage === 'grower' && b.id !== 8 && pigCount > 0) {
                         const avgTime = sumTime / pigCount;
                         
-                        // 젖돈 급여일 (105일령)
+                        // 젖돈 급여일 (~105일령 까지)
                         const daysToAdd105 = 105 - baseAge; // 105일령 - 입식일령
                         const targetDate105 = new Date(avgTime + daysToAdd105 * 24 * 60 * 60 * 1000);
                         const mmdd105 = `${targetDate105.getMonth() + 1}/${targetDate105.getDate()}`;
                         const isPast105 = targetDate105 < new Date();
-                        const colorCls105 = isPast105 ? 'indigo' : 'emerald';
-                        const badgeTxt105 = isPast105 ? '급여 중' : '예정';
+                        const colorCls105 = isPast105 ? 'slate' : 'emerald';
+                        const badgeTxt105 = isPast105 ? '급여 종료' : '급여 중';
 
                         // 락토파산 급여일 (125일령)
                         const daysToAdd125 = 125 - baseAge;
@@ -1623,7 +1623,7 @@
                             <div class="bg-${colorCls105}-50 p-2.5 rounded-xl border border-${colorCls105}-100 flex flex-col justify-between shadow-sm">
                                 <div class="flex items-center gap-1.5 mb-2">
                                     <div class="p-1.5 bg-${colorCls105}-100 rounded-lg"><i data-lucide="wheat" class="text-${colorCls105}-600 w-3.5 h-3.5"></i></div>
-                                    <span class="text-[11px] font-black text-${colorCls105}-700 leading-tight">젖돈 (105일령)</span>
+                                    <span class="text-[11px] font-black text-${colorCls105}-700 leading-tight">젖돈 (~105일령)</span>
                                 </div>
                                 <div class="flex justify-between items-end">
                                     <span class="text-[9px] font-black text-${colorCls105}-500 bg-${colorCls105}-100 px-1.5 py-0.5 rounded">${badgeTxt105}</span>
