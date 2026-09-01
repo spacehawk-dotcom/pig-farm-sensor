@@ -1,295 +1,41 @@
-import React, { useState } from 'react';
-import { ShieldAlert, Droplets, Syringe, Wheat, PiggyBank, AlertTriangle, Info, CheckCircle2 } from 'lucide-react';
-
-// 데이터 정의: 구간별 사료 첨가제 지침
-const feedGuidelines = [
-  {
-    stage: "후보돈 (Gilt - 입식 후)",
-    target: "농장 환경 순치 및 초종부를 위한 체형(BCS) 관리",
-    type: "단계별 급여 프로그램",
-    items: [
-      { name: "[입식 후 1주일] 항생제 + 구충제", amount: "1kg / 2kg", desc: "탑드레싱 혼합. 수송 스트레스 및 새로운 질병 방어 (무제한 급이)" },
-      { name: "[1주 후 ~ 1개월] 첨가제 없음", amount: "-", desc: "약제 중단 후 맹사료 무제한 급이 (농장 균사 적응 및 골격 성장)" },
-      { name: "[입식 1개월 후] 제한 급이 전환", amount: "-", desc: "아침/저녁 2회 제한 급이 실시 (과비 방지 및 발정 유도)" },
-    ],
-    alert: "입식 후 1개월이 지나면 무제한 급이를 중단하고 반드시 제한 급이로 전환하여 과비를 막아주세요."
-  },
-  {
-    stage: "임신돈 (Gestation)",
-    target: "골격 유지, 유산 방지, 자궁 수축력 강화",
-    type: "상시 급여 (사료 톤당)",
-    items: [
-      { name: "마이맥스4 (광물질)", amount: "1.5kg", desc: "지제 붕괴 방지, 분만 시간 단축" },
-      { name: "스페셜 플러스 (비타민/아미노산)", amount: "1kg", desc: "대사 촉진 및 체력 유지" },
-      { name: "디톡신 (독소흡착제)", amount: "1kg", desc: "곰팡이 독소 차단, 유산/사산 방지" },
-    ],
-    alert: "임신돈 구간에는 항생제를 상시 급여하지 않습니다."
-  },
-  {
-    stage: "포유돈 (Lactation)",
-    target: "유량 증진, 체손실 방어, 자돈 생시체중 향상",
-    type: "상시 급여 (사료 톤당)",
-    items: [
-      { name: "마이맥스4 (광물질)", amount: "1.5kg", desc: "포유 중 뼈(칼슘/인) 손실 방어" },
-      { name: "모유업", amount: "2kg", desc: "유량 증진 및 초유 품질 개선" },
-      { name: "어분", amount: "3kg", desc: "고단백 공급, 모돈 야윔(체손실) 방지" },
-      { name: "디톡신 (독소흡착제)", amount: "1kg", desc: "독소의 모유 이행 차단" },
-    ]
-  },
-  {
-    stage: "이유자돈 (이유 ~ 55일령)",
-    target: "40일령 위축돈 방어, 장 융모 재생",
-    type: "구간별 탑드레싱 (지대 20kg 1포 기준)",
-    items: [
-      { name: "[4주령] 티썰파+폴리마이신+해열제", amount: "50g", desc: "1호/2호 믹스 사료에 혼합 (이유 스트레스 완화)" },
-      { name: "[5~6주령] 코팅 뷰티르산 (낙산)", amount: "20g~40g", desc: "2호 사료에 혼합 (종이컵 1/3 분량). 40일령 연변 방어 핵심!" },
-      { name: "[7~8주령] 3호 사료 단독 급여", amount: "-", desc: "7~8주령은 3호 사료만 급여합니다." }
-    ],
-    alert: "5주령부터 항생제 대신 음수로 '아그로시드 슈퍼' 투약을 시작합니다."
-  },
-  {
-    stage: "젖돈 전기 (56 ~ 80일령)",
-    target: "장내 환경 개선 및 사료 교체 스트레스 완화",
-    type: "상시 급여 (사료 톤당)",
-    items: [
-      { name: "유기산", amount: "1kg", desc: "상시: 장내 환경 개선 및 소화기 방어" },
-      { name: "어분", amount: "2kg", desc: "상시: 초기 성장을 위한 고품질 단백질 공급" }
-    ]
-  },
-  {
-    stage: "젖돈 후기 (81 ~ 105일령)",
-    target: "육성사 이동 스트레스 완화 및 초기 질병 방어",
-    type: "상시 및 단기 급여 (사료 톤당)",
-    items: [
-      { name: "항생제", amount: "1kg", desc: "단기: 육성사 이동 직후 딱 1주일만 급여 (환경 변화 스트레스 방어)" },
-      { name: "어분", amount: "2kg", desc: "상시: 폭발적 성장을 위한 단백질 베이스" },
-      { name: "구충제", amount: "2kg", desc: "단기: 이동 후 투약 시작하여 딱 1주일만 급여 (간 독성 방지)" }
-    ],
-    alert: "항생제와 구충제는 육성사 이동 후 1주일만 단기 투약하고 맹사료로 전환하세요."
-  },
-  {
-    stage: "육성 (106 ~ 125일령)",
-    target: "본격적인 골격 발달 및 근육 성장 주도",
-    type: "상시 급여 (사료 톤당)",
-    items: [
-      { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
-      { name: "스페셜", amount: "2kg", desc: "비타민/미네랄 공급 및 후기 성장 스트레스 완화" }
-    ]
-  },
-  {
-    stage: "비육 (126일령 ~ 출하)",
-    target: "살코기(정육률) 극대화, 출하 일령 단축",
-    type: "상시 급여 (사료 톤당)",
-    items: [
-      { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
-      { name: "스페셜", amount: "2kg", desc: "락토파산 대사 스트레스 완화" },
-      { name: "락토파산", amount: "0.5kg", desc: "살코기 수율 극대화 (출하 전 약 4주 집중 투약)" }
-    ],
-    alert: "번식돈(모돈, 웅돈, 자돈)에게 락토파산을 절대 급여하지 마세요."
-  }
-];
-
-// 데이터 정의: 음수 및 기타 지침
-const waterGuidelines = {
-  title: "공통 음수 투약 (아그로시드 슈퍼)",
-  desc: "수관 내 물때(바이오필름) 제거 및 위내 산도 통제로 소화기 질환 예방",
-  instructions: [
-    { title: "메인 배관 (투약기 1% 세팅)", content: "100L 희석통에 물을 채우고 아그로시드 슈퍼 원액 3~5L 혼합" },
-    { title: "위축돈 집중 관리 (20L 이동식 물통)", content: "20L 통에 원액 6~10ml 혼합 (15A 미니 볼탑 연결 사용)" },
-    { title: "투약기 바이패스 밸브 조작", content: "약 투여시: 양쪽 밸브 열림, 가운데 닫힘 / 맹물 시: 양쪽 닫힘, 가운데 열림" }
-  ]
-};
-
-export default function App() {
-  const [activeTab, setActiveTab] = useState('feed');
-  const [memos, setMemos] = useState({});
-
-  const handleMemoChange = (idx, value) => {
-    setMemos(prev => ({ ...prev, [idx]: value }));
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-100 font-sans pb-20">
-      {/* Header */}
-      <header className="bg-blue-800 text-white p-5 shadow-md">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Wheat className="w-6 h-6" />
-          성암농장 사양관리 지침서
-        </h1>
-        <p className="text-blue-200 text-sm mt-1">최종 업데이트: 2026. 08. 30</p>
-      </header>
-
-      {/* Tabs */}
-      <div className="flex bg-white border-b border-gray-200 sticky top-0 z-10">
-        <button 
-          onClick={() => setActiveTab('feed')}
-          className={`flex-1 py-3 font-medium text-sm transition-colors flex justify-center items-center gap-2 ${activeTab === 'feed' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-blue-600'}`}
-        >
-          <PiggyBank className="w-4 h-4" /> 사료 첨가제
-        </button>
-        <button 
-          onClick={() => setActiveTab('water')}
-          className={`flex-1 py-3 font-medium text-sm transition-colors flex justify-center items-center gap-2 ${activeTab === 'water' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-blue-600'}`}
-        >
-          <Droplets className="w-4 h-4" /> 음수 / 환경
-        </button>
-      </div>
-
-      {/* Content Area */}
-      <main className="p-4 max-w-4xl mx-auto mt-2">
-        
-        {/* FEED TAB */}
-        {activeTab === 'feed' && (
-          <div className="space-y-4">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex gap-3 items-start">
-              <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-blue-800">
-                각 사육 구간별 정확한 사료 배합 비율입니다. 지대(20kg) 급여 시 탑드레싱 용량을 반드시 지켜주세요.
-              </p>
-            </div>
-
-            {feedGuidelines.map((stage, idx) => (
-              <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="bg-slate-50 p-4 border-b border-gray-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-                  <div className="flex-1 w-full">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="text-lg font-bold text-gray-800">{stage.stage}</h2>
-                      <input
-                        type="text"
-                        placeholder="메모 입력 (예: 3동 적용중)"
-                        value={memos[idx] || ''}
-                        onChange={(e) => handleMemoChange(idx, e.target.value)}
-                        className="flex-1 min-w-[150px] max-w-xs px-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white placeholder-gray-400"
-                      />
+                    <div className="border-t border-red-200"></div>
+                    <div className="flex gap-4 items-center">
+                      <span className="bg-red-600 text-white font-bold px-3 py-1 rounded-lg text-sm whitespace-nowrap">소화기 증상</span>
+                      <p className="text-gray-800 font-semibold">바닥에 <span className="text-red-600">혈변</span>이 보일 경우, <span className="text-red-600 text-lg">타이로-100 1kg</span>을 사료에 즉시 추가합니다.</p>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">목표: {stage.target}</p>
                   </div>
-                  <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-semibold flex-shrink-0">
-                    {stage.type.split(' ')[0]}
-                  </span>
                 </div>
-                
-                <div className="p-4">
-                  <p className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wider">{stage.type}</p>
-                  <ul className="space-y-3">
-                    {stage.items.map((item, i) => (
-                      <li key={i} className="flex justify-between items-start border-b border-gray-50 pb-2 last:border-0 last:pb-0">
-                        <div>
-                          <p className="font-semibold text-gray-800 flex items-center gap-1.5">
-                            <CheckCircle2 className="w-4 h-4 text-green-500" />
-                            {item.name}
-                          </p>
-                          <p className="text-sm text-gray-600 pl-5">{item.desc}</p>
-                        </div>
-                        <span className="font-bold text-blue-700 bg-blue-50 px-2 py-1 rounded text-sm whitespace-nowrap">
-                          {item.amount}
-                        </span>
-                      </li>
+
+              </div>
+            )}
+
+            {activeTab === 'water' && (
+              <div className="space-y-4">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="bg-blue-600 p-4">
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      <Droplets /> {waterGuidelines.title}
+                    </h2>
+                    <p className="text-blue-100 text-sm mt-1">{waterGuidelines.desc}</p>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    {waterGuidelines.instructions.map((inst, idx) => (
+                      <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                        <h3 className="font-bold text-gray-800 text-sm mb-1">{inst.title}</h3>
+                        <p className="text-gray-600 text-sm">{inst.content}</p>
+                      </div>
                     ))}
-                  </ul>
-
-                  {stage.alert && (
-                    <div className="mt-4 bg-red-50 text-red-700 p-3 rounded-lg flex items-start gap-2 text-sm">
-                      <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                      <p className="font-medium">{stage.alert}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {/* 긴급 처방 지침 (크게 강조) */}
-            <div className="mt-6 bg-red-600 text-white rounded-xl shadow-lg p-5 border-2 border-red-700 flex flex-col sm:flex-row items-center sm:items-start gap-4">
-              <div className="bg-white/20 p-3 rounded-full flex-shrink-0">
-                <Syringe className="w-8 h-8 text-white" />
-              </div>
-              <div className="w-full">
-                <h2 className="text-xl font-extrabold mb-3 text-center sm:text-left tracking-wide">
-                  ※ 질병 발생 시 긴급 사료 첨가 지침
-                </h2>
-                <div className="space-y-3 bg-red-700/50 p-4 rounded-lg">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-lg">
-                    <span className="bg-white text-red-700 px-3 py-1 rounded-md text-sm font-black whitespace-nowrap text-center">
-                      호흡기
-                    </span>
-                    <p className="font-medium">
-                      돼지들이 <strong className="text-yellow-300 text-xl mx-1 underline decoration-2 underline-offset-4">기침</strong>을 할 경우 
-                      <strong className="text-yellow-300 text-xl ml-2">플로피그 1kg</strong> 추가
-                    </p>
-                  </div>
-                  
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-lg">
-                    <span className="bg-white text-red-700 px-3 py-1 rounded-md text-sm font-black whitespace-nowrap text-center">
-                      소화기
-                    </span>
-                    <p className="font-medium">
-                      돈방에 <strong className="text-yellow-300 text-xl mx-1 underline decoration-2 underline-offset-4">혈변</strong>이 보일 경우 
-                      <strong className="text-yellow-300 text-xl ml-2">타이로-100 1kg</strong> 추가
-                    </p>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
+          </main>
+        </div>
+      );
+    }
 
-          </div>
-        )}
-
-        {/* WATER / INJECTABLES TAB */}
-        {activeTab === 'water' && (
-          <div className="space-y-4">
-            
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-blue-600 p-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <Droplets className="w-5 h-5" />
-                  {waterGuidelines.title}
-                </h2>
-                <p className="text-blue-100 text-sm mt-1">{waterGuidelines.desc}</p>
-              </div>
-              
-              <div className="p-4 space-y-4">
-                {waterGuidelines.instructions.map((inst, idx) => (
-                  <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
-                    <h3 className="font-bold text-gray-800 text-sm mb-1">{inst.title}</h3>
-                    <p className="text-gray-600 text-sm">{inst.content}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="bg-orange-500 p-4">
-                <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                  <ShieldAlert className="w-5 h-5" />
-                  40일령 위축돈 집중 관리 지침
-                </h2>
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="flex gap-3 items-start">
-                  <div className="bg-orange-100 p-2 rounded-full">
-                    <Wheat className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm">갓난돼지 2호 사료 교체 시점 (5~6주령)</h3>
-                    <p className="text-gray-600 text-sm">반드시 **코팅 뷰티르산**을 20kg 지대 당 종이컵 1/3씩 뿌려 탑드레싱 해주세요.</p>
-                  </div>
-                </div>
-                <div className="flex gap-3 items-start">
-                  <div className="bg-orange-100 p-2 rounded-full">
-                    <Droplets className="w-4 h-4 text-orange-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-gray-800 text-sm">위축돈 격리방 물통 세팅</h3>
-                    <p className="text-gray-600 text-sm">15mm 배관을 20L 통에 연결 후 플라스틱 미니 볼탑을 장착. 아그로시드 슈퍼를 정밀 배합(10ml)하여 급여합니다.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        )}
-
-      </main>
-    </div>
-  );
-}
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
