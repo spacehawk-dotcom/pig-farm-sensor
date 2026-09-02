@@ -63,7 +63,7 @@
         target: "농장 환경 순치 및 초종부를 위한 체형(BCS) 관리",
         type: "단계별 급여 프로그램",
         items: [
-          { name: "[입식 후 1주일] 항생제 + 구충제", amount: "1kg / 2kg", desc: "탑드레싱 혼합. 수송 스트레스 및 새로운 질병 방어 (무제한 급이)" },
+          { name: "[입식 후 1주일] 항생제 + 구충제", amount: "50g/100g", desc: "탑드레싱 혼합. 수송 스트레스 및 새로운 질병 방어 (무제한 급이)" },
           { name: "[1주 후 ~ 1개월] 첨가제 없음", amount: "-", desc: "약제 중단 후 맹사료 무제한 급이 (농장 균사 적응 및 골격 성장)" },
           { name: "[입식 1개월 후] 제한 급이 전환", amount: "-", desc: "아침/저녁 2회 제한 급이 실시 (과비 방지 및 발정 유도)" }
         ],
@@ -184,8 +184,8 @@
                 setUserId(uid);
                 setSyncStatus('클라우드 연동 완료');
 
-                // 2. 실시간 데이터 구독
-                const docRef = doc(db, 'artifacts', appId, 'users', uid, 'farmData', 'memos');
+                // 2. 실시간 데이터 구독 (개인 공간 -> 공용 공간으로 경로 변경)
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'memos', 'shared');
                 
                 unsubscribe = onSnapshot(docRef, (docSnap) => {
                   if (docSnap.exists()) {
@@ -232,7 +232,8 @@
           const fb = await window.firebaseInitPromise;
           if (fb) {
             const { db, doc, setDoc, appId } = fb;
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'farmData', 'memos');
+            // 개인 공간 -> 공용 공간으로 경로 변경
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'memos', 'shared');
             await setDoc(docRef, { memos }, { merge: true });
             
             setSyncStatus('클라우드에 안전하게 저장됨');
@@ -255,7 +256,7 @@
             </div>
             {/* 동기화 상태 및 사용자 ID 표시 바 */}
             <div className="bg-blue-900 text-blue-200 px-5 py-2 text-xs flex flex-col sm:flex-row sm:justify-between gap-1 items-start sm:items-center">
-              <span className="break-all">사용자 ID: {userId ? userId : '로컬 사용자'}</span>
+              <span className="break-all">📡 농장 공용 메모 모드 (모든 기기에서 동일한 메모가 공유됩니다)</span>
               <span className="font-semibold px-2 py-0.5 bg-blue-800 rounded">{syncStatus}</span>
             </div>
           </header>
