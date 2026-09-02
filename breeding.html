@@ -161,7 +161,7 @@
       const [syncStatus, setSyncStatus] = useState('로컬 저장 모드 (클라우드 확인 중...)');
 
       // 앱 실행 시 클라우드 저장소 연결 및 데이터 불러오기
-      React.useEffect(() => {
+      useEffect(() => {
         let unsubscribe;
 
         const initCloudSync = async () => {
@@ -184,7 +184,7 @@
                 setUserId(uid);
                 setSyncStatus('클라우드 연동 완료');
 
-                // 2. 실시간 데이터 구독 (개인 공간 -> 공용 공간으로 경로 변경)
+                // 2. 실시간 데이터 구독 (공용 공간 메모)
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'memos', 'shared');
                 
                 unsubscribe = onSnapshot(docRef, (docSnap) => {
@@ -232,7 +232,6 @@
           const fb = await window.firebaseInitPromise;
           if (fb) {
             const { db, doc, setDoc, appId } = fb;
-            // 개인 공간 -> 공용 공간으로 경로 변경
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'memos', 'shared');
             await setDoc(docRef, { memos }, { merge: true });
             
@@ -254,7 +253,7 @@
               </h1>
               <p className="text-blue-200 text-sm mt-1">최종 업데이트: 2026. 08. 30</p>
             </div>
-            {/* 동기화 상태 및 사용자 ID 표시 바 */}
+            {/* 동기화 상태 표시 바 */}
             <div className="bg-blue-900 text-blue-200 px-5 py-2 text-xs flex flex-col sm:flex-row sm:justify-between gap-1 items-start sm:items-center">
               <span className="break-all">📡 농장 공용 메모 모드 (모든 기기에서 동일한 메모가 공유됩니다)</span>
               <span className="font-semibold px-2 py-0.5 bg-blue-800 rounded">{syncStatus}</span>
