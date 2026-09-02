@@ -103,7 +103,7 @@
         alert: "5주령부터 항생제 대신 음수로 '아그로시드 슈퍼' 투약을 시작합니다."
       },
       {
-        stage: "젖돈 전기 (56 ~ 80일령)",
+        stage: "젖돈 전기 (56 ~ 80일령) #이유사",
         target: "장내 환경 개선 및 사료 교체 스트레스 완화",
         type: "상시 급여 (사료 톤당)",
         items: [
@@ -112,7 +112,7 @@
         ]
       },
       {
-        stage: "젖돈 후기 (81 ~ 105일령)",
+        stage: "젖돈 후기 (81 ~ 105일령) #육성사 이동 시",
         target: "육성사 이동 스트레스 완화 및 초기 질병 방어",
         type: "상시 및 단기 급여 (사료 톤당)",
         items: [
@@ -128,7 +128,7 @@
         type: "상시 급여 (사료 톤당)",
         items: [
           { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
-          { name: "스페셜", amount: "2kg", desc: "비타민/미네랄 공급 및 후기 성장 스트레스 완화" }
+          { name: "스페셜 플러스", amount: "2kg", desc: "비타민/미네랄 공급 및 후기 성장 스트레스 완화" }
         ]
       },
       {
@@ -137,7 +137,7 @@
         type: "상시 급여 (사료 톤당)",
         items: [
           { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
-          { name: "스페셜", amount: "2kg", desc: "락토파산 대사 스트레스 완화" },
+          { name: "스페셜 플러스", amount: "2kg", desc: "락토파산 대사 스트레스 완화" },
           { name: "락토파산", amount: "0.5kg", desc: "살코기 수율 극대화 (출하 전 약 4주 집중 투약)" },
         ],
         alert: "번식돈(모돈, 웅돈, 자돈)에게 락토파산을 절대 급여하지 마세요."
@@ -156,93 +156,6 @@
 
     function App() {
       const [activeTab, setActiveTab] = useState('feed');
-      const [memos, setMemos] = useState({});
-      const [userId, setUserId] = useState(null);
-      const [syncStatus, setSyncStatus] = useState('로컬 저장 모드 (클라우드 확인 중...)');
-
-      // 앱 실행 시 클라우드 저장소 연결 및 데이터 불러오기
-      useEffect(() => {
-        let unsubscribe;
-
-        const initCloudSync = async () => {
-          if (window.firebaseInitPromise) {
-            const fb = await window.firebaseInitPromise;
-            
-            if (fb) {
-              setSyncStatus('클라우드 연결 중...');
-              try {
-                const { auth, signInAnonymously, signInWithCustomToken, db, doc, onSnapshot, appId } = fb;
-                
-                // 1. 인증 처리
-                if (typeof __initial_auth_token !== 'undefined') {
-                  await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                  await signInAnonymously(auth);
-                }
-                
-                const uid = auth.currentUser.uid;
-                setUserId(uid);
-                setSyncStatus('클라우드 연동 완료');
-
-                // 2. 실시간 데이터 구독 (공용 공간 메모)
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'memos', 'shared');
-                
-                unsubscribe = onSnapshot(docRef, (docSnap) => {
-                  if (docSnap.exists()) {
-                    setMemos(docSnap.data().memos || {});
-                  }
-                }, (error) => {
-                  console.error("동기화 오류:", error);
-                  setSyncStatus('동기화 오류 발생');
-                });
-                return; // 성공 시 여기서 종료
-              } catch (err) {
-                console.error("클라우드 인증/연결 실패:", err);
-                setSyncStatus('클라우드 연결 실패 (로컬 모드)');
-              }
-            }
-          }
-          
-          // 클라우드 사용 불가 시 로컬 스토리지 데이터 불러오기 (Fallback)
-          setSyncStatus('로컬 스토리지 모드');
-          const saved = localStorage.getItem('sungam_memos');
-          if (saved) setMemos(JSON.parse(saved));
-        };
-
-        initCloudSync();
-
-        return () => {
-          if (unsubscribe) unsubscribe();
-        };
-      }, []);
-
-      // 입력 중: 상태 및 로컬 스토리지 업데이트 (빠른 반응성)
-      const handleMemoChange = (idx, value) => {
-        const updatedMemos = { ...memos, [idx]: value };
-        setMemos(updatedMemos);
-        localStorage.setItem('sungam_memos', JSON.stringify(updatedMemos));
-      };
-
-      // 입력 완료(포커스 해제) 시: 클라우드에 덮어쓰기 저장
-      const handleMemoBlur = async () => {
-        if (!userId) return; // 클라우드 연결이 안 되어 있다면 무시
-        
-        setSyncStatus('클라우드 저장 중...');
-        try {
-          const fb = await window.firebaseInitPromise;
-          if (fb) {
-            const { db, doc, setDoc, appId } = fb;
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'memos', 'shared');
-            await setDoc(docRef, { memos }, { merge: true });
-            
-            setSyncStatus('클라우드에 안전하게 저장됨');
-            setTimeout(() => setSyncStatus('클라우드 연동 완료'), 2000); // 2초 후 상태 원래대로
-          }
-        } catch (e) {
-          console.error("클라우드 저장 실패", e);
-          setSyncStatus('클라우드 저장 실패 (로컬에만 저장됨)');
-        }
-      };
 
       return (
         <div className="min-h-screen bg-slate-100 font-sans pb-20">
@@ -252,11 +165,6 @@
                 <Wheat /> 성암농장 사양관리 지침서
               </h1>
               <p className="text-blue-200 text-sm mt-1">최종 업데이트: 2026. 08. 30</p>
-            </div>
-            {/* 동기화 상태 표시 바 */}
-            <div className="bg-blue-900 text-blue-200 px-5 py-2 text-xs flex flex-col sm:flex-row sm:justify-between gap-1 items-start sm:items-center">
-              <span className="break-all">📡 농장 공용 메모 모드 (모든 기기에서 동일한 메모가 공유됩니다)</span>
-              <span className="font-semibold px-2 py-0.5 bg-blue-800 rounded">{syncStatus}</span>
             </div>
           </header>
 
@@ -279,20 +187,13 @@
                   </p>
                 </div>
 
+                {}
                 {feedGuidelines.map((stage, idx) => (
                   <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="bg-slate-50 p-4 border-b border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
                           <h2 className="text-lg font-bold text-gray-800">{stage.stage}</h2>
-                          <input 
-                            type="text" 
-                            placeholder="메모 입력 (예: 3동 적용중)" 
-                            value={memos[idx] || ''}
-                            onChange={(e) => handleMemoChange(idx, e.target.value)}
-                            onBlur={handleMemoBlur}
-                            className="text-sm border border-gray-300 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 flex-1 max-w-[200px]"
-                          />
                         </div>
                         <p className="text-xs text-gray-500 mt-1">목표: {stage.target}</p>
                       </div>
