@@ -1553,6 +1553,10 @@
                             const d = new Date(birthTime + (days * 24 * 60 * 60 * 1000));
                             return `${d.getMonth() + 1}/${d.getDate()}`;
                         };
+                        const getVDateFromBaseStr = (daysToAdd) => {
+                            const d = new Date(parsedPd.getTime() + (daysToAdd * 24 * 60 * 60 * 1000));
+                            return `${d.getMonth() + 1}/${d.getDate()}`;
+                        };
                         
                         // 묶여있는 칸 번호들을 쉼표로 연결 (예: "1칸, 2칸")
                         const penLabels = group.pens.join(', ');
@@ -1564,8 +1568,8 @@
                                     <div class="text-[9px] text-slate-400 font-bold mt-0.5">(${group.totalPigs}두)</div>
                                 </td>
                                 <td class="py-2.5 px-1 font-bold text-slate-500 whitespace-nowrap">${parsedPd.getMonth()+1}/${parsedPd.getDate()}</td>
-                                <td class="py-2.5 px-1 font-black text-rose-600 bg-rose-50/40 whitespace-nowrap">${getVDateStr(42)}</td>
-                                <td class="py-2.5 px-1 font-black text-blue-600 bg-blue-50/40 whitespace-nowrap">${getVDateStr(49)}</td>
+                                <td class="py-2.5 px-1 font-black text-rose-600 bg-rose-50/40 whitespace-nowrap">${getVDateFromBaseStr(41)}</td>
+                                <td class="py-2.5 px-1 font-black text-blue-600 bg-blue-50/40 whitespace-nowrap">${getVDateFromBaseStr(48)}</td>
                                 ${t.stage === 'grower' ? `<td class="py-2.5 px-1 font-black text-purple-600 bg-purple-50/40 whitespace-nowrap">${getVDateStr(77)}</td>` : ''}
                             </tr>`;
                     });
@@ -1585,9 +1589,9 @@
                                         <tr>
                                             <th class="py-2 px-1">위치</th>
                                             <th class="py-2 px-1">${dateLabel}일</th>
-                                            <th class="py-2 px-1 text-rose-600">열병<span class="text-[9px] font-bold ml-0.5 opacity-70">6주</span></th>
-                                            <th class="py-2 px-1 text-blue-600">구제1<span class="text-[9px] font-bold ml-0.5 opacity-70">7주</span></th>
-                                            ${t.stage === 'grower' ? `<th class="py-2 px-1 text-purple-600">구제2<span class="text-[9px] font-bold ml-0.5 opacity-70">11주</span></th>` : ''}
+                                            <th class="py-2 px-1 text-rose-600">열병<span class="text-[8px] font-bold ml-0.5 opacity-70">9주령</span></th>
+                                            <th class="py-2 px-1 text-blue-600">구제1<span class="text-[8px] font-bold ml-0.5 opacity-70">10주령</span></th>
+                                            ${t.stage === 'grower' ? `<th class="py-2 px-1 text-purple-600">구제2<span class="text-[8px] font-bold ml-0.5 opacity-70">11주령</span></th>` : ''}
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
