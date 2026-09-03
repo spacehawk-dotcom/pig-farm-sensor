@@ -56,124 +56,298 @@
     const AlertTriangle = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>;
     const Info = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>;
     const CheckCircle2 = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>;
+    const Calendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+    const Globe = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>;
 
-    const feedGuidelines = [
-      {
-        stage: "후보돈 (Gilt - 입식 후)",
-        target: "농장 환경 순치 및 초종부를 위한 체형(BCS) 관리",
-        type: "단계별 급여 프로그램",
-        items: [
-          { name: "[입식 후 1주일] 항생제 + 구충제", amount: "50g/100g", desc: "탑드레싱 혼합. 수송 스트레스 및 새로운 질병 방어 (무제한 급이)" },
-          { name: "[1주 후 ~ 1개월] 첨가제 없음", amount: "-", desc: "약제 중단 후 맹사료 무제한 급이 (농장 균사 적응 및 골격 성장)" },
-          { name: "[입식 1개월 후] 제한 급이 전환", amount: "-", desc: "아침/저녁 2회 제한 급이 실시 (과비 방지 및 발정 유도)" }
-        ],
-        alert: "입식 후 1개월이 지나면 무제한 급이를 중단하고 반드시 제한 급이로 전환하여 과비를 막아주세요."
+    const uiText = {
+      ko: {
+        title: "성암농장 사양관리 지침서",
+        updated: "최종 업데이트: 2026. 08. 30",
+        feedTab: "사료 첨가제",
+        waterTab: "음수 / 환경",
+        infoMsg: "각 사육 구간별 정확한 사료 배합 비율입니다. 지대(20kg) 급여 시 탑드레싱 용량을 반드시 지켜주세요.",
+        targetLabel: "목표",
+        emergencyTitle: "질병 발생 시 긴급 사료 첨가 지침",
+        respTag: "호흡기 증상",
+        respDesc1: "돼지가 ",
+        respDesc2: "기침",
+        respDesc3: "을 할 경우, ",
+        respDesc4: "플로피그 1kg",
+        respDesc5: "을 사료에 즉시 추가합니다.",
+        digTag: "소화기 증상",
+        digDesc1: "바닥에 ",
+        digDesc2: "혈변",
+        digDesc3: "이 보일 경우, ",
+        digDesc4: "타이로-100 1kg",
+        digDesc5: "을 사료에 즉시 추가합니다.",
+        dewormTitle: "모돈 정기 구충 프로그램",
+        dewormTag: "분만/임신사",
+        dewormDesc1: "매년 ",
+        dewormDesc2: "4월",
+        dewormDesc3: "과 ",
+        dewormDesc4: "10월",
+        dewormDesc5: "에 ",
+        dewormDesc6: "일주일간",
+        dewormDesc7: " 구충제를 일제히 급여합니다."
       },
-      {
-        stage: "임신돈 (Gestation)",
-        target: "골격 유지, 유산 방지, 자궁 수축력 강화",
-        type: "상시 급여 (사료 톤당)",
-        items: [
-          { name: "마이맥스4 (광물질)", amount: "1.5kg", desc: "지제 붕괴 방지, 분만 시간 단축" },
-          { name: "스페셜 플러스", amount: "1kg", desc: "대사 촉진 및 체력 유지" },
-          { name: "디톡신 (독소흡착제)", amount: "1kg", desc: "곰팡이 독소 차단, 유산/사산 방지" },
-        ],
-        alert: "임신돈 구간에는 항생제를 상시 급여하지 않습니다."
-      },
-      {
-        stage: "포유돈 (Lactation)",
-        target: "유량 증진, 체손실 방어, 자돈 생시체중 향상",
-        type: "상시 급여 (사료 톤당)",
-        items: [
-          { name: "마이맥스4 (광물질)", amount: "1.5kg", desc: "포유 중 뼈(칼슘/인) 손실 방어" },
-          { name: "모유업", amount: "2kg", desc: "유량 증진 및 초유 품질 개선" },
-          { name: "어분", amount: "3kg", desc: "고단백 공급, 모돈 야윔(체손실) 방지" },
-          { name: "디톡신 (독소흡착제)", amount: "1kg", desc: "독소의 모유 이행 차단" },
-        ]
-      },
-      {
-        stage: "이유자돈 (이유 ~ 55일령)",
-        target: "40일령 위축돈 방어, 장 융모 재생",
-        type: "구간별 탑드레싱 (지대 20kg 1포 기준)",
-        items: [
-          { name: "[4주령] 티썰파+폴리마이신+해열제", amount: "50g", desc: "1호/2호 믹스 사료에 혼합 (이유 스트레스 완화)" },
-          { name: "[5~6주령] 유기산", amount: "50g", desc: "2호 사료에 혼합 (종이컵 1/3 분량). 1주일간 급여. 40일령 연변 방어 핵심!" },
-          { name: "[7~8주령] 3호 사료 단독 급여", amount: "-", desc: "7-8주령은 3호 사료만 급여합니다." },
-        ],
-        alert: "5주령부터 항생제 대신 음수로 '아그로시드 슈퍼' 투약을 시작합니다."
-      },
-      {
-        stage: "젖돈 전기 (56 ~ 80일령) #이유사",
-        target: "장내 환경 개선 및 사료 교체 스트레스 완화",
-        type: "상시 급여 (사료 톤당)",
-        items: [
-          { name: "유기산", amount: "1kg", desc: "장내 환경 개선 및 소화기 방어" },
-          { name: "어분", amount: "2kg", desc: "초기 성장을 위한 고품질 단백질 공급" }
-        ]
-      },
-      {
-        stage: "젖돈 후기 (81 ~ 105일령) #육성사 이동 시",
-        target: "육성사 이동 스트레스 완화 및 초기 질병 방어",
-        type: "상시 및 단기 급여 (사료 톤당)",
-        items: [
-          { name: "항생제", amount: "1kg", desc: "단기: 육성사 이동 직후 딱 1주일만 급여 (환경 변화 스트레스 방어)" },
-          { name: "어분", amount: "2kg", desc: "상시: 폭발적 성장을 위한 단백질 베이스" },
-          { name: "구충제", amount: "2kg", desc: "단기: 이동 후 투약 시작하여 딱 1주일만 급여 (간 독성 방지)" },
-        ],
-        alert: "항생제와 구충제는 육성사 이동 후 1주일만 단기 투약하고 맹사료로 전환하세요."
-      },
-      {
-        stage: "육성 (106 ~ 125일령)",
-        target: "본격적인 골격 발달 및 근육 성장 주도",
-        type: "상시 급여 (사료 톤당)",
-        items: [
-          { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
-          { name: "스페셜 플러스", amount: "2kg", desc: "비타민/미네랄 공급 및 후기 성장 스트레스 완화" }
-        ]
-      },
-      {
-        stage: "비육 (126일령 ~ 출하)",
-        target: "살코기(정육률) 극대화, 출하 일령 단축",
-        type: "상시 급여 (사료 톤당)",
-        items: [
-          { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
-          { name: "스페셜 플러스", amount: "2kg", desc: "락토파산 대사 스트레스 완화" },
-          { name: "락토파산", amount: "0.5kg", desc: "살코기 수율 극대화 (출하 전 약 4주 집중 투약)" },
-        ],
-        alert: "번식돈(모돈, 웅돈, 자돈)에게 락토파산을 절대 급여하지 마세요."
+      ne: {
+        title: "सुंगाम फार्म व्यवस्थापन निर्देशिका",
+        updated: "अन्तिम अपडेट: २०२६. ०८. ३०",
+        feedTab: "दाना / औषधि",
+        waterTab: "पानी / वातावरण",
+        infoMsg: "प्रत्येक हुर्काउने चरणको लागि सही दाना मिश्रण अनुपात। २० केजीको बोरा खुवाउँदा दानामाथि मिसाउने मात्रा अनिवार्य पालना गर्नुहोस्।",
+        targetLabel: "लक्ष्य",
+        emergencyTitle: "रोग लाग्दा तत्काल दानामा औषधि मिसाउने निर्देशन",
+        respTag: "श्वासप्रश्वास समस्या",
+        respDesc1: "सुँगुरले ",
+        respDesc2: "खोकेमा",
+        respDesc3: ", तुरुन्तै दानामा ",
+        respDesc4: "१ केजी फ्लोपिग",
+        respDesc5: " मिसाउनुहोस्।",
+        digTag: "पाचन समस्या",
+        digDesc1: "भुइँमा ",
+        digDesc2: "रगत मिसिएको दिसा",
+        digDesc3: " देखिएमा, तुरुन्तै दानामा ",
+        digDesc4: "१ केजी टाइरो-१००",
+        digDesc5: " मिसाउनुहोस्।",
+        dewormTitle: "माउ सुँगुरको नियमित जुकाको औषधि कार्यक्रम",
+        dewormTag: "सुत्केरी/गर्भवती खोर",
+        dewormDesc1: "हरेक वर्ष ",
+        dewormDesc2: "अप्रिल",
+        dewormDesc3: " र ",
+        dewormDesc4: "अक्टोबर",
+        dewormDesc5: " महिनामा ",
+        dewormDesc6: "१ हप्तासम्म",
+        dewormDesc7: " सबैलाई एकैपटक जुकाको औषधि खुवाइन्छ।"
       }
-    ];
+    };
+
+    const feedGuidelines = {
+      ko: [
+        {
+          stage: "후보돈 (Gilt - 입식 후)",
+          target: "농장 환경 순치 및 초종부를 위한 체형(BCS) 관리",
+          type: "단계별 급여 프로그램",
+          items: [
+            { name: "[입식 후 1주일] 항생제 + 구충제", amount: "50g/100g", desc: "탑드레싱 혼합. 수송 스트레스 및 새로운 질병 방어 (무제한 급이)" },
+            { name: "[1주 후 ~ 1개월] 첨가제 없음", amount: "-", desc: "약제 중단 후 맹사료 무제한 급이 (농장 균사 적응 및 골격 성장)" },
+            { name: "[입식 1개월 후] 제한 급이 전환", amount: "-", desc: "아침/저녁 2회 제한 급이 실시 (과비 방지 및 발정 유도)" }
+          ],
+          alert: "입식 후 1개월이 지나면 무제한 급이를 중단하고 반드시 제한 급이로 전환하여 과비를 막아주세요."
+        },
+        {
+          stage: "임신돈 (Gestation)",
+          target: "골격 유지, 유산 방지, 자궁 수축력 강화",
+          type: "상시 급여 (사료 톤당)",
+          items: [
+            { name: "마이맥스4 (광물질)", amount: "1.5kg", desc: "지제 붕괴 방지, 분만 시간 단축" },
+            { name: "스페셜 플러스", amount: "1kg", desc: "대사 촉진 및 체력 유지" },
+            { name: "디톡신 (독소흡착제)", amount: "1kg", desc: "곰팡이 독소 차단, 유산/사산 방지" }
+          ]
+        },
+        {
+          stage: "포유돈 (Lactation)",
+          target: "유량 증진, 체손실 방어, 자돈 생시체중 향상",
+          type: "상시 급여 (사료 톤당)",
+          items: [
+            { name: "마이맥스4 (광물질)", amount: "1.5kg", desc: "포유 중 뼈(칼슘/인) 손실 방어" },
+            { name: "모유업", amount: "2kg", desc: "유량 증진 및 초유 품질 개선" },
+            { name: "어분", amount: "3kg", desc: "고단백 공급, 모돈 야윔(체손실) 방지" },
+            { name: "디톡신 (독소흡착제)", amount: "1kg", desc: "독소의 모유 이행 차단" }
+          ]
+        },
+        {
+          stage: "이유자돈 (이유 ~ 55일령)",
+          target: "40일령 위축돈 방어, 장 융모 재생",
+          type: "구간별 탑드레싱 (지대 20kg 1포 기준)",
+          items: [
+            { name: "[4주령] 티썰파+폴리마이신+해열제(1kg+1kg+1kg)", amount: "50g", desc: "1호/2호 믹스 사료에 혼합 (이유 스트레스 완화)" },
+            { name: "[5~6주령] 유기산", amount: "50g", desc: "2호 사료에 혼합 (종이컵 1/3 분량). 1주일간 급여. 40일령 연변 방어 핵심!" },
+            { name: "[7~8주령] 3호 사료 단독 급여", amount: "-", desc: "7-8주령은 3호 사료만 급여합니다." }
+          ]
+        },
+        {
+          stage: "젖돈 전기 (56 ~ 80일령) #이유사",
+          target: "장내 환경 개선 및 사료 교체 스트레스 완화",
+          type: "상시 급여 (사료 톤당)",
+          items: [
+            { name: "유기산", amount: "1kg", desc: "장내 환경 개선 및 소화기 방어" },
+            { name: "어분", amount: "2kg", desc: "초기 성장을 위한 고품질 단백질 공급" }
+          ]
+        },
+        {
+          stage: "젖돈 후기 (81 ~ 105일령) #육성사 이동 시",
+          target: "육성사 이동 스트레스 완화 및 초기 질병 방어",
+          type: "상시 및 단기 급여 (사료 톤당)",
+          items: [
+            { name: "항생제", amount: "1kg", desc: "단기: 육성사 이동 직후 딱 1주일만 급여 (환경 변화 스트레스 방어)" },
+            { name: "어분", amount: "2kg", desc: "상시: 폭발적 성장을 위한 단백질 베이스" },
+            { name: "구충제", amount: "2kg", desc: "단기: 이동 후 투약 시작하여 딱 1주일만 급여 (간 독성 방지)" }
+          ],
+          alert: "항생제와 구충제는 육성사 이동 후 1주일만 단기 투약하고 맹사료로 전환하세요."
+        },
+        {
+          stage: "육성 (106 ~ 125일령)",
+          target: "본격적인 골격 발달 및 근육 성장 주도",
+          type: "상시 급여 (사료 톤당)",
+          items: [
+            { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
+            { name: "스페셜 플러스", amount: "2kg", desc: "비타민/미네랄 공급 및 후기 성장 스트레스 완화" }
+          ]
+        },
+        {
+          stage: "비육 (126일령 ~ 출하)",
+          target: "살코기(정육률) 극대화, 출하 일령 단축",
+          type: "상시 급여 (사료 톤당)",
+          items: [
+            { name: "어분", amount: "2kg", desc: "근육 합성 재료 지속 공급 (어취 없는 안전비율 0.2%)" },
+            { name: "스페셜 플러스", amount: "2kg", desc: "락토파산 대사 스트레스 완화" },
+            { name: "락토파산", amount: "0.5kg", desc: "살코기 수율 극대화 (출하 전 약 4주 집중 투약)" }
+          ],
+          alert: "번식돈(모돈, 웅돈, 자돈)에게 락토파산을 절대 급여하지 마세요."
+        }
+      ],
+      ne: [
+        {
+          stage: "नयाँ सुँगुर (गिल्ट - ल्याएपछि)",
+          target: "खोरको वातावरणमा घुलमिल र पहिलो प्रजनन्‌को लागि शारीरिक अवस्था व्यवस्थापन",
+          type: "चरणबद्ध दाना कार्यक्रम",
+          items: [
+            { name: "[ल्याएको १ हप्ता] एन्टिबायोटिक + जुकाको औषधि", amount: "५०g/१००g", desc: "दानामाथि मिसाउने। यातायातको तनाव र नयाँ रोगबाट बचाउन (असीमित दाना)" },
+            { name: "[१ हप्ता पछि ~ १ महिना] कुनै औषधि छैन", amount: "-", desc: "औषधि रोकेपछि सादा दाना असीमित दिने (खोरको कीटाणुसँग घुलमिल र हड्डीको विकास)" },
+            { name: "[ल्याएको १ महिना पछि] दाना सीमित गर्ने", amount: "-", desc: "बिहान/बेलुका २ पटक मात्र दाना दिने (धेरै मोटो हुन नदिन र भाले खोज्न मद्दत गर्न)" }
+          ],
+          alert: "ल्याएको १ महिना पछि असीमित दाना रोक्नुहोस् र धेरै मोटो हुनबाट बचाउन दाना सीमित गर्नुहोस्।"
+        },
+        {
+          stage: "गर्भवती सुँगुर (Gestation)",
+          target: "हड्डी बलियो राख्न, गर्भपतन रोक्न, पाठेघरको खुम्चिने क्षमता बढाउन",
+          type: "सधैं दिने (प्रति टन दानामा)",
+          items: [
+            { name: "माइम्याक्स-४ (खनिज)", amount: "१.५kg", desc: "खुट्टा कमजोर हुन नदिने, सुत्केरी हुने समय घटाउने" },
+            { name: "स्पेसल प्लस", amount: "१kg", desc: "पाचन प्रणाली राम्रो बनाउने र तागत कायम राख्ने" },
+            { name: "डिटोक्सिन (विष हटाउने)", amount: "१kg", desc: "ढुसीको विष रोक्ने, गर्भपतन/मरेको बच्चा जन्मिने रोक्ने" }
+          ]
+        },
+        {
+          stage: "सुत्केरी सुँगुर (Lactation)",
+          target: "दूध बढाउन, तौल घट्न नदिन, पाठापाठीको जन्म-तौल बढाउन",
+          type: "सधैं दिने (प्रति टन दानामा)",
+          items: [
+            { name: "माइम्याक्स-४ (खनिज)", amount: "१.५kg", desc: "दूध खुवाउँदा हड्डी (क्याल्सियम/फस्फोरस) कमजोर हुन नदिने" },
+            { name: "मोयुअप", amount: "२kg", desc: "दूध बढाउने र बिगौती दूधको गुणस्तर सुधार्ने" },
+            { name: "माछाको धुलो", amount: "३kg", desc: "उच्च प्रोटिन दिने, सुत्केरी सुँगुर दुब्लाउन नदिने" },
+            { name: "डिटोक्सिन (विष हटाउने)", amount: "१kg", desc: "विषलाई दूधमा जानबाट रोक्ने" }
+          ]
+        },
+        {
+          stage: "दूध छुटाएका पाठापाठी (~ ५५ दिन)",
+          target: "४० दिनका पाठापाठी सुक्ने रोगबाट बचाउने, आन्द्राको विकास गर्ने",
+          type: "चरणबद्ध दानामाथि मिसाउने (२० केजी बोरा)",
+          items: [
+            { name: "[४ हप्ता] टी-सल्फा+पोलिमाइसिन+ज्वरो औषधि(१+१+१kg)", amount: "५०g", desc: "१ नम्बर/२ नम्बर मिसाएको दानामा हाल्ने (दूध छुटाउँदाको तनाव कम गर्न)" },
+            { name: "[५~६ हप्ता] अर्गानिक एसिड", amount: "५०g", desc: "२ नम्बर दानामा मिसाउने (कागजको कपको १/३ भाग)। १ हप्ता दिने। ४० दिनमा हुने छेर्ने रोग रोक्न मुख्य!" },
+            { name: "[७~८ हप्ता] ३ नम्बर दाना मात्र दिने", amount: "-", desc: "७-८ हप्ताका पाठापाठीलाई ३ नम्बर दाना मात्र खुवाउनुहोस्।" }
+          ]
+        },
+        {
+          stage: "हुर्कदै गरेका पाठापाठी १ (५६~८० दिन) #नर्सरी",
+          target: "आन्द्राको अवस्था सुधार्ने र दाना फेर्दा हुने तनाव कम गर्ने",
+          type: "सधैं दिने (प्रति टन दानामा)",
+          items: [
+            { name: "अर्गानिक एसिड", amount: "१kg", desc: "आन्द्राको अवस्था सुधार्ने र पाचन प्रणाली बचाउने" },
+            { name: "माछाको धुलो", amount: "२kg", desc: "सुरुवाती वृद्धिको लागि उच्च गुणस्तरको प्रोटिन दिने" }
+          ]
+        },
+        {
+          stage: "हुर्कदै गरेका पाठापाठी २ (८१~१०५ दिन) #हुर्काउने खोर",
+          target: "हुर्काउने खोरमा सार्दा हुने तनाव कम गर्ने र सुरुवाती रोगबाट बचाउने",
+          type: "सधैं र छोटो समय दिने (प्रति टन)",
+          items: [
+            { name: "एन्टिबायोटिक", amount: "१kg", desc: "छोटो समय: खोर सारेपछि ठ्याक्कै १ हप्ता मात्र दिने (वातावरण परिवर्तनको तनावबाट बचाउन)" },
+            { name: "माछाको धुलो", amount: "२kg", desc: "सधैं: तीव्र वृद्धिको लागि प्रोटिनको आधार" },
+            { name: "जुकाको औषधि", amount: "२kg", desc: "छोटो समय: सारेपछि ठ्याक्कै १ हप्ता मात्र दिने (कलेजो खराब हुनबाट बचाउन)" }
+          ],
+          alert: "एन्टिबायोटिक र जुकाको औषधि खोर सारेपछि १ हप्ता मात्र दिएर सादा दाना दिन सुरु गर्नुहोस्।"
+        },
+        {
+          stage: "बढाउने चरण (१०६~१२५ दिन)",
+          target: "हड्डीको पूर्ण विकास र मासु लाग्न मद्दत गर्ने",
+          type: "सधैं दिने (प्रति टन दानामा)",
+          items: [
+            { name: "माछाको धुलो", amount: "२kg", desc: "मासु लाग्ने तत्व सधैं दिने (माछाको गन्ध नआउने सुरक्षित मात्रा ०.२%)" },
+            { name: "स्पेसल प्लस", amount: "२kg", desc: "भिटामिन/मिनरल दिने र पछिल्लो चरणको वृद्धिको तनाव कम गर्ने" }
+          ]
+        },
+        {
+          stage: "मोटाउने चरण (१२६ दिन ~ बजार पठाउने)",
+          target: "मासुको मात्रा अधिकतम बढाउने, बजार पठाउने दिन घटाउने",
+          type: "सधैं दिने (प्रति टन दानामा)",
+          items: [
+            { name: "माछाको धुलो", amount: "२kg", desc: "मासु लाग्ने तत्व सधैं दिने (माछाको गन्ध नआउने सुरक्षित मात्रा ०.२%)" },
+            { name: "स्पेसल प्लस", amount: "२kg", desc: "ल्याक्टोपासन पाचन तनाव कम गर्ने" },
+            { name: "ल्याक्टोपासन", amount: "०.५kg", desc: "मासुको मात्रा अधिकतम बढाउने (बजार पठाउनुभन्दा करिब ४ हप्ता अघि लगातार दिने)" }
+          ],
+          alert: "प्रजनन् गर्ने सुँगुर (माउ, भाले, पाठापाठी) लाई ल्याक्टोपासन कहिल्यै नखुवाउनुहोस्।"
+        }
+      ]
+    };
 
     const waterGuidelines = {
-      title: "공통 음수 투약 (아그로시드 슈퍼)",
-      desc: "수관 내 물때(바이오필름) 제거 및 위내 산도 통제로 소화기 질환 예방",
-      instructions: [
-        { title: "메인 배관 (투약기 1% 세팅)", content: "100L 희석통에 물을 채우고 아그로시드 슈퍼 원액 3~5L 혼합" },
-        { title: "위축돈 집중 관리 (20L 이동식 물통)", content: "20L 통에 원액 6~10ml 혼합 (15A 미니 볼탑 연결 사용)" },
-        { title: "투약기 바이패스 밸브 조작", content: "약 투여시: 양쪽 밸브 열림, 가운데 닫힘 / 맹물 시: 양쪽 닫힘, 가운데 열림" }
-      ]
+      ko: {
+        title: "공통 음수 투약 (아그로시드 슈퍼)",
+        desc: "수관 내 물때(바이오필름) 제거 및 위내 산도 통제로 소화기 질환 예방",
+        instructions: [
+          { title: "메인 배관 (투약기 1% 세팅)", content: "100L 희석통에 물을 채우고 아그로시드 슈퍼 원액 3~5L 혼합" },
+          { title: "위축돈 집중 관리 (20L 이동식 물통)", content: "20L 통에 원액 6~10ml 혼합 (15A 미니 볼탑 연결 사용)" },
+          { title: "투약기 바이패스 밸브 조작", content: "약 투여시: 양쪽 밸브 열림, 가운데 닫힘 / 맹물 시: 양쪽 닫힘, 가운데 열림" }
+        ]
+      },
+      ne: {
+        title: "साधारण पानीको औषधि (एग्रोसिड सुपर)",
+        desc: "पानीको पाइपभित्रको लेउ हटाउने र पेटको एसिड नियन्त्रण गरी पाचन रोगबाट बचाउने",
+        instructions: [
+          { title: "मुख्य पाइप (औषधि मेसिन १% मा सेट गर्ने)", content: "१०० लिटरको ड्रममा पानी भर्ने र ३~५ लिटर 'एग्रोसिड सुपर' झोल मिसाउने" },
+          { title: "सुकेका पाठापाठीको विशेष हेरचाह (२० लिटर जार)", content: "२० लिटर जारमा ६~१० एमएल झोल मिसाउने (१५ए मिनी बलभ जोडिएको प्रयोग गर्ने)" },
+          { title: "औषधि मेसिनको बाइपास भल्भ चलाउने तरिका", content: "औषधि दिँदा: दुवै छेउका भल्भ खोल्ने, बीचको बन्द गर्ने / सादा पानी दिँदा: दुवै छेउका भल्भ बन्द गर्ने, बीचको खोल्ने" }
+        ]
+      }
     };
 
     function App() {
       const [activeTab, setActiveTab] = useState('feed');
+      const [lang, setLang] = useState('ko'); // 언어 상태 (ko 또는 ne)
+
+      // 현재 선택된 언어에 맞는 데이터 불러오기
+      const t = uiText[lang];
+      const feedData = feedGuidelines[lang];
+      const waterData = waterGuidelines[lang];
 
       return (
         <div className="min-h-screen bg-slate-100 font-sans pb-20">
-          <header className="bg-blue-800 text-white shadow-md">
-            <div className="p-5">
+          <header className="bg-blue-800 text-white shadow-md relative">
+            <div className="p-5 pr-36">
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Wheat /> 성암농장 사양관리 지침서
+                <Wheat /> {t.title}
               </h1>
-              <p className="text-blue-200 text-sm mt-1">최종 업데이트: 2026. 08. 30</p>
+              <p className="text-blue-200 text-sm mt-1">{t.updated}</p>
             </div>
+            
+            {/* 언어 전환 버튼 */}
+            <button 
+              onClick={() => setLang(lang === 'ko' ? 'ne' : 'ko')}
+              className="absolute top-5 right-4 md:right-6 bg-white/20 hover:bg-white/30 transition-colors text-white text-sm font-semibold py-2 px-3 rounded-lg flex items-center gap-2 border border-white/30 backdrop-blur-sm shadow-sm"
+            >
+              <Globe /> {lang === 'ko' ? '🇳🇵 नेपाली' : '🇰🇷 한국어'}
+            </button>
           </header>
 
           <div className="flex bg-white border-b border-gray-200 sticky top-0 z-10">
             <button onClick={() => setActiveTab('feed')} className={`flex-1 py-3 font-medium text-sm transition-colors flex justify-center items-center gap-2 ${activeTab === 'feed' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-blue-600'}`}>
-              <PiggyBank /> 사료 첨가제
+              <PiggyBank /> {t.feedTab}
             </button>
             <button onClick={() => setActiveTab('water')} className={`flex-1 py-3 font-medium text-sm transition-colors flex justify-center items-center gap-2 ${activeTab === 'water' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-gray-500 hover:text-blue-600'}`}>
-              <Droplets /> 음수 / 환경
+              <Droplets /> {t.waterTab}
             </button>
           </div>
 
@@ -183,19 +357,18 @@
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex gap-3 items-start">
                   <div className="text-blue-600 mt-0.5"><Info /></div>
                   <p className="text-sm text-blue-800">
-                    각 사육 구간별 정확한 사료 배합 비율입니다. 지대(20kg) 급여 시 탑드레싱 용량을 반드시 지켜주세요.
+                    {t.infoMsg}
                   </p>
                 </div>
 
-                {}
-                {feedGuidelines.map((stage, idx) => (
+                {feedData.map((stage, idx) => (
                   <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                     <div className="bg-slate-50 p-4 border-b border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-3">
                           <h2 className="text-lg font-bold text-gray-800">{stage.stage}</h2>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">목표: {stage.target}</p>
+                        <p className="text-xs text-gray-500 mt-1">{t.targetLabel}: {stage.target}</p>
                       </div>
                       <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full font-semibold whitespace-nowrap">
                         {stage.type.split(' ')[0]}
@@ -235,17 +408,37 @@
                 <div className="mt-8 bg-red-600 rounded-xl shadow-lg border-2 border-red-700 overflow-hidden">
                   <div className="p-4 flex items-center gap-3 border-b border-red-500">
                     <div className="text-white"><ShieldAlert /></div>
-                    <h2 className="text-xl font-bold text-white">질병 발생 시 긴급 사료 첨가 지침</h2>
+                    <h2 className="text-xl font-bold text-white">{t.emergencyTitle}</h2>
                   </div>
                   <div className="p-5 space-y-4 bg-red-50">
                     <div className="flex gap-4 items-center">
-                      <span className="bg-red-600 text-white font-bold px-3 py-1 rounded-lg text-sm whitespace-nowrap">호흡기 증상</span>
-                      <p className="text-gray-800 font-semibold text-sm md:text-base">돼지가 <span className="text-red-600">기침</span>을 할 경우, <span className="text-red-600 text-lg">플로피그 1kg</span>을 사료에 즉시 추가합니다.</p>
+                      <span className="bg-red-600 text-white font-bold px-3 py-1 rounded-lg text-sm whitespace-nowrap">{t.respTag}</span>
+                      <p className="text-gray-800 font-semibold text-sm md:text-base">
+                        {t.respDesc1}<span className="text-red-600">{t.respDesc2}</span>{t.respDesc3}<span className="text-red-600 text-lg">{t.respDesc4}</span>{t.respDesc5}
+                      </p>
                     </div>
                     <div className="border-t border-red-200"></div>
                     <div className="flex gap-4 items-center">
-                      <span className="bg-red-600 text-white font-bold px-3 py-1 rounded-lg text-sm whitespace-nowrap">소화기 증상</span>
-                      <p className="text-gray-800 font-semibold text-sm md:text-base">바닥에 <span className="text-red-600">혈변</span>이 보일 경우, <span className="text-red-600 text-lg">타이로-100 1kg</span>을 사료에 즉시 추가합니다.</p>
+                      <span className="bg-red-600 text-white font-bold px-3 py-1 rounded-lg text-sm whitespace-nowrap">{t.digTag}</span>
+                      <p className="text-gray-800 font-semibold text-sm md:text-base">
+                        {t.digDesc1}<span className="text-red-600">{t.digDesc2}</span>{t.digDesc3}<span className="text-red-600 text-lg">{t.digDesc4}</span>{t.digDesc5}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 정기 구충 프로그램 */}
+                <div className="mt-6 bg-teal-600 rounded-xl shadow-lg border-2 border-teal-700 overflow-hidden">
+                  <div className="p-4 flex items-center gap-3 border-b border-teal-500">
+                    <div className="text-white"><Calendar /></div>
+                    <h2 className="text-xl font-bold text-white">{t.dewormTitle}</h2>
+                  </div>
+                  <div className="p-5 bg-teal-50">
+                    <div className="flex gap-4 items-center">
+                      <span className="bg-teal-600 text-white font-bold px-3 py-1 rounded-lg text-sm whitespace-nowrap">{t.dewormTag}</span>
+                      <p className="text-gray-800 font-semibold text-sm md:text-base">
+                        {t.dewormDesc1}<span className="text-teal-700 font-bold text-lg">{t.dewormDesc2}</span>{t.dewormDesc3}<span className="text-teal-700 font-bold text-lg">{t.dewormDesc4}</span>{t.dewormDesc5}<span className="text-teal-700 font-bold border-b-2 border-teal-700">{t.dewormDesc6}</span>{t.dewormDesc7}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -258,12 +451,12 @@
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="bg-blue-600 p-4">
                     <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                      <Droplets /> {waterGuidelines.title}
+                      <Droplets /> {waterData.title}
                     </h2>
-                    <p className="text-blue-100 text-sm mt-1">{waterGuidelines.desc}</p>
+                    <p className="text-blue-100 text-sm mt-1">{waterData.desc}</p>
                   </div>
                   <div className="p-4 space-y-4">
-                    {waterGuidelines.instructions.map((inst, idx) => (
+                    {waterData.instructions.map((inst, idx) => (
                       <div key={idx} className="bg-slate-50 p-3 rounded-lg border border-slate-100">
                         <h3 className="font-bold text-gray-800 text-sm mb-1">{inst.title}</h3>
                         <p className="text-gray-600 text-sm">{inst.content}</p>
