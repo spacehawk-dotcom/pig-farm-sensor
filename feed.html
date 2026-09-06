@@ -748,16 +748,6 @@
                         });
                     }
                 } else {
-                    // unique 입고 예정일 추출하여 벌크 상단에 단 한 번만 배치
-                    const uniqueDates = [...new Set(bulkOrders.map(o => o.deliveryDate).filter(Boolean))].sort();
-                    if (uniqueDates.length > 0) {
-                        const formattedDates = uniqueDates.map(d => {
-                            const parts = d.split('-');
-                            return parts.length >= 3 ? `${parts[1]}/${parts[2]}` : d;
-                        }).join(', ');
-                        text += `■ 입고 예정일: ${formattedDates}\n`;
-                    }
-
                     // 벌크 사료 종류별 총합 우선 집계 및 상단 표기
                     const bulkSummary = {};
                     bulkOrders.forEach(order => {
@@ -1615,11 +1605,11 @@
                                                 <select onChange={e => { if (e.target.value !== 'direct') { setShareNote(e.target.value); e.target.value = 'direct'; } }}
                                                     defaultValue="direct" className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold appearance-none cursor-pointer">
                                                     <option value="direct">자주 쓰는 전달사항 선택 (클릭)</option>
-                                                    <option value="스페셜플러스">스페셜플러스</option>
                                                     <option value="내일 첫차 배송 부탁드립니다.">내일 첫차 배송 부탁드립니다.</option>
+                                                    <option value="내일 오전 배송 부탁드립니다.">내일 오전 배송 부탁드립니다.</option>
+                                                    <option value="내일 오후 배송 부탁드립니다.">내일 오후 배송 부탁드립니다.</option>
                                                     <option value="내일 막차 배송 부탁드립니다.">내일 막차 배송 부탁드립니다.</option>
                                                     <option value="오늘 막차 배송 부탁드립니다.">오늘 막차 배송 부탁드립니다.</option>
-                                                    <option value="경사로 진입 시 주의 부탁드립니다.">경사로 진입 시 주의 부탁드립니다.</option>
                                                 </select>
                                                 <div className="absolute right-2.5 top-2 text-slate-400 pointer-events-none"><ChevronDown className="w-4.5 h-4.5" /></div>
                                             </div>
@@ -1808,4 +1798,4 @@
         root.render(App ? <App /> : <div>Loading...</div>);
     </script>
 </body>
-</html>s
+</html>
