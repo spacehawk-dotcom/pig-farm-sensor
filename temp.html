@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -54,7 +55,7 @@
                 </div>
             </div>
 
-            <!-- Sensor Data Display (실내/실외 환경 상세) -->
+            <!-- Sensor Data Display (실내/실외 온도) -->
             <div id="sensor-display-card" class="p-4 rounded-lg border bg-white border-slate-200 shadow-sm hidden">
                 <div class="flex justify-between items-center mb-2">
                     <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1">
@@ -62,19 +63,9 @@
                     </h3>
                     <span id="outside-temp-badge" class="text-[10px] bg-slate-100 text-slate-500 px-2 py-1 rounded hidden">외기: --℃</span>
                 </div>
-                <div class="grid grid-cols-2 gap-2 mb-2">
-                    <div class="bg-slate-50 p-2 rounded border border-slate-100">
-                        <span class="text-[10px] text-slate-400 block">온도</span>
-                        <span id="current-indoor-temp" class="text-xl font-bold text-slate-800">--.-</span><span class="text-xs text-slate-500">℃</span>
-                    </div>
-                    <div class="bg-slate-50 p-2 rounded border border-slate-100">
-                        <span class="text-[10px] text-slate-400 block">습도</span>
-                        <span id="current-indoor-humi" class="text-xl font-bold text-slate-800">---</span><span class="text-xs text-slate-500"></span>
-                    </div>
-                </div>
-                <div class="text-[11px] text-slate-500 space-y-1 bg-slate-50/50 p-2 rounded border border-slate-100">
-                    <div class="flex justify-between"><span>기간:</span> <span id="sensor-date-range" class="font-medium text-slate-700">--</span></div>
-                    <div class="flex justify-between"><span>센서 두수:</span> <span id="sensor-count" class="font-medium text-slate-700">--</span></div>
+                <div class="flex items-end gap-2">
+                    <span id="current-indoor-temp" class="text-3xl font-bold text-slate-800">--.-</span>
+                    <span class="text-sm text-slate-500 mb-1">℃</span>
                 </div>
                 <p id="sensor-update-time" class="text-[10px] text-slate-400 mt-2 text-right">업데이트 대기중</p>
             </div>
@@ -246,15 +237,17 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        // 1. Firestore 가져오기 (사육 데이터용)
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getDatabase, ref, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        // 2. Realtime Database 가져오기 (온도 센서 데이터용)
+        import { getDatabase, ref, onValue, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         // --- Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
             authDomain: "sungamfarm.firebaseapp.com",
-            databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com",
+            databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com", // RTDB 주소 추가!
             projectId: "sungamfarm",
             storageBucket: "sungamfarm.firebasestorage.app",
             messagingSenderId: "811107235779",
@@ -263,7 +256,7 @@
 
         let app, db, rtdb, auth;
         let fetchedBatches = {}; 
-        let sensorDataMap = {}; 
+        let sensorDataMap = {}; // 온도 데이터 저장소
         let currentSelectedBatchId = null;
         let myChart = null;
 
@@ -299,6 +292,7 @@
 
             const firstPenDate = getFirstValidDate(data.penDates);
 
+            // 육성사: +14일 / 이유사: +28일 기준 적용
             if (type === '육성사') {
                 if (firstPenDate) { targetDateStr = firstPenDate; baseAge = 14; sourceMsg = "칸별 입식일 기준(+14)"; }
                 else if (data.weaningDate && typeof data.weaningDate === 'string' && data.weaningDate.trim() !== '') { targetDateStr = data.weaningDate.trim(); baseAge = 28; sourceMsg = "이유일 기준(+28)"; }
@@ -336,14 +330,14 @@
                 auth = getAuth(app);
                 await signInAnonymously(auth);
                 
-                db = getFirestore(app);       // 사육 데이터용 (Firestore)
-                rtdb = getDatabase(app);      // 온도 데이터용 (Realtime DB)
+                db = getFirestore(app);         // 사육 데이터용 (Firestore)
+                rtdb = getDatabase(app);        // 온도 데이터용 (Realtime DB)
 
                 statusEl.textContent = "연결 완료";
                 statusEl.className = "text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium shadow-inner";
 
                 startFarmDataSync();
-                startSensorDataSync(); 
+                startSensorDataSync(); // 실시간 온도 연동 시작
 
             } catch (error) {
                 console.error("Firebase 초기화 에러:", error);
@@ -393,10 +387,10 @@
                 let name = data.name || data.batchName || data.roomName || (`${data.id}번 배치`);
                 const { age, sourceMsg } = calculatePigAge(data, type);
                 
-                // 이름에서 숫자(배치번호)만 추출하여 정규화된 키 생성 ('이유_1배치', '육성_1배치' 형식)
+                // 이름에서 숫자(배치번호)만 추출하여 정규화된 키 생성 (예: Weaning_Batch 1)
                 const numberMatch = name.match(/\d+/);
                 const batchNum = numberMatch ? numberMatch[0] : doc.id;
-                const standardKey = (type === '이유사') ? `이유_${batchNum}배치` : `육성_${batchNum}배치`;
+                const standardKey = (type === '이유사') ? `Weaning_Batch ${batchNum}` : `Growing_Batch ${batchNum}`;
 
                 fetchedBatches[`${type}_${doc.id}`] = {
                     type, id: doc.id, name, count, age, sourceMsg, standardKey
@@ -419,7 +413,8 @@
 
         // --- 2. Realtime Database: 실시간 온도 센서 동기화 ---
         function startSensorDataSync() {
-            const historyRef = ref(rtdb, 'history_logs');
+            // history_logs 테이블에서 가장 최근 50개의 기록만 가져옴
+            const historyRef = query(ref(rtdb, 'history_logs'), limitToLast(50));
             
             console.log("📡 [센서] Realtime Database 연결 시도 중...");
 
@@ -428,56 +423,48 @@
                 
                 if (snapshot.exists()) {
                     console.log("📡 [센서] 데이터 수신 성공!");
-                    console.log("-----------------------------------------");
-                    console.log("⬇️ 수신된 원본 센서 데이터 목록 (디버깅용)");
                     
+                    // 각 기록을 순회하며 가장 최신 온도로 덮어쓰기
                     snapshot.forEach(childSnapshot => {
-                        const sensorName = childSnapshot.key; // 자식 노드의 키가 센서 이름 (예: 육성_1배치, 이유_1배치 등)
                         const data = childSnapshot.val();
-                        console.log(`원본 항목 [${sensorName}]:`, data);
-
+// 수정할 부분: JSON.stringify를 감싸서 데이터를 텍스트로 펼쳐서 출력하게 만듭니다.
+    console.log("원본 항목 (상세):", JSON.stringify(data));
+                        // 센서 이름 (예: Weaning_Batch 1, Outside_Temp)
+                        const sensorName = data.name || data.sensor || data.id;
+                        
                         if (sensorName) {
-                            const tempValue = data.temperature !== undefined ? data.temperature : data.temp;
+                            // 필드명 유연성 확보 (temp, temperature, value 등)
+                            const tempValue = data.temperature || data.temp || data.value;
                             if (tempValue !== undefined) {
                                 sensorDataMap[sensorName] = {
                                     temp: Number(tempValue).toFixed(1),
-                                    humi: data.humi !== undefined ? data.humi : '--',
-                                    count: data.count !== undefined ? data.count : '--',
-                                    dateRange: data.dateRange || '--',
                                     time: data.time || data.timestamp || new Date().toLocaleTimeString()
                                 };
-                                console.log(`[맵핑 완료] 이름: "${sensorName}" | 온도: ${tempValue}℃ | 습도: ${sensorDataMap[sensorName].humi}`);
                             }
                         }
                     });
-                    
-                    console.log("✅ 센서 데이터 맵 업데이트 완료:", sensorDataMap);
-                    console.log("-----------------------------------------");
                 } else {
                     console.warn("🚨 [센서] history_logs에 데이터가 없습니다.");
                 }
 
                 // 외부 온도 UI 갱신
                 const outsideTempEl = document.getElementById('outside-temp-badge');
-                const outsideKeys = Object.keys(sensorDataMap).filter(k => k.toLowerCase().includes('외부온도') || k.toLowerCase().includes('outside'));
+                const outsideKeys = Object.keys(sensorDataMap).filter(k => k.toLowerCase().includes('outside'));
                 if (outsideKeys.length > 0) {
                     outsideTempEl.textContent = `외기: ${sensorDataMap[outsideKeys[0]].temp}℃`;
                     outsideTempEl.classList.remove('hidden');
                     outsideTempEl.classList.add('inline-block');
                 }
 
-                // 현재 선택된 배치가 있다면 실내 온도 및 상세 데이터 즉시 갱신
+                // 현재 선택된 배치가 있다면 실내 온도 즉시 갱신
                 if (currentSelectedBatchId) updateSensorUI(currentSelectedBatchId);
             });
         }
 
-        // --- 선택된 배치의 온도 및 상세 데이터를 화면에 표시 ---
+        // --- 선택된 배치의 온도를 화면에 표시 ---
         function updateSensorUI(batchKey) {
             const displayCard = document.getElementById('sensor-display-card');
             const tempEl = document.getElementById('current-indoor-temp');
-            const humiEl = document.getElementById('current-indoor-humi');
-            const dateRangeEl = document.getElementById('sensor-date-range');
-            const countEl = document.getElementById('sensor-count');
             const timeEl = document.getElementById('sensor-update-time');
             
             if (!batchKey || !fetchedBatches[batchKey]) {
@@ -487,32 +474,19 @@
 
             displayCard.classList.remove('hidden');
             const batch = fetchedBatches[batchKey];
-            const targetSensorKey = batch.standardKey; // 매핑된 키 (예: 이유_1배치, 육성_1배치)
+            const targetSensorKey = batch.standardKey; // 매핑된 키 (예: Weaning_Batch 1)
 
-            // 센서 이름 매칭 로직 강화 (공백 제거 및 소문자 변환하여 유연하게 비교)
-            const searchKey = targetSensorKey.replace(/\s+/g, '').toLowerCase();
-            let foundKey = Object.keys(sensorDataMap).find(k => {
-                const dbKey = k.replace(/\s+/g, '').toLowerCase();
-                return dbKey === searchKey || dbKey.includes(searchKey);
-            });
+            // 센서 맵에서 해당 키와 일치하거나 포함하는 데이터를 찾음
+            let foundKey = Object.keys(sensorDataMap).find(k => k.includes(targetSensorKey));
             
-            console.log(`🔍 [UI 업데이트] 찾을 센서명: "${targetSensorKey}" -> 검색결과: "${foundKey || '없음'}"`);
-
             if (foundKey) {
-                const sensorInfo = sensorDataMap[foundKey];
-                tempEl.textContent = sensorInfo.temp;
-                humiEl.textContent = sensorInfo.humi;
-                dateRangeEl.textContent = sensorInfo.dateRange;
-                countEl.textContent = `${sensorInfo.count}두`;
-                timeEl.textContent = `마지막 업데이트: ${sensorInfo.time}`;
+                tempEl.textContent = sensorDataMap[foundKey].temp;
+                timeEl.textContent = `마지막 업데이트: ${sensorDataMap[foundKey].time}`;
                 tempEl.classList.remove('text-slate-400');
                 tempEl.classList.add('text-slate-800');
             } else {
                 tempEl.textContent = '--.-';
-                humiEl.textContent = '---';
-                dateRangeEl.textContent = '--';
-                countEl.textContent = '--';
-                timeEl.textContent = '현재 센서 데이터가 없습니다.';
+                timeEl.textContent = '현재 온도 데이터가 없습니다.';
                 tempEl.classList.add('text-slate-400');
                 tempEl.classList.remove('text-slate-800');
             }
@@ -550,21 +524,25 @@
 
         // --- 분석 및 시뮬레이션 계산 (건축물 제원 반영) ---
         function calculateOptimalSettings(age, weight, count) {
+            // 설정 온도 
             let target_temp = 20.0;
             if (age <= 21) target_temp = 28.0 - (age * 0.1);
             else if (age <= 70) target_temp = 26.0 - ((age - 21) * 0.1);
             target_temp = Math.max(18.0, Math.min(32.0, target_temp));
 
-            const buildingVolume = 11.5 * 28 * (2.4 + 0.9);
-            const fan_500_capacity = 6000; 
-            const fan_800_capacity = 18000; 
-            const totalMaxFanCMH = (fan_500_capacity * 5) + (fan_800_capacity * 4); 
+            // 건축 및 휀 제원을 반영한 풍량 계산
+            const buildingVolume = 11.5 * 28 * (2.4 + 0.9); // 폭 * 길이 * (벽높이 + 슬러리피트) = 체적(m³)
+            const fan_500_capacity = 6000; // 500휀 1대 배기량 (예상 CMH)
+            const fan_800_capacity = 18000; // 800휀 1대 배기량 (예상 CMH)
+            const totalMaxFanCMH = (fan_500_capacity * 5) + (fan_800_capacity * 4); // 총 배기량(CMH)
 
-            let baseMinVentCMH = weight * count * 0.5; 
+            // 돼지 호흡량 기반 최소 요구 풍량 (CMH)
+            let baseMinVentCMH = weight * count * 0.5; // 체중 1kg당 약 0.5 CMH 필요 가정
             if (baseMinVentCMH < buildingVolume * 1.5) { 
-                baseMinVentCMH = buildingVolume * 1.5; 
+                baseMinVentCMH = buildingVolume * 1.5; // 최소 건물 체적의 1.5회전 환기 보장
             }
 
+            // 퍼센트 계산
             let min_vent_percent = (baseMinVentCMH / totalMaxFanCMH) * 100;
             min_vent_percent = Math.max(5.0, Math.min(30.0, min_vent_percent)); 
 
@@ -616,6 +594,7 @@
             });
         }
 
+        // 분석 실행 버튼
         document.getElementById('btn_analyze').addEventListener('click', () => {
             const age = Number(document.getElementById('pig_age').value);
             const count = Number(document.getElementById('pig_count').value);
