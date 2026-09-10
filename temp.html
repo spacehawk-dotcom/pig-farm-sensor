@@ -7,7 +7,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-    
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -221,33 +220,16 @@
         </div>
     </div>
 
-    <!-- Modal -->
-    <div id="custom-modal" class="fixed inset-0 bg-slate-900 bg-opacity-60 hidden items-center justify-center z-50 backdrop-blur-sm">
-        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4 transform transition-all">
-            <div class="flex items-center gap-3 mb-4">
-                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xl font-bold">i</div>
-                <h3 id="modal-title" class="text-lg font-bold text-slate-800">알림</h3>
-            </div>
-            <p id="modal-message" class="text-slate-600 text-sm mb-6 leading-relaxed">메시지 내용</p>
-            <div class="flex justify-end">
-                <button onclick="document.getElementById('custom-modal').classList.add('hidden')" class="px-5 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition-all">확인</button>
-            </div>
-        </div>
-    </div>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        // 1. Firestore 가져오기 (사육 데이터용)
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        // 2. Realtime Database 가져오기 (온도 센서 데이터용)
         import { getDatabase, ref, onValue, query, limitToLast } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        // --- Firebase Configuration ---
         const firebaseConfig = {
             apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
             authDomain: "sungamfarm.firebaseapp.com",
-            databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com", // RTDB 주소 추가!
+            databaseURL: "https://sungamfarm-default-rtdb.firebaseio.com",
             projectId: "sungamfarm",
             storageBucket: "sungamfarm.firebasestorage.app",
             messagingSenderId: "811107235779",
@@ -256,16 +238,9 @@
 
         let app, db, rtdb, auth;
         let fetchedBatches = {}; 
-        let sensorDataMap = {}; // 온도 데이터 저장소
+        let sensorDataMap = {}; 
         let currentSelectedBatchId = null;
         let myChart = null;
-
-        function showModal(title, message) {
-            document.getElementById('modal-title').textContent = title;
-            document.getElementById('modal-message').textContent = message;
-            document.getElementById('custom-modal').classList.remove('hidden');
-            document.getElementById('custom-modal').classList.add('flex');
-        }
 
         // --- 체중 및 일령 계산 로직 ---
         function calculateWeight(age) {
@@ -292,7 +267,6 @@
 
             const firstPenDate = getFirstValidDate(data.penDates);
 
-            // 육성사: +14일 / 이유사: +28일 기준 적용
             if (type === '육성사') {
                 if (firstPenDate) { targetDateStr = firstPenDate; baseAge = 14; sourceMsg = "칸별 입식일 기준(+14)"; }
                 else if (data.weaningDate && typeof data.weaningDate === 'string' && data.weaningDate.trim() !== '') { targetDateStr = data.weaningDate.trim(); baseAge = 28; sourceMsg = "이유일 기준(+28)"; }
@@ -321,7 +295,7 @@
             return { age: Math.max(1, age), sourceMsg };
         }
 
-        // --- Firebase 초기화 및 동기화 ---
+        // --- Firebase 초기화 ---
         async function initFirebase() {
             try {
                 const statusEl = document.getElementById('connection-status');
@@ -330,14 +304,14 @@
                 auth = getAuth(app);
                 await signInAnonymously(auth);
                 
-                db = getFirestore(app);         // 사육 데이터용 (Firestore)
-                rtdb = getDatabase(app);        // 온도 데이터용 (Realtime DB)
+                db = getFirestore(app);         
+                rtdb = getDatabase(app);        
 
                 statusEl.textContent = "연결 완료";
                 statusEl.className = "text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium shadow-inner";
 
                 startFarmDataSync();
-                startSensorDataSync(); // 실시간 온도 연동 시작
+                startSensorDataSync(); 
 
             } catch (error) {
                 console.error("Firebase 초기화 에러:", error);
@@ -386,14 +360,9 @@
 
                 let name = data.name || data.batchName || data.roomName || (`${data.id}번 배치`);
                 const { age, sourceMsg } = calculatePigAge(data, type);
-                
-                // 이름에서 숫자(배치번호)만 추출하여 정규화된 키 생성 (예: Weaning_Batch 1)
-                const numberMatch = name.match(/\d+/);
-                const batchNum = numberMatch ? numberMatch[0] : doc.id;
-                const standardKey = (type === '이유사') ? `Weaning_Batch ${batchNum}` : `Growing_Batch ${batchNum}`;
 
                 fetchedBatches[`${type}_${doc.id}`] = {
-                    type, id: doc.id, name, count, age, sourceMsg, standardKey
+                    type, id: doc.id, name, count, age, sourceMsg
                 };
                 return true;
             };
@@ -411,57 +380,45 @@
             });
         }
 
-        // --- 2. Realtime Database: 실시간 온도 센서 동기화 ---
+        // --- 2. Realtime Database: 실시간 온도 센서 동기화 (구조 수정 완료) ---
         function startSensorDataSync() {
-            // history_logs 테이블에서 가장 최근 50개의 기록만 가져옴
-            const historyRef = query(ref(rtdb, 'history_logs'), limitToLast(50));
+            // 가장 최신의 기록 10개만 가져옴 (데이터 덮어쓰기 보완용)
+            const historyRef = query(ref(rtdb, 'history_logs'), limitToLast(10));
             
-            console.log("📡 [센서] Realtime Database 연결 시도 중...");
-
             onValue(historyRef, (snapshot) => {
-                sensorDataMap = {}; // 데이터 초기화
+                sensorDataMap = {}; 
                 
                 if (snapshot.exists()) {
-                    console.log("📡 [센서] 데이터 수신 성공!");
-                    
-                    // 각 기록을 순회하며 가장 최신 온도로 덮어쓰기
                     snapshot.forEach(childSnapshot => {
                         const data = childSnapshot.val();
-// 수정할 부분: JSON.stringify를 감싸서 데이터를 텍스트로 펼쳐서 출력하게 만듭니다.
-    console.log("원본 항목 (상세):", JSON.stringify(data));
-                        // 센서 이름 (예: Weaning_Batch 1, Outside_Temp)
-                        const sensorName = data.name || data.sensor || data.id;
                         
-                        if (sensorName) {
-                            // 필드명 유연성 확보 (temp, temperature, value 등)
-                            const tempValue = data.temperature || data.temp || data.value;
-                            if (tempValue !== undefined) {
-                                sensorDataMap[sensorName] = {
-                                    temp: Number(tempValue).toFixed(1),
-                                    time: data.time || data.timestamp || new Date().toLocaleTimeString()
+                        // data 안에는 '외부온도', '육성_1배치' 등이 Key로 들어있음
+                        for (const [sensorKey, sensorData] of Object.entries(data)) {
+                            // sensorData가 객체이고 temp 값이 존재할 때만 맵핑
+                            if (sensorData && sensorData.temp !== undefined) {
+                                sensorDataMap[sensorKey] = {
+                                    temp: Number(sensorData.temp).toFixed(1),
+                                    time: sensorData.timestamp || new Date().toLocaleTimeString()
                                 };
                             }
                         }
                     });
-                } else {
-                    console.warn("🚨 [센서] history_logs에 데이터가 없습니다.");
+                    console.log("✅ 센서 맵핑 완료:", sensorDataMap);
                 }
 
-                // 외부 온도 UI 갱신
-                const outsideTempEl = document.getElementById('outside-temp-badge');
-                const outsideKeys = Object.keys(sensorDataMap).filter(k => k.toLowerCase().includes('outside'));
-                if (outsideKeys.length > 0) {
-                    outsideTempEl.textContent = `외기: ${sensorDataMap[outsideKeys[0]].temp}℃`;
+                // 외부 온도 UI 갱신 (Key가 정확히 '외부온도'인 경우)
+                if (sensorDataMap['외부온도']) {
+                    const outsideTempEl = document.getElementById('outside-temp-badge');
+                    outsideTempEl.textContent = `외기: ${sensorDataMap['외부온도'].temp}℃`;
                     outsideTempEl.classList.remove('hidden');
                     outsideTempEl.classList.add('inline-block');
                 }
 
-                // 현재 선택된 배치가 있다면 실내 온도 즉시 갱신
                 if (currentSelectedBatchId) updateSensorUI(currentSelectedBatchId);
             });
         }
 
-        // --- 선택된 배치의 온도를 화면에 표시 ---
+        // --- 선택된 배치의 온도를 화면에 표시 (이름 조합 매칭) ---
         function updateSensorUI(batchKey) {
             const displayCard = document.getElementById('sensor-display-card');
             const tempEl = document.getElementById('current-indoor-temp');
@@ -474,19 +431,24 @@
 
             displayCard.classList.remove('hidden');
             const batch = fetchedBatches[batchKey];
-            const targetSensorKey = batch.standardKey; // 매핑된 키 (예: Weaning_Batch 1)
 
-            // 센서 맵에서 해당 키와 일치하거나 포함하는 데이터를 찾음
-            let foundKey = Object.keys(sensorDataMap).find(k => k.includes(targetSensorKey));
+            // 1. 이름이나 ID에서 숫자(배치 번호)만 추출
+            const numMatch = batch.name.match(/\d+/) || batch.id.match(/\d+/);
+            const batchNum = numMatch ? numMatch[0] : '';
             
-            if (foundKey) {
-                tempEl.textContent = sensorDataMap[foundKey].temp;
-                timeEl.textContent = `마지막 업데이트: ${sensorDataMap[foundKey].time}`;
+            // 2. 캡처 화면의 Key 형식과 동일하게 문자열 조립 ("이유_1배치" 또는 "육성_1배치")
+            const prefix = (batch.type === '이유사') ? '이유' : '육성';
+            const exactSensorKey = `${prefix}_${batchNum}배치`;
+            
+            // 3. 조립된 키로 데이터 찾기
+            if (sensorDataMap[exactSensorKey]) {
+                tempEl.textContent = sensorDataMap[exactSensorKey].temp;
+                timeEl.textContent = `마지막 업데이트: ${sensorDataMap[exactSensorKey].time}`;
                 tempEl.classList.remove('text-slate-400');
                 tempEl.classList.add('text-slate-800');
             } else {
                 tempEl.textContent = '--.-';
-                timeEl.textContent = '현재 온도 데이터가 없습니다.';
+                timeEl.textContent = `데이터 없음 (${exactSensorKey})`;
                 tempEl.classList.add('text-slate-400');
                 tempEl.classList.remove('text-slate-800');
             }
@@ -522,27 +484,23 @@
             });
         });
 
-        // --- 분석 및 시뮬레이션 계산 (건축물 제원 반영) ---
+        // --- 분석 및 시뮬레이션 계산 ---
         function calculateOptimalSettings(age, weight, count) {
-            // 설정 온도 
             let target_temp = 20.0;
             if (age <= 21) target_temp = 28.0 - (age * 0.1);
             else if (age <= 70) target_temp = 26.0 - ((age - 21) * 0.1);
             target_temp = Math.max(18.0, Math.min(32.0, target_temp));
 
-            // 건축 및 휀 제원을 반영한 풍량 계산
-            const buildingVolume = 11.5 * 28 * (2.4 + 0.9); // 폭 * 길이 * (벽높이 + 슬러리피트) = 체적(m³)
-            const fan_500_capacity = 6000; // 500휀 1대 배기량 (예상 CMH)
-            const fan_800_capacity = 18000; // 800휀 1대 배기량 (예상 CMH)
-            const totalMaxFanCMH = (fan_500_capacity * 5) + (fan_800_capacity * 4); // 총 배기량(CMH)
+            const buildingVolume = 11.5 * 28 * (2.4 + 0.9);
+            const fan_500_capacity = 6000; 
+            const fan_800_capacity = 18000; 
+            const totalMaxFanCMH = (fan_500_capacity * 5) + (fan_800_capacity * 4); 
 
-            // 돼지 호흡량 기반 최소 요구 풍량 (CMH)
-            let baseMinVentCMH = weight * count * 0.5; // 체중 1kg당 약 0.5 CMH 필요 가정
+            let baseMinVentCMH = weight * count * 0.5; 
             if (baseMinVentCMH < buildingVolume * 1.5) { 
-                baseMinVentCMH = buildingVolume * 1.5; // 최소 건물 체적의 1.5회전 환기 보장
+                baseMinVentCMH = buildingVolume * 1.5; 
             }
 
-            // 퍼센트 계산
             let min_vent_percent = (baseMinVentCMH / totalMaxFanCMH) * 100;
             min_vent_percent = Math.max(5.0, Math.min(30.0, min_vent_percent)); 
 
@@ -594,13 +552,12 @@
             });
         }
 
-        // 분석 실행 버튼
         document.getElementById('btn_analyze').addEventListener('click', () => {
             const age = Number(document.getElementById('pig_age').value);
             const count = Number(document.getElementById('pig_count').value);
             const weight = Number(document.getElementById('avg_weight').value);
             
-            if (!age || !count || !weight) return showModal("입력 오류", "일령, 사육 두수, 체중을 올바르게 입력해주세요.");
+            if (!age || !count || !weight) return alert("일령, 사육 두수, 체중을 올바르게 입력해주세요.");
 
             const cur = {
                 target_temp: Number(document.getElementById('cur_target_temp').value),
