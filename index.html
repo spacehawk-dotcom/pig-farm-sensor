@@ -61,7 +61,7 @@
         <!-- 메인 콘텐츠 영역 -->
         <main class="max-w-2xl mx-auto p-4 space-y-6">
             <!-- 바로가기 링크 섹션 -->
-            <section class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+            <section class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <a class="bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all text-[13px] sm:text-sm tracking-tight" href="/pigmom">
                     <i data-lucide="clipboard-list" class="text-indigo-500 w-4 h-4 sm:w-5 sm:h-5"></i> 모돈(임신사)
                 </a>
@@ -73,9 +73,6 @@
                 </a>
                 <a class="bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all text-[13px] sm:text-sm tracking-tight" href="/env">
                     <i data-lucide="thermometer" class="text-rose-500 w-4 h-4 sm:w-5 sm:h-5"></i> 온도
-                </a>
-                <a class="bg-white border border-slate-200 text-slate-700 font-black py-3.5 rounded-2xl shadow-sm flex justify-center items-center gap-1.5 hover:bg-slate-50 active:scale-95 transition-all text-[13px] sm:text-sm tracking-tight" href="https://sungamfarm.netlify.app/temp">
-                    <i data-lucide="fan" class="text-sky-500 w-4 h-4 sm:w-5 sm:h-5"></i> 휀 설정
                 </a>
             </section>
 
@@ -278,6 +275,62 @@
                 app = firebase.initializeApp(firebaseConfig); auth = firebase.auth(); db = firebase.firestore();
                 db.enablePersistence({ synchronizeTabs: true }).catch(err => console.error("오프라인 에러:", err));
             } catch (e) { isLocalEnv = true; }
+
+            // 환기 설정 산출 전역 함수 추가
+            window.getOptimalVentSettings = function(age, weight, count, roomType = '육성사', diffDays = null) {
+                // 1그룹 (500휀 2대 상시)
+                let t_500_1 = 23.0;
+                if (age <= 21) t_500_1 = 28.0 - (age * 0.1);
+                else if (age <= 70) t_500_1 = 25.9 - ((age - 21) * 0.06);
+                t_500_1 = Math.max(23.0, Math.min(32.0, t_500_1));
+
+                // 입식 보상
+                if (roomType === '육성사' && diffDays !== null && diffDays >= 0 && diffDays <= 3) {
+                    t_500_1 += 2.0;
+                }
+
+                // 2그룹 (500휀 3대 완충)
+                let t_500_2 = Math.max(24.0, Math.min(33.0, t_500_1 + 1.0));
+
+                // 3그룹 (800휀 2대 1차)
+                let t_800_1 = age <= 50 ? t_500_2 + 1.5 : t_500_2 + 1.0;
+                t_800_1 = Math.max(25.0, Math.min(34.0, t_800_1));
+
+                // 4그룹 (800휀 2대 2차)
+                let t_800_2 = age <= 50 ? t_800_1 + 1.5 : t_800_1 + 1.0;
+                t_800_2 = Math.max(26.0, Math.min(35.0, t_800_2));
+
+                // 환기량 계산 
+                const fan_500_1_cap = 6000 * 2; 
+                const buildingVolume = roomType === '이유사' ? (9.0 * 15.0 * 2.2) : (11.5 * 28.0 * 2.2);
+
+                let baseMinVentCMH = weight * count * 0.5; 
+                if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
+
+                // 그룹별 디테일 설정
+                let min_500_1 = Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)); 
+                let diff_500_1 = (age <= 30) ? 1.5 : 2.0;
+                let diff_500_2 = 2.0;
+                let diff_800_1 = 2.0;
+                
+                let max_800_2 = Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))); 
+                let diff_800_2 = 2.0;
+                
+                // 이유사 예외 처리 (500휀 2대만 존재)
+                if (roomType === '이유사') {
+                    t_500_2 = 0; diff_500_2 = 0;
+                    t_800_1 = 0; diff_800_1 = 0;
+                    t_800_2 = 0; max_800_2 = 0; diff_800_2 = 0;
+                }
+
+                return {
+                    f500_1: { t: Math.round(t_500_1 * 10) / 10, min: Math.round(min_500_1), max: 100, diff: Math.round(diff_500_1 * 10) / 10 },
+                    f500_2: { t: Math.round(t_500_2 * 10) / 10, min: 0, max: 100, diff: Math.round(diff_500_2 * 10) / 10 },
+                    f800_1: { t: Math.round(t_800_1 * 10) / 10, min: 0, max: 100, diff: Math.round(diff_800_1 * 10) / 10 },
+                    f800_2: { t: Math.round(t_800_2 * 10) / 10, min: 0, max: Math.round(max_800_2), diff: Math.round(diff_800_2 * 10) / 10 },
+                    roomType: roomType
+                };
+            };
 
             let state = {
                 stocks: { boar: 5, piglet: 0, grower: 0, sow: 0, replacement: 0, gilt_batch: 0 },
@@ -1512,9 +1565,10 @@
                         accHtml = `<div class="space-y-1 max-h-[150px] overflow-y-auto">${rows}</div>`;
                     }
 
-                    // 🌟 젖돈 급여일 및 백신 접종일 계산 로직 🌟
+                    // 🌟 젖돈 급여일 및 백신 접종일, 환기 설정 계산 로직 🌟
                     let feedHtml = '';
                     let vaccineHtml = '';
+                    let ventHtml = '';
                     
                     let sumTime = 0, pigCount = 0;
                     // 후보사(육성사 8번)만 1일령, 나머지는 이유/육성 모두 20일령 기준
@@ -1556,10 +1610,6 @@
                             const d = new Date(birthTime + (days * 24 * 60 * 60 * 1000));
                             return `${d.getMonth() + 1}/${d.getDate()}`;
                         };
-                        const getVDateFromBaseStr = (daysToAdd) => {
-                            const d = new Date(parsedPd.getTime() + (daysToAdd * 24 * 60 * 60 * 1000));
-                            return `${d.getMonth() + 1}/${d.getDate()}`;
-                        };
                         
                         // 묶여있는 칸 번호들을 쉼표로 연결 (예: "1칸, 2칸")
                         const penLabels = group.pens.join(', ');
@@ -1571,9 +1621,9 @@
                                     <div class="text-[9px] text-slate-400 font-bold mt-0.5">(${group.totalPigs}두)</div>
                                 </td>
                                 <td class="py-2.5 px-1 font-bold text-slate-500 whitespace-nowrap">${parsedPd.getMonth()+1}/${parsedPd.getDate()}</td>
-                                <td class="py-2.5 px-1 font-black text-rose-600 bg-rose-50/40 whitespace-nowrap">${getVDateFromBaseStr(34)}</td>
-                                <td class="py-2.5 px-1 font-black text-blue-600 bg-blue-50/40 whitespace-nowrap">${getVDateFromBaseStr(41)}</td>
-                                ${t.stage === 'grower' ? `<td class="py-2.5 px-1 font-black text-purple-600 bg-purple-50/40 whitespace-nowrap">${getVDateStr(70)}</td>` : ''}
+                                <td class="py-2.5 px-1 font-black text-rose-600 bg-rose-50/40 whitespace-nowrap">${getVDateStr(42)}</td>
+                                <td class="py-2.5 px-1 font-black text-blue-600 bg-blue-50/40 whitespace-nowrap">${getVDateStr(49)}</td>
+                                ${t.stage === 'grower' ? `<td class="py-2.5 px-1 font-black text-purple-600 bg-purple-50/40 whitespace-nowrap">${getVDateStr(77)}</td>` : ''}
                             </tr>`;
                     });
                     
@@ -1592,9 +1642,9 @@
                                         <tr>
                                             <th class="py-2 px-1">위치</th>
                                             <th class="py-2 px-1">${dateLabel}일</th>
-                                            <th class="py-2 px-1 text-rose-600">열병<span class="text-[8px] font-bold ml-0.5 opacity-70">8주령</span></th>
-                                            <th class="py-2 px-1 text-blue-600">구제1<span class="text-[8px] font-bold ml-0.5 opacity-70">9주령</span></th>
-                                            ${t.stage === 'grower' ? `<th class="py-2 px-1 text-purple-600">구제2<span class="text-[8px] font-bold ml-0.5 opacity-70">10주령</span></th>` : ''}
+                                            <th class="py-2 px-1 text-rose-600">열병<span class="text-[9px] font-bold ml-0.5 opacity-70">6주</span></th>
+                                            <th class="py-2 px-1 text-blue-600">구제1<span class="text-[9px] font-bold ml-0.5 opacity-70">7주</span></th>
+                                            ${t.stage === 'grower' ? `<th class="py-2 px-1 text-purple-600">구제2<span class="text-[9px] font-bold ml-0.5 opacity-70">11주</span></th>` : ''}
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-slate-100">
@@ -1605,49 +1655,118 @@
                         </div>`;
                     }
                     
-                    // 4. 젖돈 급여일 렌더링 (육성사만 표기, 후보사 제외)
-                    if (t.stage === 'grower' && b.id !== 8 && pigCount > 0) {
+                    // 4. 젖돈 급여일 및 4단계 자동 환기 설정 적용
+                    if (pigCount > 0) {
                         const avgTime = sumTime / pigCount;
+                        const todayTime = new Date().getTime();
                         
-                        // 젖돈 급여일 (~105일령 까지)
-                        const daysToAdd105 = 105 - baseAge; // 105일령 - 입식일령
-                        const targetDate105 = new Date(avgTime + daysToAdd105 * 24 * 60 * 60 * 1000);
-                        const mmdd105 = `${targetDate105.getMonth() + 1}/${targetDate105.getDate()}`;
-                        const isPast105 = targetDate105 < new Date();
-                        const colorCls105 = isPast105 ? 'slate' : 'emerald';
-                        const badgeTxt105 = isPast105 ? '급여 종료' : '급여 중';
+                        // 현재 평균 일령 및 입식 후 경과일 계산
+                        const avgAge = Math.round((todayTime - avgTime) / (1000 * 60 * 60 * 24)) + baseAge;
+                        const diffDays = Math.round((todayTime - avgTime) / (1000 * 60 * 60 * 24));
+                        const roomType = t.stage === 'weaning' ? '이유사' : '육성사';
+                        
+                        // 간이 체중 추정 로직 (나이에 따른 선형적 체중 증가 가정)
+                        let estWeight = avgAge <= 20 ? 6 : (avgAge <= 70 ? 6 + (avgAge - 20) * 0.48 : 30 + (avgAge - 70) * 0.85);
+                        
+                        // 환기 설정 산출
+                        const opt = window.getOptimalVentSettings(avgAge, estWeight, pigCount, roomType, diffDays);
 
-                        // 락토파산 급여일 (125일령)
-                        const daysToAdd125 = 125 - baseAge;
-                        const targetDate125 = new Date(avgTime + daysToAdd125 * 24 * 60 * 60 * 1000);
-                        const mmdd125 = `${targetDate125.getMonth() + 1}/${targetDate125.getDate()}`;
-                        const isPast125 = targetDate125 < new Date();
-                        const colorCls125 = isPast125 ? 'pink' : 'amber';
-                        const badgeTxt125 = isPast125 ? '급여 중' : '예정';
-                        
-                        feedHtml = `
-                        <div class="grid grid-cols-2 gap-2">
-                            <div class="bg-${colorCls105}-50 p-2.5 rounded-xl border border-${colorCls105}-100 flex flex-col justify-between shadow-sm">
-                                <div class="flex items-center gap-1.5 mb-2">
-                                    <div class="p-1.5 bg-${colorCls105}-100 rounded-lg"><i data-lucide="wheat" class="text-${colorCls105}-600 w-3.5 h-3.5"></i></div>
-                                    <span class="text-[11px] font-black text-${colorCls105}-700 leading-tight">젖돈 (~105일령)</span>
+                        // 환기 UI 생성 (육성사만 표시, 후보사 제외)
+                        if (t.stage === 'grower' && b.id !== 8) {
+                            ventHtml = `
+                            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                                <div class="bg-slate-50 px-3 py-2.5 border-b border-slate-200 flex justify-between items-center">
+                                    <h3 class="font-black text-slate-700 text-[12px] flex items-center gap-1.5"><span class="text-blue-500 text-sm">🌀</span> 4단계 자동 환기 설정 <span class="text-[9px] font-bold text-slate-400 font-normal">(${roomType})</span></h3>
+                                    <span class="text-[9px] px-2 py-0.5 bg-blue-100 text-blue-700 rounded font-black tracking-tighter">실시간 권장</span>
                                 </div>
-                                <div class="flex justify-between items-end">
-                                    <span class="text-[9px] font-black text-${colorCls105}-500 bg-${colorCls105}-100 px-1.5 py-0.5 rounded">${badgeTxt105}</span>
-                                    <span class="text-[14px] font-black text-${colorCls105}-800 leading-none">${targetDate105.getFullYear()}.${mmdd105}</span>
+                                <div class="p-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                    <div class="bg-blue-50/50 rounded-lg p-2 border border-blue-100 flex flex-col justify-between">
+                                        <div class="text-[9px] text-blue-800 font-black mb-1.5 tracking-tight">1그룹 (상시)</div>
+                                        <div>
+                                            <div class="text-[10px] font-bold text-slate-500 mb-0.5">목표: <strong class="text-blue-700 text-[13px]">${opt.f500_1.t}℃</strong> <span class="text-[8px] font-normal">(편차 ${opt.f500_1.diff})</span></div>
+                                            <div class="text-[10px] font-bold text-slate-500">가동: <strong class="text-slate-800 text-[11px]">${opt.f500_1.min}% ~ 100%</strong></div>
+                                        </div>
+                                    </div>
+                                    <div class="bg-teal-50/50 rounded-lg p-2 border border-teal-100 flex flex-col justify-between">
+                                        <div class="text-[9px] text-teal-800 font-black mb-1.5 tracking-tight">2그룹 (완충)</div>
+                                        <div>
+                                            <div class="text-[10px] font-bold text-slate-500 mb-0.5">개입: <strong class="text-teal-700 text-[13px]">${opt.f500_2.t}℃</strong> <span class="text-[8px] font-normal">(편차 ${opt.f500_2.diff})</span></div>
+                                            <div class="text-[10px] font-bold text-slate-500">가동: <strong class="text-slate-800 text-[11px]">0% ~ 100%</strong></div>
+                                        </div>
+                                    </div>
+                                    <div class="bg-orange-50/50 rounded-lg p-2 border border-orange-100 flex flex-col justify-between">
+                                        <div class="text-[9px] text-orange-800 font-black mb-1.5 tracking-tight">3그룹 (1차)</div>
+                                        <div>
+                                            <div class="text-[10px] font-bold text-slate-500 mb-0.5">개입: <strong class="text-orange-700 text-[13px]">${opt.f800_1.t}℃</strong> <span class="text-[8px] font-normal">(편차 ${opt.f800_1.diff})</span></div>
+                                            <div class="text-[10px] font-bold text-slate-500">가동: <strong class="text-slate-800 text-[11px]">0% ~ 100%</strong></div>
+                                        </div>
+                                    </div>
+                                    <div class="bg-rose-50/50 rounded-lg p-2 border border-rose-100 flex flex-col justify-between">
+                                        <div class="text-[9px] text-rose-800 font-black mb-1.5 tracking-tight">4그룹 (2차)</div>
+                                        <div>
+                                            <div class="text-[10px] font-bold text-slate-500 mb-0.5">개입: <strong class="text-rose-700 text-[13px]">${opt.f800_2.t}℃</strong> <span class="text-[8px] font-normal">(편차 ${opt.f800_2.diff})</span></div>
+                                            <div class="text-[10px] font-bold text-slate-500">가동: <strong class="text-slate-800 text-[11px]">0% ~ ${opt.f800_2.max}%</strong></div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="bg-${colorCls125}-50 p-2.5 rounded-xl border border-${colorCls125}-100 flex flex-col justify-between shadow-sm">
-                                <div class="flex items-center gap-1.5 mb-2">
-                                    <div class="p-1.5 bg-${colorCls125}-100 rounded-lg"><i data-lucide="pill" class="text-${colorCls125}-600 w-3.5 h-3.5"></i></div>
-                                    <span class="text-[11px] font-black text-${colorCls125}-700 leading-tight">락토파산 (125일령)</span>
+                                <div class="bg-slate-50 px-3 py-1.5 border-t border-slate-100 text-[9px] text-slate-400 flex justify-between items-center">
+                                    <span class="font-bold">* 평균 ${avgAge}일령 / 추정 ${Math.round(estWeight)}kg / ${pigCount}두 기준</span>
+                                    <a href="https://sungamfarm.netlify.app/temp" target="_blank" class="text-blue-500 hover:underline font-bold">상세 설정 &rarr;</a>
                                 </div>
-                                <div class="flex justify-between items-end">
-                                    <span class="text-[9px] font-black text-${colorCls125}-500 bg-${colorCls125}-100 px-1.5 py-0.5 rounded">${badgeTxt125}</span>
-                                    <span class="text-[14px] font-black text-${colorCls125}-800 leading-none">${targetDate125.getFullYear()}.${mmdd125}</span>
+                            </div>`;
+                        }
+
+                        // 젖돈 급여일 (육성사 한정)
+                        if (t.stage === 'grower' && b.id !== 8) {
+                            const today = new Date();
+                            today.setHours(0,0,0,0);
+
+                            // 1. 젖돈 급여 (~105일령)
+                            const targetDate105 = new Date(avgTime + (105 - baseAge) * 24 * 60 * 60 * 1000);
+                            targetDate105.setHours(0,0,0,0);
+                            const mmdd105 = `${targetDate105.getMonth() + 1}/${targetDate105.getDate()}`;
+                            const isPast105 = today > targetDate105;
+                            const color105 = isPast105 ? 'slate' : 'emerald';
+                            const badge105 = isPast105 ? '급여 종료' : '급여 중';
+
+                            // 2. 락토파산 급여 (125일령~)
+                            const targetDate125 = new Date(avgTime + (125 - baseAge) * 24 * 60 * 60 * 1000);
+                            targetDate125.setHours(0,0,0,0);
+                            const mmdd125 = `${targetDate125.getMonth() + 1}/${targetDate125.getDate()}`;
+                            const isPast125 = today >= targetDate125;
+                            const color125 = isPast125 ? 'pink' : 'amber';
+                            const badge125 = isPast125 ? '급여 중' : '예정';
+
+                            feedHtml = `
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="bg-${color105}-50 p-3 rounded-xl border border-${color105}-200 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="flex items-center gap-1.5 z-10">
+                                            <div class="p-1 bg-${color105}-100 rounded-md"><i data-lucide="wheat" class="text-${color105}-600 w-3 h-3"></i></div>
+                                            <span class="text-[11px] font-black text-${color105}-700 tracking-tight">젖돈 (~105일)</span>
+                                        </div>
+                                        <span class="text-[9px] font-black text-${color105}-600 bg-${color105}-100/80 px-1.5 py-0.5 rounded-md z-10 border border-${color105}-200">${badge105}</span>
+                                    </div>
+                                    <div class="text-right z-10 mt-1">
+                                        <span class="text-[10px] text-${color105}-500 font-bold mr-1">목표일</span>
+                                        <span class="text-lg font-black text-${color105}-800 leading-none">${mmdd105}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>`;
+                                <div class="bg-${color125}-50 p-3 rounded-xl border border-${color125}-200 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div class="flex items-center gap-1.5 z-10">
+                                            <div class="p-1 bg-${color125}-100 rounded-md"><i data-lucide="pill" class="text-${color125}-600 w-3 h-3"></i></div>
+                                            <span class="text-[11px] font-black text-${color125}-700 tracking-tight">락토 (125일~)</span>
+                                        </div>
+                                        <span class="text-[9px] font-black text-${color125}-600 bg-${color125}-100/80 px-1.5 py-0.5 rounded-md z-10 border border-${color125}-200 ${isPast125 ? 'animate-pulse' : ''}">${badge125}</span>
+                                    </div>
+                                    <div class="text-right z-10 mt-1">
+                                        <span class="text-[10px] text-${color125}-500 font-bold mr-1">시작일</span>
+                                        <span class="text-lg font-black text-${color125}-800 leading-none">${mmdd125}</span>
+                                    </div>
+                                </div>
+                            </div>`;
+                        }
                     }
 
                     return {
@@ -1655,19 +1774,18 @@
                         html: `<input type="hidden" id="m-stage" value="${t.stage}">
                         <input type="hidden" id="m-batch" value="${t.batchId}">
                         <div class="space-y-3.5">
+                            ${ventHtml}
                             ${feedHtml}
                             ${vaccineHtml}
                             <div class="bg-slate-50 p-4 rounded-xl"><label class="text-[10px] font-black text-slate-500 block mb-2">현재 배치 메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none outline-none border border-slate-200 rounded p-2" placeholder="여기에 메모를 입력하세요...">${b.memo || ''}</textarea></div>
                             <div><label class="text-[10px] font-black text-slate-500 block mb-2 flex items-center gap-1"><i data-lucide="skull" class="w-3.5 h-3.5 text-slate-400"></i> 현재 배치 폐사/도태 내역</label>${accHtml}</div>
-                            ${t.stage === 'grower' && b.id === 8 ? 
-                            `<div class="pt-4 border-t border-slate-100 text-center"><p class="text-[10px] font-bold text-slate-400">후보사의 초기화는 각 칸(Pen) 상세창에서 개별적으로 진행할 수 있습니다.</p></div>` :
-                            `<div class="pt-4 border-t border-slate-100">
+                            <div class="pt-4 border-t border-slate-100">
                                 <div id="batch-reset-btn-container" class="flex justify-center"><button onclick="window.toggleBatchResetConfirm()" class="flex items-center gap-2 text-rose-400 hover:text-rose-600 font-bold text-xs py-2 px-4 transition-colors"><i data-lucide="rotate-ccw" class="w-4 h-4"></i> 배치 기록 전체 리셋하기</button></div>
                                 <div id="batch-reset-confirm-container" class="hidden flex flex-col gap-2 items-center">
                                     <p class="text-[10px] font-black text-rose-500 text-center">정말로 초기화하시겠습니까?<br>이 배치 내 모든 칸의 돼지 수와 입식일이 0으로 초기화되며,<br>관련된 <strong>폐사/도태 기록은 화면에서 숨김(엑셀 보존)</strong> 처리됩니다.</p>
                                     <div class="flex gap-2 w-full mt-1"><button onclick="window.toggleBatchResetConfirm()" class="flex-1 py-3 bg-slate-100 text-slate-500 rounded-xl font-bold text-xs">취소</button><button onclick="window.resetBatch('${t.stage}', ${t.batchId})" class="flex-1 py-3 bg-rose-500 text-white rounded-xl font-bold text-xs">리셋 확인</button></div>
                                 </div>
-                            </div>`}
+                            </div>
                         </div>`
                     };
                 },
