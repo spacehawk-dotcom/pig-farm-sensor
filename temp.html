@@ -1037,18 +1037,15 @@
                 const { avg, max, min, variation } = historyStats;
                 historyMsg = `
                     <div class="bg-blue-50 border border-blue-200 p-3 rounded-lg mb-3 text-xs text-blue-800">
-                        <strong>🕒 최근 수집된 ${historyStats.count}개의 온도 기록 분석 완료</strong><br>
+                        <strong>🕒 최근 온도 기록 분석 (참고용)</strong><br>
                         평균: ${avg.toFixed(1)}℃ | 최고: ${max.toFixed(1)}℃ | 최저: ${min.toFixed(1)}℃ (일교차: ${variation.toFixed(1)}℃)
                     </div>`;
 
                 if (variation > 7.0) {
-                    diff_500_1 += 0.5; diff_500_2 += 0.5; diff_800_1 += 0.5; diff_800_2 += 0.5;
-                    historyMsg += `<li class="text-rose-600"><strong>일교차 주의:</strong> 최근 일교차가 ${variation.toFixed(1)}℃로 큽니다. 샛바람 충격을 막기 위해 각 그룹별 편차(P-Band)를 여유있게 늘려 보정했습니다.</li>`;
+                    historyMsg += `<li class="text-rose-600"><strong>일교차 주의:</strong> 최근 일교차가 ${variation.toFixed(1)}℃로 큽니다. 야간 샛바람이 발생하지 않도록 윈치커튼 수동 제한(동절기 세팅)을 꼭 확인하세요.</li>`;
                 }
                 if (avg > t_500_1 + 1.5 && roomType !== '이유사') {
-                    t_800_1 = Math.max(24.0, t_800_1 - 0.5);
-                    t_800_2 = Math.max(25.0, t_800_2 - 0.5);
-                    historyMsg += `<li class="text-rose-600"><strong>고온 지속:</strong> 최근 평균 온도가 덥게 유지되어 체감 온도를 낮추기 위해 800휀 1/2차 개입 온도를 모두 하향 보정했습니다.</li>`;
+                    historyMsg += `<li class="text-orange-600"><strong>고온 알림:</strong> 최근 평균 온도가 설정 목표치보다 높게 유지되고 있습니다. 800휀이 정상적으로 개입하여 회전하고 있는지 점검이 필요합니다.</li>`;
                 }
             }
             
@@ -1358,6 +1355,9 @@
             let group4Explain = opt.roomType !== '이유사' ? `<li><strong class="text-rose-600">제4그룹 (800휀 2대 2차개입):</strong> 폭염으로 온도가 ${opt.f800_2.t}℃까지 오르면 남은 2대가 추가로 풀가동하여 열사병을 강력하게 차단합니다.</li>` : '';
 
             document.getElementById('res_explanation').innerHTML = (opt.historyMsg || "") + `
+                <div class="mb-3 p-2 bg-slate-50 border border-slate-200 rounded text-xs text-slate-600 font-medium">
+                    * 위 권장 설정은 하루 1번 세팅 후 주야간 변경 없이 유지하도록 일령/체중 기반으로 산출된 <strong>'일일 고정형 세팅값'</strong>입니다. 컨트롤러가 설정된 편차(P-Band)에 따라 밤낮의 온도 변화에 자동 대응합니다.
+                </div>
                 <li><strong class="text-indigo-600">체적 및 체감유속:</strong> 슬러리를 제외한 실 체적 ${opt.volume.toFixed(1)}㎥ 기반으로 계산되었습니다. 풀가동 최대 유속은 ${opt.maxVel.toFixed(2)}m/s로 현재 일령에 <strong>${velStatusText}</strong> 수준입니다.</li>
                 <li><strong class="text-blue-600">제1그룹 (500휀 2대 상시):</strong> 최저 ${opt.f500_1.t}℃(체감온도 보정)를 기점으로 야간 및 최소 환기를 전담합니다.</li>
                 ${group2Explain}
@@ -1374,15 +1374,10 @@
                 batchNameDisplay = `클라우드 연동: [${b.type}] ${b.name}`;
             }
 
-            let historyLogMsg = "";
-            if (historyStats && historyStats.count > 0) {
-                historyLogMsg = `<br><span class="text-blue-600 font-medium block mt-1">* 최근 수집된 ${historyStats.count}개의 온도 통계(평균 ${historyStats.avg.toFixed(1)}℃, 일교차 ${historyStats.variation.toFixed(1)}℃)가 능동형 P-Band 및 환기 보정에 반영되었습니다.</span>`;
-            }
-
             document.getElementById('analysis_source_info').innerHTML = `
                 <div class="flex-1 w-full">
                     <strong class="text-slate-800 text-xs sm:text-sm block mb-1">분석 기준 데이터 요약 및 적용 학술 근거</strong>
-                    <p class="mb-2 text-[11px] sm:text-xs">본 4단계 환기량 최적화 결과는 <strong>${now}</strong> 시점을 기준으로, <strong>${batchNameDisplay}</strong>의 사육 환경(사육 두수: ${count}두, 일령: ${age}일, 체중: ${weight}kg)과 현재 실내 온도 <strong>${indoorTempText}${indoorTempText !== '--.-' ? '℃' : ''}</strong> (외기: ${outdoorTemp}) 데이터를 바탕으로 시뮬레이션 되었습니다.${historyLogMsg}</p>
+                    <p class="mb-2 text-[11px] sm:text-xs">본 4단계 환기량 최적화 결과는 <strong>${now}</strong> 시점을 기준으로, <strong>${batchNameDisplay}</strong>의 사육 환경(사육 두수: ${count}두, 일령: ${age}일, 체중: ${weight}kg) 데이터를 바탕으로 시뮬레이션 된 <strong>일일 고정 권장값</strong>입니다.</p>
                     
                     <div class="mt-2.5 sm:mt-3 pt-2.5 sm:pt-3 border-t border-slate-300/50 text-[10px] sm:text-[11px] text-slate-500 space-y-1">
                         <strong class="text-slate-600 block mb-1">📚 알고리즘 적용 공공·학술 기준:</strong>
