@@ -451,7 +451,11 @@
             const expDateStr = getExpectedFarrow(s.matingDate);
             if (expDateStr) {
               const ym = expDateStr.substring(0, 7);
-              stats.monthlyFarrowing[ym] = (stats.monthlyFarrowing[ym] || 0) + 1;
+              if (!stats.monthlyFarrowing[ym]) stats.monthlyFarrowing[ym] = { total: 0, cull: 0 };
+              stats.monthlyFarrowing[ym].total += 1;
+              if (Number(s.parity || 0) >= 6) {
+                stats.monthlyFarrowing[ym].cull += 1;
+              }
             }
           }
 
@@ -650,12 +654,12 @@
       const monthlyGiltIntroStats = useMemo(() => {
         const statsMap = {};
         
-        weeklyFarrowingStats.forEach(stat => {
-          const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
-          const missingCount = 12 - validSowsCount;
+        weeklyWeaning20DaysStats.forEach(stat => {
+          const weaningCount = stat.count || 0;
+          const missingCount = 13 - weaningCount;
 
-          if (missingCount >= 2) {
-            const weaningThursday = getWeaningThursday(stat.date);
+          if (missingCount > 0) {
+            const weaningThursday = addDays(stat.date, 3);
             if (weaningThursday) {
               const estMatingDate = addDays(weaningThursday, 4); 
               const giltIntroDate = subtractDays(estMatingDate, 60); 
@@ -674,7 +678,7 @@
           .filter(ym => ym >= currentYM)
           .sort()
           .map(ym => ({ month: ym, count: statsMap[ym] }));
-      }, [weeklyFarrowingStats]);
+      }, [weeklyWeaning20DaysStats]);
 
       // 예정된 후보돈 약제 투여 알림
       const upcomingMedications = useMemo(() => {
@@ -687,46 +691,44 @@
         const upcoming = [];
         const deleted = [];
         
-        weeklyFarrowingStats.forEach(stat => {
-          const validSowsCount = (stat.actual || 0) + (stat.expected || 0) - (stat.parity6Plus || 0);
-          const missingCount = 12 - validSowsCount; 
+        weeklyWeaning20DaysStats.forEach(stat => {
+          const weaningCount = stat.count || 0;
+          // 13두 이상(이유)일 경우 0으로 표기되도록 하한선을 0으로 설정
+          const missingCount = Math.max(0, 13 - weaningCount); 
 
-          if (missingCount >= 2) {
-            const weaningThursday = getWeaningThursday(stat.date);
-            if (weaningThursday) {
-              const estMatingDate = addDays(weaningThursday, 4); 
-              
-              const medEndDate = subtractDays(estMatingDate, 4); 
-              const medStartDate = subtractDays(medEndDate, 17); 
-              
-              const medWeekMonday = getMonday(medStartDate); 
-              const matingWeekMonday = getMonday(estMatingDate);
-              
-              if (estMatingDate >= todayStr) {
-                const deleteKey = `medDeleted_${medWeekMonday}`;
-                const medData = {
-                  medWeekMonday,
-                  medStartDate,
-                  medEndDate,
-                  matingWeekMonday,
-                  estMatingDate,
-                  autoCount: missingCount
-                };
-                if (farmSettings && farmSettings[deleteKey]) {
-                  deleted.push(medData);
-                } else {
-                  upcoming.push(medData);
-                }
-              }
+          const weaningThursday = addDays(stat.date, 3);
+          if (weaningThursday) {
+            const estMatingDate = addDays(weaningThursday, 4); 
+            
+            const medEndDate = subtractDays(estMatingDate, 4); 
+            const medStartDate = subtractDays(medEndDate, 17); 
+            
+            const medWeekMonday = getMonday(medStartDate); 
+            
+            const deleteKey = `medDeleted_${medWeekMonday}`;
+            const medData = {
+              medWeekMonday,
+              medStartDate,
+              medEndDate,
+              matingWeekMonday: getMonday(estMatingDate),
+              estMatingDate,
+              autoCount: missingCount,
+              weaningCount: weaningCount
+            };
+            if (farmSettings && farmSettings[deleteKey]) {
+              deleted.push(medData);
+            } else {
+              upcoming.push(medData);
             }
           }
         });
 
         return {
-          upcoming: upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 4),
+          // 3순위까지만 표시되도록 slice(0, 3) 적용
+          upcoming: upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 3),
           deleted: deleted.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate))
         };
-      }, [weeklyFarrowingStats, farmSettings]);
+      }, [weeklyWeaning20DaysStats, farmSettings]);
 
       // 월별 실적
       const monthlyActivityStats = useMemo(() => {
@@ -1338,34 +1340,6 @@
                   </div>
                 </section>
 
-                {/* 월별 후보돈 입수 예상 두수 */}
-                <div className="mt-4">
-                  <h3 className="text-xs font-black text-slate-500 mb-2 pl-1">
-                    월별 후보돈 입수 예상 두수 <span className="text-[9px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded ml-1 font-bold">분만 목표 미달분 누적</span>
-                  </h3>
-                  <div className="flex overflow-x-auto gap-2 pb-2 snap-x [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
-                    {monthlyGiltIntroStats.length === 0 ? (
-                      <div className="w-full text-center py-5 bg-white border border-dashed border-slate-200 rounded-2xl text-xs font-bold text-slate-400">
-                        예상되는 후보돈 도입 일정이 없습니다.
-                      </div>
-                    ) : (
-                      monthlyGiltIntroStats.map(stat => {
-                        const [yyyy, mm] = stat.month.split('-');
-                        return (
-                          <div key={stat.month} className="min-w-[90px] bg-white border border-amber-200 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm snap-start shrink-0">
-                            <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-400"></div>
-                            <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">{yyyy}년 {parseInt(mm)}월</span>
-                            <div className="flex items-baseline pl-1">
-                              <span className="text-2xl font-black text-amber-600">{stat.count}</span>
-                              <span className="text-[10px] font-bold ml-0.5 text-amber-500">두</span>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
                 {/* 예정된 약제 투여 후보돈 알림 */}
                 <div className="mt-4">
                   <div className="flex justify-between items-center mb-2 pl-1">
@@ -1404,7 +1378,10 @@
                                     [{idx + 1}순위] 약제 투여 일정
                                   </span>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[10px] text-indigo-500 font-bold tracking-tighter">자동: {medInfo.autoCount}두</span>
+                                    <span className="text-[11px] text-indigo-600 font-bold tracking-tighter bg-indigo-100/50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                      자동: {medInfo.autoCount}두 
+                                      <span className="font-medium text-indigo-400 text-[9px]">(13-{medInfo.weaningCount}복)</span>
+                                    </span>
                                     <button 
                                       onClick={() => handleDeleteMedicationSchedule(medInfo.medWeekMonday)}
                                       className="text-indigo-300 hover:text-rose-500 transition-colors"
@@ -1876,14 +1853,27 @@
                   ) : (
                     Object.keys((dashboardStats || {}).monthlyFarrowing || {}).sort().map(ym => {
                       const [yyyy, mm] = ym.split('-');
+                      const statObj = ((dashboardStats || {}).monthlyFarrowing || {})[ym];
+                      const totalCount = typeof statObj === 'number' ? statObj : (statObj?.total || 0);
+                      const cullCount = typeof statObj === 'number' ? 0 : (statObj?.cull || 0);
+
                       return (
-                        <div key={ym} onClick={() => { setShowMonthlyModal(false); openFilteredList('expectedMonth', ym); }} className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex flex-col justify-center relative overflow-hidden shadow-sm cursor-pointer hover:border-rose-300 hover:bg-rose-100 active:scale-95 transition-all">
+                        <div key={ym} onClick={() => { setShowMonthlyModal(false); openFilteredList('expectedMonth', ym); }} className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex flex-col justify-between relative overflow-hidden shadow-sm cursor-pointer hover:border-rose-300 hover:bg-rose-100 active:scale-95 transition-all min-h-[90px]">
                           <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div>
-                          <span className="text-[11px] font-black text-slate-500 mb-1 pl-1">{yyyy}년 {parseInt(mm)}월</span>
-                          <div className="flex items-baseline pl-1">
-                            <span className="text-2xl font-black text-rose-600">{((dashboardStats || {}).monthlyFarrowing || {})[ym] || 0}</span>
-                            <span className="text-[10px] font-bold ml-0.5 text-rose-400">복</span>
+                          <div className="flex flex-col pl-1">
+                            <span className="text-[11px] font-black text-slate-500 mb-1">{yyyy}년 {parseInt(mm)}월</span>
+                            <div className="flex items-baseline">
+                              <span className="text-2xl font-black text-rose-600">{totalCount}</span>
+                              <span className="text-[10px] font-bold ml-0.5 text-rose-400">복</span>
+                            </div>
                           </div>
+                          {cullCount > 0 && (
+                            <div className="mt-1 pl-1">
+                              <span className="inline-block bg-rose-200/60 text-rose-700 text-[9px] font-black px-1.5 py-0.5 rounded-md border border-rose-200">
+                                6산 이상: {cullCount}두
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })
