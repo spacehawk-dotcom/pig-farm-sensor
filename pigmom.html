@@ -1408,66 +1408,70 @@
                       예정된 약제 투여 일정이 없습니다.
                     </div>
                   ) : (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                       {(((upcomingMedications || {}).upcoming) || []).map((medInfo, idx) => {
                         const overrideKey = `medOverride_${medInfo.medWeekMonday}`;
                         const hasOverride = farmSettings && farmSettings[overrideKey] != null;
                         const displayValue = hasOverride ? farmSettings[overrideKey] : '';
 
                         return (
-                          <div key={medInfo.medWeekMonday} className="bg-indigo-50 border border-indigo-200 p-3.5 rounded-2xl flex items-center justify-between shadow-sm">
-                            <div className="flex items-start gap-3 w-full">
-                              <div className="bg-indigo-100 p-2 rounded-full mt-0.5 shrink-0">
-                                <Bell className="w-5 h-5 text-indigo-600" />
-                              </div>
-                              <div className="flex flex-col w-full">
-                                <div className="flex justify-between items-center w-full">
-                                  <span className="text-[13px] font-black text-indigo-800 bg-white px-2 py-0.5 rounded-md border border-indigo-200 shadow-sm">
-                                    [{idx + 1}순위] 약제 투여
-                                  </span>
-                                  <div className="flex items-center gap-1.5">
-                                    <span className="text-[11px] text-indigo-700 font-bold tracking-tighter bg-white px-2 py-0.5 rounded-md border border-indigo-200 shadow-sm flex items-center gap-1">
-                                      자동: {medInfo.autoCount}두 
-                                      <span className="font-medium text-indigo-400 text-[10px] tracking-tight whitespace-nowrap">
-                                        (13-(이유{medInfo.nursingCount}+예정{medInfo.expectedCount}-6산{medInfo.cullCount}))
-                                      </span>
+                          <div key={medInfo.medWeekMonday} className="bg-indigo-50 border border-indigo-200 p-4 rounded-2xl flex flex-col gap-3 shadow-sm relative overflow-hidden">
+                            {/* 헤더 영역 (타이틀 & 삭제 버튼) */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <div className="bg-indigo-100 p-2 rounded-full shadow-sm">
+                                        <Bell className="w-4 h-4 text-indigo-600" />
+                                    </div>
+                                    <span className="text-[14px] font-black text-indigo-800 tracking-tight">
+                                        [{idx + 1}순위] 약제 투여
                                     </span>
-                                    <button 
-                                      onClick={() => handleDeleteMedicationSchedule(medInfo.medWeekMonday)}
-                                      className="text-indigo-300 hover:text-rose-500 transition-colors ml-1"
-                                      title="이 일정 삭제"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
                                 </div>
-                                <div className="flex flex-col gap-2 mt-2 border-t border-indigo-200/70 pt-2.5 w-full">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[12px] font-black text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-md shadow-sm w-[76px] text-center tracking-tighter shrink-0">시작</span>
-                                    <span className="text-[14px] font-black text-slate-700">{medInfo.medStartDate.substring(5).replace('-', '/')}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[12px] font-black text-amber-700 bg-white border border-amber-200 px-2 py-0.5 rounded-md shadow-sm w-[76px] text-center tracking-tighter shrink-0">종료(이유)</span>
-                                    <span className="text-[14px] font-black text-slate-700">{medInfo.medEndDate.substring(5).replace('-', '/')}</span>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[12px] font-black text-rose-600 bg-white border border-rose-200 px-2 py-0.5 rounded-md shadow-sm w-[76px] text-center tracking-tighter shrink-0">종부 예정</span>
-                                    <span className="text-[14px] font-black text-rose-600">{medInfo.estMatingDate.substring(5).replace('-', '/')}</span>
-                                  </div>
-                                </div>
-                              </div>
+                                <button 
+                                  onClick={() => handleDeleteMedicationSchedule(medInfo.medWeekMonday)}
+                                  className="text-indigo-300 hover:text-rose-500 hover:bg-white p-1.5 rounded-lg transition-colors"
+                                  title="이 일정 삭제"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
                             </div>
-                            <div className="flex flex-col items-end pl-2">
-                              <div className="flex items-baseline bg-white px-2 py-1.5 rounded-xl border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors mt-auto">
-                                <input
-                                   type="number"
-                                   className="w-10 text-right text-xl font-black text-indigo-600 outline-none bg-transparent placeholder-indigo-300"
-                                   value={displayValue}
-                                   placeholder={String(medInfo.autoCount)}
-                                   onChange={(e) => handleSaveMedicationOverride(medInfo.medWeekMonday, e.target.value)}
-                                />
-                                <span className="text-[11px] font-bold text-indigo-400 ml-1">두</span>
-                              </div>
+
+                            {/* 계산식 & 수동 입력 박스 */}
+                            <div className="bg-white rounded-xl border border-indigo-100 p-3 flex flex-row items-center justify-between shadow-sm gap-2">
+                                <div className="flex flex-col w-full min-w-0">
+                                    <span className="text-[13px] font-black text-indigo-700 truncate">자동 산출: {medInfo.autoCount}두</span>
+                                    <span className="text-[10px] font-bold text-indigo-400 tracking-tighter mt-0.5 truncate w-full">
+                                        13 - (이유{medInfo.nursingCount} + 예정{medInfo.expectedCount} - 6산{medInfo.cullCount})
+                                    </span>
+                                </div>
+                                <div className="flex flex-col items-end shrink-0 pl-2 border-l border-indigo-50">
+                                    <span className="text-[9px] font-bold text-slate-400 mb-1">투여 두수 수정</span>
+                                    <div className="flex items-baseline bg-slate-50 px-2 py-1 rounded-lg border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors">
+                                        <input
+                                           type="number"
+                                           className="w-8 text-right text-[15px] font-black text-indigo-600 outline-none bg-transparent placeholder-indigo-300"
+                                           value={displayValue}
+                                           placeholder={String(medInfo.autoCount)}
+                                           onChange={(e) => handleSaveMedicationOverride(medInfo.medWeekMonday, e.target.value)}
+                                        />
+                                        <span className="text-[11px] font-bold text-indigo-400 ml-1">두</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 날짜 영역 */}
+                            <div className="flex flex-col gap-2 mt-1 px-1">
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[11px] font-black text-indigo-600 bg-indigo-100/70 border border-indigo-100 px-2 py-1 rounded-md w-[70px] text-center shadow-sm">시작</span>
+                                    <span className="text-[14px] font-black text-slate-700">{medInfo.medStartDate.substring(5).replace('-', '/')}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded-md w-[70px] text-center shadow-sm">종료(이유)</span>
+                                    <span className="text-[14px] font-black text-slate-700">{medInfo.medEndDate.substring(5).replace('-', '/')}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[11px] font-black text-rose-600 bg-rose-50 border border-rose-100 px-2 py-1 rounded-md w-[70px] text-center shadow-sm">종부 예정</span>
+                                    <span className="text-[14px] font-black text-rose-600">{medInfo.estMatingDate.substring(5).replace('-', '/')}</span>
+                                </div>
                             </div>
                           </div>
                         );
