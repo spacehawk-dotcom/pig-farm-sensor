@@ -56,6 +56,7 @@
     const Bell = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>;
     const CalendarHeart = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 10V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h7"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M21.29 14.7a2.43 2.43 0 0 0-2.65-.52c-.3.12-.57.3-.8.53l-.34.34-.35-.34a2.43 2.43 0 0 0-2.65-.53c-.3.12-.56.3-.79.53-.95.94-1 2.53.2 3.74L17.5 22l3.6-3.55c1.2-1.21 1.14-2.8.19-3.74Z"/></svg>;
     const Download = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
+    const FileText = ({ className }) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>;
 
     // --- 성암농장 실제 Firebase Configuration ---
     const firebaseConfig = {
@@ -159,6 +160,10 @@
       
       // 분만 완료 입력창 상태 저장용
       const [farrowingInputs, setFarrowingInputs] = useState({});
+
+      // 메모장 상태
+      const [memoText, setMemoText] = useState('');
+      const [isMemoEditing, setIsMemoEditing] = useState(false);
 
       // 폼 상태 (산자/포유/이동/이유 필드 분리 적용)
       const [newSow, setNewSow] = useState({ sowNo: '', parity: 0, currentStatus: '이유' });
@@ -682,39 +687,77 @@
 
       // 예정된 후보돈 약제 투여 알림
       const upcomingMedications = useMemo(() => {
-        const today = new Date();
-        const yy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${yy}-${mm}-${dd}`;
+        const todayStr = formatDate(new Date());
+        const currentMonday = getMonday(todayStr);
+        // 과거 일정은 4주 전까지만 표시
+        const fourWeeksAgo = subtractDays(currentMonday, 28);
         
+        const batchMap = {};
+
+        sows.filter(Boolean).forEach(sow => {
+          const s = sow || {};
+          
+          // 1. 이미 분만하여 포유 중인 모돈 (이유 예정)
+          if (s.currentStatus === '포유') {
+            const r = getLatestHistoryRecord(s);
+            if (r && r.date) {
+              const weanDate = addDays(r.date, 20);
+              const weanWeek = getMonday(weanDate);
+              
+              if (weanWeek >= fourWeeksAgo) {
+                if (!batchMap[weanWeek]) batchMap[weanWeek] = { weanWeek, nursing: 0, expected: 0, cull: 0 };
+                batchMap[weanWeek].nursing += 1;
+                // 현재 산차가 6 이상이면 도태 대상
+                if (Number(s.parity || 0) >= 6) batchMap[weanWeek].cull += 1;
+              }
+            }
+          } 
+          // 2. 아직 분만 전인 임신 모돈 (분만 및 이유 예정)
+          else if (s.matingDate && s.currentStatus !== '재발') {
+            const expFarrow = getExpectedFarrow(s.matingDate);
+            if (expFarrow) {
+              const expWean = addDays(expFarrow, 20);
+              const expWeanWeek = getMonday(expWean);
+              
+              if (expWeanWeek >= fourWeeksAgo) {
+                if (!batchMap[expWeanWeek]) batchMap[expWeanWeek] = { weanWeek: expWeanWeek, nursing: 0, expected: 0, cull: 0 };
+                batchMap[expWeanWeek].expected += 1;
+                // 임신돈은 분만하면 산차가 +1 되므로, (현재 산차+1)이 6 이상이면 도태 대상
+                if ((Number(s.parity || 0) + 1) >= 6) batchMap[expWeanWeek].cull += 1;
+              }
+            }
+          }
+        });
+
         const upcoming = [];
         const deleted = [];
         
-        weeklyWeaning20DaysStats.forEach(stat => {
-          const weaningCount = stat.count || 0;
-          // 13두 이상(이유)일 경우 0으로 표기되도록 하한선을 0으로 설정
-          const missingCount = Math.max(0, 13 - weaningCount); 
+        Object.values(batchMap).forEach(batch => {
+          const weanWeek = batch.weanWeek;
+          
+          // 농장장님 공식 적용: (이유 예정 + 분만 예정 - 6산 도태)
+          const totalAvailable = batch.nursing + batch.expected - batch.cull;
+          const missingCount = Math.max(0, 13 - totalAvailable);
 
-          const weaningThursday = addDays(stat.date, 3);
+          const weaningThursday = addDays(weanWeek, 3);
           if (weaningThursday) {
             const estMatingDate = addDays(weaningThursday, 4); 
-            
             const medEndDate = subtractDays(estMatingDate, 4); 
             const medStartDate = subtractDays(medEndDate, 17); 
             
-            const medWeekMonday = getMonday(medStartDate); 
-            
-            const deleteKey = `medDeleted_${medWeekMonday}`;
+            const deleteKey = `medDeleted_${weanWeek}`;
             const medData = {
-              medWeekMonday,
+              medWeekMonday: weanWeek,
               medStartDate,
               medEndDate,
               matingWeekMonday: getMonday(estMatingDate),
               estMatingDate,
               autoCount: missingCount,
-              weaningCount: weaningCount
+              nursingCount: batch.nursing,
+              expectedCount: batch.expected,
+              cullCount: batch.cull
             };
+            
             if (farmSettings && farmSettings[deleteKey]) {
               deleted.push(medData);
             } else {
@@ -724,11 +767,10 @@
         });
 
         return {
-          // 3순위까지만 표시되도록 slice(0, 3) 적용
-          upcoming: upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 3),
+          upcoming: upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 4),
           deleted: deleted.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate))
         };
-      }, [weeklyWeaning20DaysStats, farmSettings]);
+      }, [sows, farmSettings]);
 
       // 월별 실적
       const monthlyActivityStats = useMemo(() => {
@@ -784,6 +826,14 @@
         }
       }, [sows, farmSettings, user, loading]);
 
+      // --- 메모 동기화 ---
+      useEffect(() => {
+        // 사용자가 타이핑 중이지 않을 때만 서버의 메모를 가져와서 덮어씌움
+        if (!isMemoEditing && farmSettings) {
+          setMemoText((farmSettings || {}).memo || '');
+        }
+      }, [farmSettings, isMemoEditing]);
+
       // --- Handlers ---
       const handleSaveSetting = (field, val) => {
         const numberVal = Number(val);
@@ -827,6 +877,16 @@
             console.error("약제 투여 일정 복구 실패:", err);
             showAlert("복구 실패: " + err.message);
           });
+      };
+
+      const handleSaveMemo = async () => {
+        try {
+          await db.collection(SETTINGS_PATH).doc('main').set({ memo: memoText }, { merge: true });
+          showAlert("메모가 저장되었습니다.");
+          setIsMemoEditing(false); // 저장 후 편집 상태 해제
+        } catch(err) {
+          showAlert("메모 저장 실패: " + err.message);
+        }
       };
 
       // 💡 개별 모돈 빠른 분만 완료 처리 (주간 예상 분만 팝업용)
@@ -1374,17 +1434,19 @@
                               </div>
                               <div className="flex flex-col w-full">
                                 <div className="flex justify-between items-center w-full">
-                                  <span className="text-[13px] font-black text-indigo-800">
-                                    [{idx + 1}순위] 약제 투여 일정
+                                  <span className="text-[13px] font-black text-indigo-800 bg-white px-2 py-0.5 rounded-md border border-indigo-200 shadow-sm">
+                                    [{idx + 1}순위] 약제 투여
                                   </span>
                                   <div className="flex items-center gap-1.5">
-                                    <span className="text-[11px] text-indigo-600 font-bold tracking-tighter bg-indigo-100/50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                    <span className="text-[11px] text-indigo-700 font-bold tracking-tighter bg-white px-2 py-0.5 rounded-md border border-indigo-200 shadow-sm flex items-center gap-1">
                                       자동: {medInfo.autoCount}두 
-                                      <span className="font-medium text-indigo-400 text-[9px]">(13-{medInfo.weaningCount}복)</span>
+                                      <span className="font-medium text-indigo-400 text-[10px] tracking-tight whitespace-nowrap">
+                                        (13-(이유{medInfo.nursingCount}+예정{medInfo.expectedCount}-6산{medInfo.cullCount}))
+                                      </span>
                                     </span>
                                     <button 
                                       onClick={() => handleDeleteMedicationSchedule(medInfo.medWeekMonday)}
-                                      className="text-indigo-300 hover:text-rose-500 transition-colors"
+                                      className="text-indigo-300 hover:text-rose-500 transition-colors ml-1"
                                       title="이 일정 삭제"
                                     >
                                       <Trash2 className="w-4 h-4" />
@@ -1480,6 +1542,30 @@
                       })
                     )}
                   </div>
+                </div>
+
+                {/* --- 농장 메모장 --- */}
+                <div className="mt-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-black text-slate-800 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-slate-500" /> 농장 메모
+                    </h3>
+                    <button
+                      onClick={handleSaveMemo}
+                      className="text-[11px] font-black bg-slate-800 text-white px-3 py-1.5 rounded-lg active:scale-95 transition-all shadow-sm"
+                    >
+                      저장
+                    </button>
+                  </div>
+                  <textarea
+                    value={memoText}
+                    onChange={(e) => {
+                      setMemoText(e.target.value);
+                      setIsMemoEditing(true); // 타이핑을 시작하면 실시간 동기화를 멈춤
+                    }}
+                    placeholder="여기에 중요한 메모나 할 일을 적어두세요..."
+                    className="w-full h-32 bg-slate-50 border border-slate-100 rounded-xl p-3 text-[13px] font-bold text-slate-700 outline-none focus:border-blue-400 focus:bg-blue-50/30 transition-colors resize-none"
+                  ></textarea>
                 </div>
 
               </div>
