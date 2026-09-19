@@ -694,38 +694,26 @@
         
         const batchMap = {};
 
-        sows.filter(Boolean).forEach(sow => {
-          const s = sow || {};
-          
-          // 1. 이미 분만하여 포유 중인 모돈 (이유 예정)
-          if (s.currentStatus === '포유') {
-            const r = getLatestHistoryRecord(s);
-            if (r && r.date) {
-              const weanDate = addDays(r.date, 20);
-              const weanWeek = getMonday(weanDate);
-              
-              if (weanWeek >= fourWeeksAgo) {
-                if (!batchMap[weanWeek]) batchMap[weanWeek] = { weanWeek, nursing: 0, expected: 0, cull: 0 };
-                batchMap[weanWeek].nursing += 1;
-                // 현재 산차가 6 이상이면 도태 대상
-                if (Number(s.parity || 0) >= 6) batchMap[weanWeek].cull += 1;
-              }
-            }
-          } 
-          // 2. 아직 분만 전인 임신 모돈 (분만 및 이유 예정)
-          else if (s.matingDate && s.currentStatus !== '재발') {
-            const expFarrow = getExpectedFarrow(s.matingDate);
-            if (expFarrow) {
-              const expWean = addDays(expFarrow, 20);
-              const expWeanWeek = getMonday(expWean);
-              
-              if (expWeanWeek >= fourWeeksAgo) {
-                if (!batchMap[expWeanWeek]) batchMap[expWeanWeek] = { weanWeek: expWeanWeek, nursing: 0, expected: 0, cull: 0 };
-                batchMap[expWeanWeek].expected += 1;
-                // 임신돈은 분만하면 산차가 +1 되므로, (현재 산차+1)이 6 이상이면 도태 대상
-                if ((Number(s.parity || 0) + 1) >= 6) batchMap[expWeanWeek].cull += 1;
-              }
-            }
+        // 1. 현재 포유 중인 모돈 (이유 예정) - 화면의 '20일령 도래 복수' 카드 데이터와 100% 동기화
+        weeklyWeaning20DaysStats.forEach(stat => {
+          const weanWeek = stat.date;
+          if (weanWeek >= fourWeeksAgo) {
+            if (!batchMap[weanWeek]) batchMap[weanWeek] = { weanWeek, nursing: 0, expected: 0, cull: 0 };
+            batchMap[weanWeek].nursing += stat.count;
+            // 포유 모돈 중 현재 6산 이상인 개체는 이유 후 도태
+            batchMap[weanWeek].cull += stat.sows.filter(s => Number(s.parity || 0) >= 6).length;
+          }
+        });
+
+        // 2. 임신 중인 모돈 (분만 및 이유 예정) - 화면의 '주간 예상 분만 복수' 카드 데이터와 100% 동기화 (3주 뒤로 매칭)
+        expectedFarrowingStats.forEach(stat => {
+          const farrowWeek = stat.date;
+          const weanWeek = addDays(farrowWeek, 21); // 농장장님 계산식에 맞춰 정확히 3주(21일) 뒤를 이유 주차로 지정
+          if (weanWeek >= fourWeeksAgo) {
+            if (!batchMap[weanWeek]) batchMap[weanWeek] = { weanWeek, nursing: 0, expected: 0, cull: 0 };
+            batchMap[weanWeek].expected += stat.count;
+            // 임신 모돈은 분만 시 산차가 +1 되므로, (현재 산차+1)이 6 이상이면 도태
+            batchMap[weanWeek].cull += stat.sows.filter(s => (Number(s.parity || 0) + 1) >= 6).length;
           }
         });
 
@@ -735,7 +723,7 @@
         Object.values(batchMap).forEach(batch => {
           const weanWeek = batch.weanWeek;
           
-          // 농장장님 공식 적용: (이유 예정 + 분만 예정 - 6산 도태)
+          // 농장장님 공식 적용: 13 - (이유 예정 + 분만 예정 - 6산 도태)
           const totalAvailable = batch.nursing + batch.expected - batch.cull;
           const missingCount = Math.max(0, 13 - totalAvailable);
 
@@ -770,7 +758,7 @@
           upcoming: upcoming.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate)).slice(0, 4),
           deleted: deleted.sort((a, b) => a.medStartDate.localeCompare(b.medStartDate))
         };
-      }, [sows, farmSettings]);
+      }, [sows, farmSettings, weeklyWeaning20DaysStats, expectedFarrowingStats]);
 
       // 월별 실적
       const monthlyActivityStats = useMemo(() => {
