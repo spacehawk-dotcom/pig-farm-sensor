@@ -276,65 +276,229 @@
                 db.enablePersistence({ synchronizeTabs: true }).catch(err => console.error("오프라인 에러:", err));
             } catch (e) { isLocalEnv = true; }
 
-            // 환기 설정 산출 전역 함수 (새로운 로직 반영)
-            window.getOptimalVentSettings = function(age, weight, count, roomType = '육성사', diffDays = null) {
-                // 1그룹 (500휀 2대 상시)
-                let t_500_1_raw = 23.0;
-                if (age <= 21) t_500_1_raw = 28.0 - (age * 0.1);
-                else if (age <= 70) t_500_1_raw = 25.9 - ((age - 21) * 0.06);
-                
-                // 컨트롤러 1도 단위 입력 제한에 맞춰 명시적 반올림 적용
-                let t_500_1 = Math.round(Math.max(23.0, Math.min(32.0, t_500_1_raw)));
+            /* [2] 자바스크립트 영역 */
 
-                // 입식 보상 (1도 단위 증가)
-                if (roomType === '육성사' && diffDays !== null && diffDays >= 0 && diffDays <= 3) {
-                    t_500_1 += 2;
-                }
+    function getStandaloneVentSettings(age, weight, count, roomType = '육성사', stockDiffDays = null, manualBaseTemp = null) {
+        
+        // 1. 기준 온도 산출 (1도 단위 반올림)
+        let t_500_1_raw = 23.0;
+        if (age <= 21) t_500_1_raw = 28.0 - (age * 0.1);
+        else if (age <= 70) t_500_1_raw = 25.9 - ((age - 21) * 0.06);
+        let t_500_1 = Math.round(Math.max(23.0, Math.min(32.0, t_500_1_raw)));
 
-                // 2그룹 (500휀 3대 완충) - 1도 간격
-                let t_500_2 = Math.max(24, Math.min(33, t_500_1 + 1));
+        let msg = "";
 
-                // 3그룹 (800휀 2대 1차) - 1~2도 간격
-                let t_800_1 = age <= 50 ? t_500_2 + 2 : t_500_2 + 1;
-                t_800_1 = Math.max(25, Math.min(34, t_800_1));
+        // 2. 육성사 입식 보상 (+2도, +1도 Step-down)
+        if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0) {
+            if (stockDiffDays <= 7) {
+                t_500_1 += 2;
+                msg = `* 입식 1주차 적응기 온도 보상(+2℃) 적용됨`;
+            } else if (stockDiffDays <= 14) {
+                t_500_1 += 1;
+                msg = `* 입식 2주차 적응기 온도 보상(+1℃) 적용됨`;
+            }
+        }
 
-                // 4그룹 (800휀 2대 2차) - 1~2도 간격
-                let t_800_2 = age <= 50 ? t_800_1 + 2 : t_800_1 + 1;
-                t_800_2 = Math.max(26, Math.min(35, t_800_2));
+        // 3. 수동 온도 덮어쓰기 (환기 앱에서 설정한 값이 파이어베이스에 있다면)
+        if (manualBaseTemp !== null && !isNaN(manualBaseTemp)) {
+            t_500_1 = Math.round(manualBaseTemp);
+            msg = `* 사용자 수동 지정 온도 적용됨`;
+        }
 
-                // 환기량 계산 
-                const fan_500_1_cap = 6000 * 2; 
-                const buildingVolume = roomType === '이유사' ? (9.0 * 15.0 * 2.2) : (11.5 * 28.0 * 2.2);
+        // 4. 2~4그룹 온도 산출 (순차 개입)
+        let t_500_2 = Math.max(24, Math.min(33, t_500_1 + 1));
+        let t_800_1 = age <= 50 ? t_500_2 + 2 : t_500_2 + 1;
+        t_800_1 = Math.max(25, Math.min(34, t_800_1));
+        let t_800_2 = age <= 50 ? t_800_1 + 2 : t_800_1 + 1;
+        t_800_2 = Math.max(26, Math.min(35, t_800_2));
 
-                let baseMinVentCMH = weight * count * 0.5; 
-                if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
+        // 5. 최소 환기량(%) 및 극한 가동률 제한 계산
+        let fan_500_1_cap = 12000; // 500휀 2개
+        let buildingVolume = roomType === '이유사' ? (9.0 * 15.0 * 2.2) : (11.5 * 28.0 * 2.2);
+        let baseMinVentCMH = weight * count * 0.5; 
+        if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
+        
+        let min_500_1 = Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)); 
+        let max_800_2 = Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))); 
 
-                // 그룹별 디테일 설정
-                let min_500_1 = Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)); 
-                
-                // 온도 편차(P-Band) 1도 단위 고정
-                let diff_500_1 = 2;
-                let diff_500_2 = 2;
-                let diff_800_1 = 2;
-                
-                let max_800_2 = Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))); 
-                let diff_800_2 = 2;
-                
-                // 이유사 예외 처리 (500휀 2대만 존재)
-                if (roomType === '이유사') {
-                    t_500_2 = 0; diff_500_2 = 0;
-                    t_800_1 = 0; diff_800_1 = 0;
-                    t_800_2 = 0; max_800_2 = 0; diff_800_2 = 0;
-                }
+        if (roomType === '이유사') {
+            t_500_2 = 0; t_800_1 = 0; t_800_2 = 0;
+        }
 
-                return {
-                    f500_1: { t: t_500_1, min: Math.round(min_500_1), max: 100, diff: diff_500_1 },
-                    f500_2: { t: t_500_2, min: 0, max: 100, diff: diff_500_2 },
-                    f800_1: { t: t_800_1, min: 0, max: 100, diff: diff_800_1 },
-                    f800_2: { t: t_800_2, min: 0, max: Math.round(max_800_2), diff: diff_800_2 },
-                    roomType: roomType
-                };
-            };
+        return {
+            t1: t_500_1, min1: Math.round(min_500_1),
+            t2: t_500_2,
+            t3: t_800_1,
+            t4: t_800_2, max4: Math.round(max_800_2),
+            roomType: roomType,
+            msg: msg
+        };
+    }
+
+
+    // 칸별 이유일과 두수로 앱의 배치 데이터를 환기 계산 입력에 맞춘다.
+    function getVentilationBatchData(batch, stage) {
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        let weightedDays = 0, datedCount = 0;
+        const count = Array.isArray(batch.penDetails)
+            ? batch.penDetails.reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
+            : Math.max(0, Number(batch.pigs ?? batch.count) || 0);
+        (batch.penDetails || []).forEach((value, index) => {
+            const pigs = Math.max(0, Number(value) || 0);
+            const date = utils.parseDate(batch.penDates?.[index] || batch.weaningDate || batch.date);
+            if (!pigs || !date || date > today) return;
+            date.setHours(0, 0, 0, 0);
+            weightedDays += Math.floor((today - date) / 86400000) * pigs;
+            datedCount += pigs;
+        });
+        const explicitAge = batch.age == null || batch.age === '' ? NaN : Number(batch.age);
+        const age = datedCount > 0 ? 20 + Math.round(weightedDays / datedCount)
+            : Number.isFinite(explicitAge) && explicitAge >= 0 ? explicitAge : null;
+        return { ...batch, age, count, type: stage === 'weaning' ? '이유사' : '육성사' };
+    }
+
+    function getVentilationOptions(batchData) {
+        const age = batchData.age == null || batchData.age === '' ? NaN : Number(batchData.age);
+        const count = Number(batchData.count ?? batchData.pigs);
+        if (!Number.isFinite(age) || age < 0 || !Number.isFinite(count) || count <= 0) return null;
+        let weight = 5;
+        if (age <= 21) weight = 5 + (age / 21) * 2;
+        else if (age <= 70) weight = 7 + ((age - 21) / 49) * 23;
+        else weight = 30 + ((age - 70) / 110) * 85;
+        const roomType = batchData.type || '육성사';
+        let stockDiffDays = null;
+        const stockDate = utils.parseDate(batchData.date);
+        if (stockDate) {
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            stockDate.setHours(0, 0, 0, 0);
+            stockDiffDays = Math.floor((today - stockDate) / 86400000);
+        }
+        const manual = batchData.custom_vent_temp;
+        const manualBaseTemp = manual == null || String(manual).trim() === '' || !Number.isFinite(Number(manual))
+            ? null : Number(manual);
+        return getStandaloneVentSettings(age, weight, count, roomType, stockDiffDays, manualBaseTemp);
+    }
+
+    function updateVentilationUI(batchData) {
+        const panel = document.getElementById('vent_integration_panel');
+        if (!panel) return;
+        const opt = getVentilationOptions(batchData);
+        const msgEl = document.getElementById('integ_vent_msg');
+        const saveBtn = document.getElementById('integ_save_vent');
+        if (saveBtn) {
+            saveBtn.style.display = batchData.type === '이유사' ? 'none' : 'block';
+            saveBtn.disabled = !opt;
+            saveBtn.onclick = opt ? () => window.saveVentSettings(
+                document.getElementById('m-stage').value, batchData.id,
+                encodeURIComponent(JSON.stringify({
+                    f500_1: { t: opt.t1, min: opt.min1, max: 100, diff: 2 },
+                    f500_2: { t: opt.t2, min: 0, max: 100, diff: 2 },
+                    f800_1: { t: opt.t3, min: 0, max: 100, diff: 2 },
+                    f800_2: { t: opt.t4, min: 0, max: opt.max4, diff: 2 },
+                    roomType: opt.roomType
+                }))
+            ) : null;
+        }
+        const isWeaning = batchData.type === '이유사';
+        ['integ_g2_panel', 'integ_g3_panel', 'integ_g4_panel'].forEach(id => {
+            document.getElementById(id).style.display = isWeaning ? 'none' : 'block';
+        });
+        ['integ_t_1', 'integ_min_1', 'integ_t_2', 'integ_t_3', 'integ_t_4', 'integ_max_4']
+            .forEach(id => document.getElementById(id).textContent = '--');
+        if (!opt) {
+            msgEl.textContent = Number(batchData.count ?? batchData.pigs) > 0
+                ? '* 일령을 계산할 날짜 정보가 필요합니다.'
+                : '* 배치에 사육 중인 돼지가 없어 권장값을 표시하지 않습니다.';
+            msgEl.className = 'text-[10px] text-slate-400 mt-2 text-right';
+            return;
+        }
+        document.getElementById('integ_t_1').textContent = opt.t1;
+        document.getElementById('integ_min_1').textContent = opt.min1;
+        if (!isWeaning) {
+            document.getElementById('integ_t_2').textContent = opt.t2;
+            document.getElementById('integ_t_3').textContent = opt.t3;
+            document.getElementById('integ_t_4').textContent = opt.t4;
+            document.getElementById('integ_max_4').textContent = opt.max4;
+        }
+        msgEl.textContent = opt.msg || '* 해당 배치의 현재 일령 및 체중을 기준으로 산출되었습니다.';
+        msgEl.className = opt.msg ? 'text-[10px] text-blue-500 font-bold mt-2 text-right'
+            : 'text-[10px] text-slate-400 mt-2 text-right';
+    }
+
+    function refreshBatchVentilation(stage) {
+        if (!document.getElementById('vent_integration_panel') ||
+            document.getElementById('modal-overlay').classList.contains('hidden')) return;
+        const activeStage = document.getElementById('m-stage')?.value;
+        if (stage && stage !== activeStage) return;
+        const batchId = document.getElementById('m-batch')?.value;
+        const batch = (activeStage === 'weaning' ? state.wBatches : state.gBatches)
+            .find(item => String(item.id) === String(batchId));
+        updateVentilationUI(batch ? getVentilationBatchData(batch, activeStage)
+            : { age: null, count: 0, type: activeStage === 'weaning' ? '이유사' : '육성사' });
+    }
+
+            const ventilationPanelHtml = `<!-- [1] UI 영역 -->
+<div class="mt-6 mb-4">
+    <div class="flex justify-between items-center mb-3">
+        <h3 class="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2">
+            <span class="text-blue-500">🌀</span> 4단계 환기 실시간 권장 설정
+        </h3>
+        <span class="text-[10px] sm:text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">AI 자동 산출</span>
+    </div>
+    
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3" id="vent_integration_panel">
+        <!-- 1그룹 -->
+        <div class="bg-blue-50/70 p-3 rounded-lg border border-blue-100 shadow-sm">
+            <div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-1.5">1그룹 (500휀 2대)</div>
+            <div class="flex justify-between items-end mb-1">
+                <span class="text-[10px] text-slate-500">고정온도</span>
+                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-blue-700" id="integ_t_1">--</span><span class="text-[10px] text-blue-600 mb-0.5">℃</span></div>
+            </div>
+            <div class="flex justify-between items-end">
+                <span class="text-[10px] text-slate-500">최소환기</span>
+                <div class="flex items-end gap-0.5"><span class="text-sm font-bold text-slate-700" id="integ_min_1">--</span><span class="text-[10px] text-slate-500 mb-0.5">%</span></div>
+            </div>
+        </div>
+        <!-- 2그룹 -->
+        <div class="bg-teal-50/70 p-3 rounded-lg border border-teal-100 shadow-sm" id="integ_g2_panel">
+            <div class="text-[10px] sm:text-xs text-teal-800 font-bold mb-1.5">2그룹 (500휀 3대)</div>
+            <div class="flex justify-between items-end mb-1">
+                <span class="text-[10px] text-slate-500">개입온도</span>
+                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-teal-700" id="integ_t_2">--</span><span class="text-[10px] text-teal-600 mb-0.5">℃</span></div>
+            </div>
+            <div class="flex justify-between items-end">
+                <span class="text-[10px] text-slate-500">환기범위</span>
+                <span class="text-[11px] sm:text-xs font-bold text-slate-700">0 ~ 100%</span>
+            </div>
+        </div>
+        <!-- 3그룹 -->
+        <div class="bg-orange-50/70 p-3 rounded-lg border border-orange-100 shadow-sm" id="integ_g3_panel">
+            <div class="text-[10px] sm:text-xs text-orange-800 font-bold mb-1.5">3그룹 (800휀 2대)</div>
+            <div class="flex justify-between items-end mb-1">
+                <span class="text-[10px] text-slate-500">개입온도</span>
+                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-orange-700" id="integ_t_3">--</span><span class="text-[10px] text-orange-600 mb-0.5">℃</span></div>
+            </div>
+            <div class="flex justify-between items-end">
+                <span class="text-[10px] text-slate-500">환기범위</span>
+                <span class="text-[11px] sm:text-xs font-bold text-slate-700">0 ~ 100%</span>
+            </div>
+        </div>
+        <!-- 4그룹 -->
+        <div class="bg-rose-50/70 p-3 rounded-lg border border-rose-100 shadow-sm" id="integ_g4_panel">
+            <div class="text-[10px] sm:text-xs text-rose-800 font-bold mb-1.5">4그룹 (800휀 극한)</div>
+            <div class="flex justify-between items-end mb-1">
+                <span class="text-[10px] text-slate-500">극한온도</span>
+                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-rose-700" id="integ_t_4">--</span><span class="text-[10px] text-rose-600 mb-0.5">℃</span></div>
+            </div>
+            <div class="flex justify-between items-end">
+                <span class="text-[10px] text-slate-500">최대제한</span>
+                <div class="flex items-end gap-0.5"><span class="text-sm font-bold text-rose-600" id="integ_max_4">--</span><span class="text-[10px] text-rose-500 mb-0.5">%</span></div>
+            </div>
+        </div>
+    </div>
+    <p class="text-[10px] text-slate-400 mt-2 text-right" id="integ_vent_msg">* 해당 배치의 현재 일령 및 체중을 기준으로 산출되었습니다.</p>
+</div>
+<button id="integ_save_vent" type="button" disabled class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-black py-2.5 rounded-lg disabled:opacity-40">현재 권장값을 참고용으로 고정 저장</button>`;
 
             let state = {
                 stocks: { boar: 5, piglet: 0, grower: 0, sow: 0, replacement: 0, gilt_batch: 0 },
@@ -415,6 +579,7 @@
                     document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex';
                     document.getElementById('save-btn').onclick = () => window.processSave(type);
                     document.getElementById('modal-overlay').classList.remove('hidden');
+                    if (type === 'batch_settings') refreshBatchVentilation();
                     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 20);
                 } catch (error) { utils.showToast("오류가 발생했습니다: " + error.message); }
             };
@@ -510,11 +675,11 @@
                 db.doc(`${COLS.STOCKS}/current`).onSnapshot(s => { if (s.exists) { state.stocks = s.data(); renderStocks(); } }, errLog);
                 db.collection(COLS.WEANING).onSnapshot(s => {
                     state.wBatches = s.docs.map(d => { const data = d.data(); data.id = data.id || parseInt(d.id.replace('batch_', ''), 10); return utils.normalizeBatch(data, 'weaning'); }).sort((a, b) => a.id - b.id);
-                    renderWeaning(); renderStocks();
+                    renderWeaning(); renderStocks(); refreshBatchVentilation('weaning');
                 }, errLog);
                 db.collection(COLS.GROWER).onSnapshot(s => {
                     state.gBatches = s.docs.map(d => { const data = d.data(); data.id = data.id || parseInt(d.id.replace('batch_', ''), 10); return utils.normalizeBatch(data, 'grower'); }).sort((a, b) => a.id - b.id);
-                    checkScheduledShipments(); renderGrower(); renderRecentShipments(); renderStocks();
+                    checkScheduledShipments(); renderGrower(); renderRecentShipments(); renderStocks(); refreshBatchVentilation('grower');
                 }, errLog);
                 db.collection(COLS.SOWS).onSnapshot(s => {
                     state.sowList = s.docs.map(d => { const data = d.data(); let st = data.currentStatus || '이유'; data.currentStatus = KOR_STATUS_MAP[String(st).toLowerCase().trim()] || st; data.parity = Number(data.parity) || 0; return { dbId: d.id, ...data }; }).sort((a, b) => String(a.sowNo || '').localeCompare(String(b.sowNo || '')));
@@ -1572,7 +1737,7 @@
                     // 🌟 젖돈 급여일 및 백신 접종일, 환기 설정 계산 로직 🌟
                     let feedHtml = '';
                     let vaccineHtml = '';
-                    let ventHtml = '';
+                    let ventHtml = (t.stage === 'grower' && Number(b.id) !== 8) ? ventilationPanelHtml : '';
                     
                     let sumTime = 0, pigCount = 0;
                     let baseAge = (t.stage === 'grower' && b.id === 8) ? 1 : 20; 
@@ -1621,8 +1786,6 @@
                         const diffDays = Math.round((todayTime - avgTime) / (1000 * 60 * 60 * 24));
                         let estWeight = avgAge <= 20 ? 6 : (avgAge <= 70 ? 6 + (avgAge - 20) * 0.48 : 30 + (avgAge - 70) * 0.85);
                         
-                        const opt = window.getOptimalVentSettings(avgAge, estWeight, pigCount, '육성사', diffDays);
-                        const encodedOpt = encodeURIComponent(JSON.stringify(opt));
 
                         let savedVentHtml = '';
                         if (b.savedVentSettings) {
@@ -1631,7 +1794,7 @@
                             savedVentHtml = `<div class="mt-3 p-3 bg-slate-100/80 rounded-xl border border-slate-200"><div class="flex justify-between items-center mb-2 px-1"><span class="text-[11px] font-black text-slate-700 flex items-center gap-1.5"><i data-lucide="pin" class="w-3.5 h-3.5 text-slate-500"></i> 고정된 설정 기록</span><span class="text-[9px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">${sDate} 저장됨</span></div><div class="grid grid-cols-4 gap-1.5 text-center"><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">1그룹</p><div><p class="text-[12px] font-black text-blue-600 leading-tight">${sOpt.f500_1.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f500_1.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">${sOpt.f500_1.min}%~</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">2그룹</p><div><p class="text-[12px] font-black text-teal-600 leading-tight">${sOpt.f500_2.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f500_2.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">완충</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">3그룹</p><div><p class="text-[12px] font-black text-orange-600 leading-tight">${sOpt.f800_1.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f800_1.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">1차</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">4그룹</p><div><p class="text-[12px] font-black text-rose-600 leading-tight">${sOpt.f800_2.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f800_2.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">~${sOpt.f800_2.max}%</p></div></div></div>`;
                         }
 
-                        ventHtml = `<div class="mb-3 bg-blue-50 text-blue-700 px-3 py-2.5 rounded-xl text-[11px] font-black flex items-center gap-2 border border-blue-100 shadow-sm"><span class="text-base">🔔</span> 일주일에 1번은 반드시 환기 설정을 업데이트해 주세요!</div><div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden"><div class="bg-slate-50 px-4 py-3.5 border-b border-slate-200 flex justify-between items-center"><h3 class="font-bold text-slate-700 text-sm sm:text-base flex items-center gap-2"><span class="text-blue-500">🌀</span> 4단계 자동 환기 설정</h3><span class="text-[10px] sm:text-xs px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full font-semibold">실시간 권장값</span></div><div class="p-3 grid grid-cols-2 md:grid-cols-4 gap-2"><div class="bg-blue-50/50 rounded-lg p-3 border border-blue-100 flex flex-col justify-between"><div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-2">제1그룹 (500휀 2대 상시)</div><div><div class="text-[10px] text-slate-500 mb-1">목표 온도: <strong class="text-blue-700 text-sm sm:text-base">${opt.f500_1.t}℃</strong> <span class="text-[9px]">(편차 ${opt.f500_1.diff})</span></div><div class="text-[10px] text-slate-500">가동 범위: <strong class="text-slate-800 text-sm sm:text-base">${opt.f500_1.min}% ~ 100%</strong></div></div></div><div class="bg-teal-50/50 rounded-lg p-3 border border-teal-100 flex flex-col justify-between"><div class="text-[10px] sm:text-xs text-teal-800 font-bold mb-2">제2그룹 (500휀 3대 완충)</div><div><div class="text-[10px] text-slate-500 mb-1">개입 온도: <strong class="text-teal-700 text-sm sm:text-base">${opt.f500_2.t}℃</strong> <span class="text-[9px]">(편차 ${opt.f500_2.diff})</span></div><div class="text-[10px] text-slate-500">가동 범위: <strong class="text-slate-800 text-sm sm:text-base">0% ~ 100%</strong></div></div></div><div class="bg-orange-50/50 rounded-lg p-3 border border-orange-100 flex flex-col justify-between"><div class="text-[10px] sm:text-xs text-orange-800 font-bold mb-2">제3그룹 (800휀 2대 1차)</div><div><div class="text-[10px] text-slate-500 mb-1">개입 온도: <strong class="text-orange-700 text-sm sm:text-base">${opt.f800_1.t}℃</strong> <span class="text-[9px]">(편차 ${opt.f800_1.diff})</span></div><div class="text-[10px] text-slate-500">가동 범위: <strong class="text-slate-800 text-sm sm:text-base">0% ~ 100%</strong></div></div></div><div class="bg-rose-50/50 rounded-lg p-3 border border-rose-100 flex flex-col justify-between"><div class="text-[10px] sm:text-xs text-rose-800 font-bold mb-2">제4그룹 (800휀 2대 2차)</div><div><div class="text-[10px] text-slate-500 mb-1">극한 온도: <strong class="text-rose-700 text-sm sm:text-base">${opt.f800_2.t}℃</strong> <span class="text-[9px]">(편차 ${opt.f800_2.diff})</span></div><div class="text-[10px] text-slate-500">가동 범위: <strong class="text-slate-800 text-sm sm:text-base">0% ~ ${opt.f800_2.max}%</strong></div></div></div></div><div class="bg-white px-3 py-2 border-t border-slate-100 text-[10px] sm:text-[11px] text-slate-500 flex justify-between items-center"><span class="font-bold">* ${opt.roomType} / ${avgAge}일령 / ${Math.round(estWeight)}kg / ${pigCount}두 기준</span><a href="https://sungamfarm.netlify.app/temp" target="_blank" class="text-blue-500 hover:underline font-bold">상세 분석 &rarr;</a></div><div class="px-3 pb-3 pt-1 bg-white border-t border-slate-100">${savedVentHtml}<button onclick="window.saveVentSettings('${t.stage}', ${b.id}, '${encodedOpt}')" class="mt-3 w-full bg-slate-50 border border-slate-200 text-slate-600 hover:bg-slate-100 hover:text-slate-800 text-[11px] font-black py-2.5 rounded-lg active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-sm"><i data-lucide="save" class="w-4 h-4"></i> 현재 권장값을 참고용으로 고정 저장</button></div></div>`;
+                        ventHtml += savedVentHtml;
                         
                         const targetDate105 = new Date(avgTime + (105 - baseAge) * 24 * 60 * 60 * 1000);
                         targetDate105.setHours(0,0,0,0);
@@ -1655,10 +1818,6 @@
                         html: `<input type="hidden" id="m-stage" value="${t.stage}">
                         <input type="hidden" id="m-batch" value="${t.batchId}">
                         <div class="space-y-3.5">
-                            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                <label class="text-[11px] font-black text-slate-700 flex items-center gap-1.5"><i data-lucide="calendar-days" class="w-4 h-4 text-indigo-500"></i> ${t.stage === 'weaning' ? '이유사 입식(이유)일' : '육성사 입식일'}</label>
-                                <input type="date" id="m-batch-date" value="${b.date || ''}" class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-black text-slate-800 outline-none focus:border-indigo-400 focus:bg-white transition-colors">
-                            </div>
                             ${ventHtml}
                             ${feedHtml}
                             ${vaccineHtml}
@@ -2084,15 +2243,13 @@
                 },
                 batch_settings: async () => {
                     const stg = document.getElementById('m-stage').value, bId = parseInt(document.getElementById('m-batch').value);
-                    const memoVal = document.getElementById('m-memo').value;
-                    const dateVal = document.getElementById('m-batch-date').value;
                     if (isLocalEnv) {
                         const arr = stg === 'weaning' ? state.wBatches : state.gBatches;
                         const idx = arr.findIndex(x => x.id === bId);
-                        if (idx !== -1) { arr[idx].memo = memoVal; arr[idx].date = dateVal; }
+                        if (idx !== -1) arr[idx].memo = document.getElementById('m-memo').value;
                     } else {
                         const col = stg === 'weaning' ? COLS.WEANING : COLS.GROWER;
-                        await db.doc(`${col}/batch_${bId}`).update({ memo: memoVal, date: dateVal });
+                        await db.doc(`${col}/batch_${bId}`).update({ memo: document.getElementById('m-memo').value });
                     }
                 },
                 transfer_pen: async () => {

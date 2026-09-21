@@ -44,7 +44,7 @@
 
     <div class="flex flex-col md:flex-row min-h-screen">
         
-        <!-- Sidebar (좌측 입력 패널 숨김 처리) -->
+        <!-- Sidebar (기존 좌측 숨김 처리) -->
         <div class="hidden w-full md:w-80 bg-white border-b md:border-r border-slate-200 p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 shadow-sm z-20 md:h-screen md:overflow-y-auto shrink-0" style="display: none !important;">
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
@@ -90,7 +90,7 @@
             <div class="flex flex-col gap-3 sm:gap-4">
                 <h2 class="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-wider">사육 및 설정 정보 (수동 조절)</h2>
                 
-                <!-- 1그룹 수동 온도 입력란 추가 -->
+                <!-- 1그룹 수동 온도 입력란 -->
                 <div class="bg-blue-50/50 p-2.5 sm:p-3 rounded-lg border border-blue-100 shadow-sm mb-1">
                     <label class="block text-[11px] sm:text-sm text-blue-800 mb-1 font-bold">1그룹 고정 온도 (℃)</label>
                     <input type="number" id="base_temp_input" step="1" class="w-full p-2 text-sm font-bold text-blue-900 border border-blue-200 rounded focus:outline-none focus:border-blue-500 transition-colors shadow-sm bg-white" placeholder="자동 계산">
@@ -120,7 +120,6 @@
             </button>
         </div>
 
-        <!-- Main Content Area -->
         <div class="flex-1 p-3 sm:p-6 lg:p-10 overflow-y-auto bg-slate-50" id="main_content_area">
             
             <!-- 전체 배치 요약 대시보드 -->
@@ -200,7 +199,7 @@
                 <!-- 4단계 그리드 레이아웃 -->
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     
-                    <!-- 1그룹 (500휀 2대) -->
+                    <!-- 1그룹 -->
                     <div class="bg-blue-50/50 p-4 rounded-xl border border-blue-100 shadow-sm flex flex-col">
                         <h3 class="text-xs sm:text-sm font-bold text-blue-800 mb-3 flex items-center gap-2">
                             <span class="bg-blue-100 p-1.5 rounded-full text-xs">🌀</span> 1그룹 (500휀 2대 상시)
@@ -227,7 +226,7 @@
                         </div>
                     </div>
 
-                    <!-- 2그룹 (500휀 3대) -->
+                    <!-- 2그룹 -->
                     <div class="bg-teal-50/50 p-4 rounded-xl border border-teal-100 shadow-sm flex flex-col" id="group2_panel">
                         <h3 class="text-xs sm:text-sm font-bold text-teal-800 mb-3 flex items-center gap-2">
                             <span class="bg-teal-100 p-1.5 rounded-full text-xs">💨</span> 2그룹 (500휀 3대 완충)
@@ -254,7 +253,7 @@
                         </div>
                     </div>
 
-                    <!-- 3그룹 (800휀 2대) -->
+                    <!-- 3그룹 -->
                     <div class="bg-orange-50/50 p-4 rounded-xl border border-orange-100 shadow-sm flex flex-col" id="group3_panel">
                         <h3 class="text-xs sm:text-sm font-bold text-orange-800 mb-3 flex items-center gap-2">
                             <span class="bg-orange-100 p-1.5 rounded-full text-xs">🌤️</span> 3그룹 (800휀 2대 1차)
@@ -281,7 +280,7 @@
                         </div>
                     </div>
 
-                    <!-- 4그룹 (800휀 2대) -->
+                    <!-- 4그룹 -->
                     <div class="bg-rose-50/50 p-4 rounded-xl border border-rose-100 shadow-sm flex flex-col" id="group4_panel">
                         <h3 class="text-xs sm:text-sm font-bold text-rose-800 mb-3 flex items-center gap-2">
                             <span class="bg-rose-100 p-1.5 rounded-full text-xs">🔥</span> 4그룹 (800휀 2대 극한)
@@ -401,7 +400,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getDatabase, ref, query, limitToLast, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
@@ -424,29 +423,36 @@
         let cmhChartInstance = null;
 
         let customBaseTemps = {}; // 수동 온도 저장 객체
+        let inlineTypingTimer; // 연속 타이핑 디바운스 타이머
 
-        window.handleInlineTempChange = async (batchKey, val) => {
-            if(val !== '') {
+        window.handleInlineTempChange = (batchKey, val, inputElem) => {
+            if(val) {
                 customBaseTemps[batchKey] = Number(val);
             } else {
                 delete customBaseTemps[batchKey];
             }
             
-            // Firestore에 수동 설정값 저장 (영구 동기화)
-            if (db) {
-                try {
-                    await setDoc(doc(db, "farms/sungamfarm/settings", "manual_temperatures"), customBaseTemps, { merge: true });
-                } catch(e) {
-                    console.error("온도 저장 실패", e);
-                }
-            }
+            // 입력 중일 때 전체 표가 바로 새로고침 되어 포커스를 잃는 현상(Event Bubbling/Focus loss) 방지
+            clearTimeout(inlineTypingTimer);
+            inlineTypingTimer = setTimeout(() => {
+                renderAllBatchesSummary(); // 0.6초간 추가 입력이 없으면 표 렌더링
+                
+                // 포커스 복원 시도
+                setTimeout(() => {
+                    const activeInput = document.querySelector(`input[data-batch-key="${batchKey}"]`);
+                    if(activeInput) {
+                        activeInput.focus();
+                        const len = activeInput.value.length;
+                        activeInput.setSelectionRange(len, len); // 커서를 맨 끝으로
+                    }
+                }, 50);
 
-            renderAllBatchesSummary(); 
-            
-            if (currentSelectedBatchId === batchKey) {
-                document.getElementById('base_temp_input').value = val;
-                document.getElementById('btn_analyze').click();
-            }
+                // 현재 하단에 상세 분석 중인 배치라면 하단 패널도 즉시 업데이트
+                if (currentSelectedBatchId === batchKey) {
+                    document.getElementById('base_temp_input').value = val || "";
+                    document.getElementById('btn_analyze').click();
+                }
+            }, 600); 
         };
 
         function showModal(title, message) {
@@ -471,6 +477,7 @@
             if (typeof val === 'object' && val.seconds) return new Date(val.seconds * 1000); 
             
             let dStr = String(val).trim();
+            
             let match = dStr.match(/(20\d{2}|\d{2})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/);
             if (match) {
                 let year = parseInt(match[1], 10);
@@ -484,19 +491,30 @@
             } else if (d.length === 6) {
                 return new Date(parseInt("20"+d.substring(0,2), 10), parseInt(d.substring(2,4), 10) - 1, parseInt(d.substring(4,6), 10));
             }
+            
+            return null;
+        };
+
+        const getFirstValidDate = (arr) => {
+            if (!Array.isArray(arr)) return null;
+            for (let item of arr) {
+                if (parseDate(item) !== null) return parseDate(item);
+            }
             return null;
         };
 
         function calculatePigAge(data, type) {
-            let age = 30; let sourceMsg = "기본값"; 
-            let stockDiffDays = null;
+            let age = null; let sourceMsg = ""; 
+            let diffDays = null; let stockDiffDays = null;
 
-            // 1. 실제 입식일(date 필드 등) 확인 (육성사 적응기 보상용)
+            // 1. 해당 돈사에 '실제 입식한 날짜' 찾기 (육성사는 date 필드를 1순위로 확정)
             let rawStockDate = null;
             if (type === '육성사') {
-                rawStockDate = data.date || null;
+                rawStockDate = data.date || getFirstValidDate(data.penDates) || null;
+            } else {
+                rawStockDate = getFirstValidDate(data.penDates) || data.date || null;
             }
-
+            
             if (rawStockDate) {
                 const stockDate = parseDate(rawStockDate);
                 if (stockDate) {
@@ -507,7 +525,7 @@
                 }
             }
 
-            // 2. 생물학적 평균 일령 계산 (avgAge 또는 age 우선)
+            // 2. 돼지의 '생물학적 평균 일령' 계산
             if (data.avgAge !== undefined && data.avgAge !== null && String(data.avgAge).trim() !== '') {
                 age = Number(data.avgAge); 
                 sourceMsg = "DB 평균 일령 적용"; 
@@ -515,11 +533,36 @@
                 age = Number(data.age); 
                 sourceMsg = "DB 일령 적용"; 
             } else {
-                age = 30;
-                sourceMsg = "기본 일령 적용";
+                // 과거 추정 방식 복구 (Fallback)
+                let baseAge = (type === '육성사') ? 70 : 28;
+                let targetDateStr = null;
+
+                if (type === '육성사' && data.weaningDate && typeof data.weaningDate === 'string' && data.weaningDate.trim() !== '') { 
+                    targetDateStr = data.weaningDate.trim(); 
+                    baseAge = 28; 
+                    sourceMsg = "이유일 기준 역산(+28)"; 
+                } else if (rawStockDate) { 
+                    targetDateStr = rawStockDate; 
+                    sourceMsg = `입식일 기준 역산(+${baseAge})`; 
+                }
+
+                if (targetDateStr) {
+                    const targetDate = parseDate(targetDateStr);
+                    if (targetDate) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
+                        diffDays = Math.floor((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
+                        age = diffDays + baseAge;
+                    }
+                }
+            }
+
+            if (age === null || isNaN(age) || age <= 0) {
+                age = 30; // 기본값
+                sourceMsg = "데이터 없음 (기본 30일)"; 
             }
             
-            return { age: Math.round(Math.max(1, age)), sourceMsg, stockDiffDays };
+            return { age: Math.round(Math.max(1, age)), sourceMsg, diffDays, stockDiffDays };
         }
 
         async function initFirebase() {
@@ -532,15 +575,6 @@
                 rtdb = getDatabase(app);        
                 statusEl.textContent = "연결 완료";
                 statusEl.className = "text-[10px] sm:text-xs px-2 py-1 bg-green-100 text-green-700 rounded-full font-medium shadow-inner";
-                
-                // 수동 입력된 설정 온도 불러오기
-                onSnapshot(doc(db, "farms/sungamfarm/settings", "manual_temperatures"), (docSnap) => {
-                    if (docSnap.exists()) {
-                        customBaseTemps = docSnap.data() || {};
-                        renderAllBatchesSummary();
-                    }
-                });
-
                 startFarmDataSync();
                 startSensorDataSync(); 
             } catch (error) {
@@ -587,8 +621,8 @@
                 const batchNumStr = name.replace(/[^0-9]/g, '');
                 if (type === '육성사' && batchNumStr === '8') { delete fetchedBatches[`${type}_${doc.id}`]; return false; }
                 
-                const { age, sourceMsg, stockDiffDays } = calculatePigAge(data, type);
-                fetchedBatches[`${type}_${doc.id}`] = { type, id: doc.id, name, count, age, sourceMsg, stockDiffDays };
+                const { age, sourceMsg, diffDays, stockDiffDays } = calculatePigAge(data, type);
+                fetchedBatches[`${type}_${doc.id}`] = { type, id: doc.id, name, count, age, sourceMsg, diffDays, stockDiffDays };
                 return true;
             };
 
@@ -628,7 +662,7 @@
             });
         }
 
-        function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', stockDiffDays = null, manualBaseTemp = null) {
+        function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', stockDiffDays = null, outdoorTempHistory = [], manualBaseTemp = null) {
             
             // 1그룹 (500휀 2대 상시 - 1도 단위)
             let t_500_1_raw = 23.0;
@@ -641,11 +675,11 @@
             // 단계적 온도 강하 (Step-down) 처리
             if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0) {
                 if (stockDiffDays <= 7) {
-                    t_500_1 += 2; // 입식 1주차 (+2℃)
-                    acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 1주차 온도 보상 (+2℃)</strong>육성사 이동 후 <strong>${stockDiffDays === 0 ? '오늘(당일)' : stockDiffDays + '일차'}</strong>입니다. 이동 스트레스 완화를 위해 <strong>권장 온도를 2℃ 상향 조정</strong>했습니다.</li>`;
+                    t_500_1 += 2; // 입식 1주차
+                    acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 1주차 온도 보상 (+2℃)</strong>육성사 이동 후 <strong>${stockDiffDays === 0 ? '오늘(당일)' : stockDiffDays + '일차'}</strong>입니다. 이동 및 합사 스트레스 완화, 새로운 환경 적응을 위해 <strong>권장 온도를 2℃ 상향 조정</strong>했습니다.</li>`;
                 } else if (stockDiffDays <= 14) {
-                    t_500_1 += 1; // 입식 2주차 (+1℃)
-                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 2주차 온도 보상 (+1℃)</strong>육성사 이동 후 <strong>${stockDiffDays}일차</strong>입니다. 적응을 위해 <strong>권장 온도를 1℃ 상향 조정</strong>했습니다. (15일차부터 정상 복귀)</li>`;
+                    t_500_1 += 1; // 입식 2주차
+                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 2주차 온도 보상 (+1℃)</strong>육성사 이동 후 <strong>${stockDiffDays}일차</strong>입니다. 1주차(+2℃)에 이어 점진적인 정상 온도 적응을 위해 <strong>권장 온도를 1℃ 상향 조정</strong>했습니다. (15일차부터 정상 복귀)</li>`;
                 }
             }
 
@@ -680,11 +714,12 @@
             let t_800_2 = age <= 50 ? t_800_1 + 2 : t_800_1 + 1;
             t_800_2 = Math.max(26, Math.min(35, t_800_2));
 
+            // CMH 및 유속 계산 변수
             let width = 11.5, length = 28.0, height = 2.2, inletGapArea = 0.2 * 28;
-            let fan_500_1_cap = 12000; 
-            let fan_500_2_cap = 18000; 
-            let fan_800_1_cap = 36000; 
-            let fan_800_2_cap = 36000; 
+            let fan_500_1_cap = 12000; // 500휀 2개
+            let fan_500_2_cap = 18000; // 500휀 3개
+            let fan_800_1_cap = 36000; // 800휀 2개
+            let fan_800_2_cap = 36000; // 800휀 2개
 
             if (roomType === '이유사') {
                 width = 9.0; length = 15.0; height = 2.2; inletGapArea = 1.0;
@@ -697,6 +732,7 @@
             let baseMinVentCMH = weight * count * 0.5; 
             if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
 
+            // 환기율 계산
             let min_500_1 = Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)); 
             let diff_500_1 = 2, diff_500_2 = 2, diff_800_1 = 2, diff_800_2 = 2;
             let max_800_2 = Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))); 
@@ -763,6 +799,9 @@
                 return numA - numB;
             });
 
+            // 48시간(최대 2880개) 외기 온도 이력 배열 추출
+            let outTempHist = sensorHistoryMap['외부온도'] || [];
+
             sortedKeys.forEach(key => {
                 const batch = fetchedBatches[key];
                 const weight = calculateWeight(batch.age);
@@ -782,8 +821,8 @@
                     historyStats = { avg: sum / histArr.length, max, min, count: histArr.length };
                 }
 
-                const manualTemp = customBaseTemps[key] !== undefined ? customBaseTemps[key] : null;
-                const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, manualTemp);
+                // 표에서 수동 입력된 값이 있으면 적용 (customBaseTemps)
+                const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, outTempHist, customBaseTemps[key] || null);
 
                 let g2Html = '', g3Html = '', g4Html = '';
                 
@@ -816,13 +855,16 @@
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 text-slate-600 text-[10px] sm:text-xs align-middle whitespace-nowrap">${weight}kg</td>
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 text-slate-600 text-[10px] sm:text-xs align-middle whitespace-nowrap">${batch.count}두</td>
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 font-bold text-[11px] sm:text-sm ${curTempStr !== '--.-' ? 'text-slate-800' : 'text-slate-300'} align-middle whitespace-nowrap">${curTempStr}</td>
-                        <td class="p-1.5 sm:p-2 border-r border-blue-100 text-[9px] sm:text-[11px] bg-blue-50/30 text-left align-middle min-w-[110px]" onclick="event.stopPropagation()">
+                        <td class="p-1.5 sm:p-2 border-r border-blue-100 text-[9px] sm:text-[11px] bg-blue-50/30 text-left align-middle min-w-[110px]">
                             <div class="flex justify-between items-center mb-0.5 border-b border-blue-200/50 pb-0.5">
                                 <span class="text-slate-500">고정:</span> 
                                 <div class="flex items-center">
+                                    <!-- 수정 시 oninput + debounce 로 포커스 유지 및 연동 -->
                                     <input type="number" step="1" value="${opt.f500_1.t}" 
+                                           data-batch-key="${key}"
                                            class="w-10 sm:w-12 text-right border border-blue-300 rounded px-1 py-0.5 text-blue-800 font-bold bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-sm" 
-                                           oninput="window.handleInlineTempChange('${key}', this.value)">
+                                           onclick="event.stopPropagation();" onmousedown="event.stopPropagation();" 
+                                           oninput="window.handleInlineTempChange('${key}', this.value, this)">
                                     <span class="text-blue-700 text-sm ml-0.5">℃</span>
                                 </div>
                             </div>
@@ -872,15 +914,17 @@
             document.getElementById('pig_count').value = batch.count;
             document.getElementById('avg_weight').value = calculateWeight(batch.age);
             
-            let stockHint = batch.type === '육성사' && batch.stockDiffDays !== null ? ` <span class="text-blue-600 font-bold ml-1">(육성사 입식 ${batch.stockDiffDays === 0 ? '오늘(당일)' : batch.stockDiffDays + '일차'})</span>` : '';
+            let stockHint = batch.type === '육성사' && batch.stockDiffDays !== null ? ` <span class="text-blue-600 font-bold ml-1">(육성사 입식 ${batch.stockDiffDays === 0 ? '오늘' : batch.stockDiffDays + '일차'})</span>` : '';
             document.getElementById('age-source-hint').innerHTML = `* ${batch.sourceMsg}${stockHint}`;
             
-            const manualTemp = customBaseTemps[currentSelectedBatchId] !== undefined ? customBaseTemps[currentSelectedBatchId] : '';
-            document.getElementById('base_temp_input').value = manualTemp;
-            if (manualTemp !== '') {
-                document.getElementById('temp-source-hint').innerHTML = '⚠️ 수동 설정됨';
+            // 표에서 수동 입력한 값이 있으면 그걸 쓰고, 없으면 기본값 계산
+            if (customBaseTemps[currentSelectedBatchId]) {
+                document.getElementById('base_temp_input').value = customBaseTemps[currentSelectedBatchId];
+                document.getElementById('temp-source-hint').innerHTML = '⚠️ 표에서 수동 설정됨';
                 document.getElementById('temp-source-hint').className = "text-[9px] sm:text-[10px] text-rose-500 mt-1 h-3 font-bold";
             } else {
+                const defaultOpt = calculateOptimalSettings(batch.age, calculateWeight(batch.age), batch.count, null, batch.type, batch.stockDiffDays, []);
+                document.getElementById('base_temp_input').value = defaultOpt.f500_1.t;
                 document.getElementById('temp-source-hint').innerHTML = '✅ 알고리즘 자동 산출값';
                 document.getElementById('temp-source-hint').className = "text-[9px] sm:text-[10px] text-green-600 mt-1 h-3 font-semibold";
             }
@@ -888,9 +932,14 @@
             updateSensorUI(currentSelectedBatchId);
         });
 
+        // 수동 입력 감지 이벤트
         document.getElementById('base_temp_input').addEventListener('input', (e) => {
-            if (currentSelectedBatchId) {
-                window.handleInlineTempChange(currentSelectedBatchId, e.target.value);
+            if (e.target.value) {
+                document.getElementById('temp-source-hint').innerHTML = '⚠️ 수동 설정됨 (분석 실행을 눌러주세요)';
+                document.getElementById('temp-source-hint').className = "text-[9px] sm:text-[10px] text-rose-500 mt-1 h-3 font-bold";
+            } else {
+                document.getElementById('temp-source-hint').innerHTML = '온도를 입력하세요';
+                document.getElementById('temp-source-hint').className = "text-[9px] sm:text-[10px] text-slate-400 mt-1 h-3";
             }
         });
 
@@ -976,14 +1025,16 @@
             const count = Number(document.getElementById('pig_count').value);
             const weight = Number(document.getElementById('avg_weight').value);
             
+            // 수동 입력된 1그룹 온도값 가져오기
             const manualBaseTempStr = document.getElementById('base_temp_input').value;
-            const manualBaseTemp = manualBaseTempStr !== '' ? Number(manualBaseTempStr) : null;
+            const manualBaseTemp = manualBaseTempStr ? Number(manualBaseTempStr) : null;
             
             if (!age || !count || !weight) return showModal("오류", "일령, 사육 두수, 체중을 확인하세요.");
 
             let historyStats = null;
             let currentRoomType = '육성사';
             let stockDiffDays = null;
+            let outTempHist = sensorHistoryMap['외부온도'] || [];
 
             if (currentSelectedBatchId && fetchedBatches[currentSelectedBatchId]) {
                 const batch = fetchedBatches[currentSelectedBatchId];
@@ -1001,7 +1052,8 @@
                 }
             }
 
-            const opt = calculateOptimalSettings(age, weight, count, historyStats, currentRoomType, stockDiffDays, manualBaseTemp);
+            // 분석 함수에 수동 온도값(manualBaseTemp) 전달
+            const opt = calculateOptimalSettings(age, weight, count, historyStats, currentRoomType, stockDiffDays, outTempHist, manualBaseTemp);
 
             document.getElementById('res_fixed_temp').textContent = opt.f500_1.t;
             document.getElementById('res_adaptive_temp').textContent = opt.adaptiveT;
@@ -1175,7 +1227,7 @@
                     
                     <div class="mt-3 pt-3 border-t border-slate-300/70 text-[9px] sm:text-[11px] text-slate-500 space-y-1.5 w-full">
                         <strong class="text-slate-700 block mb-2 text-[10px] sm:text-xs flex items-center gap-1"><span>📚</span> 알고리즘 적용 공공·학술 기준</strong>
-                        <p class="leading-relaxed"><strong class="font-semibold text-slate-600">적정 설정 온도 및 기초 환기량:</strong> 농촌진흥청(국립축산과학원) '돼지 사육기상도 및 환경관리 지침', 농림축산식품부 '스마트 돈사 표준 모델' 기준 준용</p>
+                        <p class="leading-relaxed"><strong class="font-semibold text-slate-600">적정 설정 온도 및 기초 환기량:</strong> 농촌진흥청(국립축산과학원) '돼지 사육기상도 및 환경관리 지침', 농림축산식품부 '스마트 돈사 표준 모델' 기준 준용 (외기 온도 보상 기법 반영)</p>
                         <p class="leading-relaxed"><strong class="font-semibold text-slate-600">최소/최대 환기 한계 및 정압 제어:</strong> 미국 중서부농업기술서비스(MWPS, MidWest Plan Service) 축사 환기 표준 및 코안다(Coanda) 효과 기반 측벽 입기 기류 역학 적용</p>
                         <p class="leading-relaxed"><strong class="font-semibold text-slate-600">체감온도(Wind-Chill) 및 열 스트레스 보상:</strong> 돈사 단면적 기반 풍속 산출 모델 및 유속(0.5~2.2m/s) 한계 기준 적용</p>
                     </div>
