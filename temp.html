@@ -44,8 +44,8 @@
 
     <div class="flex flex-col md:flex-row min-h-screen">
         
-        <!-- Sidebar -->
-        <div class="hidden w-full md:w-80 bg-white border-b md:border-r border-slate-200 p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 shadow-sm z-20 md:h-screen md:overflow-y-auto shrink-0">
+        <!-- Sidebar (기존 좌측 숨김 처리) -->
+        <div class="hidden w-full md:w-80 bg-white border-b md:border-r border-slate-200 p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 shadow-sm z-20 md:h-screen md:overflow-y-auto shrink-0" style="display: none !important;">
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
                     <span>🐖</span> 환기량 최적화
@@ -128,7 +128,7 @@
                             <thead class="bg-slate-100 text-slate-600 text-[10px] sm:text-[11px] uppercase tracking-wider">
                                 <tr>
                                     <th class="p-2 border-b border-slate-200 font-bold text-slate-700 w-16 whitespace-nowrap sticky-col">배치</th>
-                                    <th class="p-2 border-b border-l border-slate-200 font-bold w-12 whitespace-nowrap">일령</th>
+                                    <th class="p-2 border-b border-l border-slate-200 font-bold w-12 whitespace-nowrap">평균일령</th>
                                     <th class="p-2 border-b border-l border-slate-200 font-bold w-14 whitespace-nowrap">체중</th>
                                     <th class="p-2 border-b border-l border-slate-200 font-bold w-14 whitespace-nowrap">두수</th>
                                     <th class="p-2 border-b border-l border-slate-200 font-bold w-14 whitespace-nowrap">온도</th>
@@ -431,37 +431,97 @@
             return parseFloat(w.toFixed(1));
         }
 
-        function calculatePigAge(data, type) {
-            let age = null; let baseAge = 0; let targetDateStr = null; let sourceMsg = ""; let diffDays = null;
-            const getFirstValidDate = (arr) => (Array.isArray(arr) ? arr.find(d => d && typeof d === 'string' && d.trim().length >= 8) : null) || null;
-            const firstPenDate = getFirstValidDate(data.penDates);
-
-            if (type === '육성사') {
-                if (firstPenDate) { targetDateStr = firstPenDate; baseAge = 14; sourceMsg = "칸별 입식일 기준(+14)"; }
-                else if (data.weaningDate && typeof data.weaningDate === 'string' && data.weaningDate.trim() !== '') { targetDateStr = data.weaningDate.trim(); baseAge = 28; sourceMsg = "이유일 기준(+28)"; }
-                else if (data.date && typeof data.date === 'string' && data.date.trim() !== '') { targetDateStr = data.date.trim(); baseAge = 14; sourceMsg = "배치 입식일 기준(+14)"; }
-            } else { 
-                if (firstPenDate) { targetDateStr = firstPenDate; baseAge = 28; sourceMsg = "칸별 입식일 기준(+28)"; }
-                else if (data.date && typeof data.date === 'string' && data.date.trim() !== '') { targetDateStr = data.date.trim(); baseAge = 28; sourceMsg = "배치 입식일 기준(+28)"; }
+        const parseDate = (val) => {
+            if (!val) return null;
+            if (typeof val === 'object' && val.toDate) return val.toDate();
+            if (typeof val === 'object' && val.seconds) return new Date(val.seconds * 1000); 
+            
+            let dStr = String(val).trim();
+            
+            let match = dStr.match(/(20\d{2}|\d{2})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/);
+            if (match) {
+                let year = parseInt(match[1], 10);
+                if (year < 100) year += 2000;
+                return new Date(year, parseInt(match[2], 10) - 1, parseInt(match[3], 10));
             }
 
-            if (targetDateStr) {
-                const parts = targetDateStr.split('-');
-                if (parts.length >= 3) {
-                    const targetDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            let d = dStr.replace(/[^0-9]/g, '');
+            if (d.length === 8) {
+                return new Date(parseInt(d.substring(0,4), 10), parseInt(d.substring(4,6), 10) - 1, parseInt(d.substring(6,8), 10));
+            } else if (d.length === 6) {
+                return new Date(parseInt("20"+d.substring(0,2), 10), parseInt(d.substring(2,4), 10) - 1, parseInt(d.substring(4,6), 10));
+            }
+            
+            return null;
+        };
+
+        const getFirstValidDate = (arr) => {
+            if (!Array.isArray(arr)) return null;
+            for (let item of arr) {
+                if (parseDate(item) !== null) return parseDate(item);
+            }
+            return null;
+        };
+
+        function calculatePigAge(data, type) {
+            let age = null; let sourceMsg = ""; 
+            let diffDays = null; let stockDiffDays = null;
+
+            // 1. 해당 돈사에 '실제 입식한 날짜' 찾기 (육성사는 date 필드를 1순위로 확정)
+            let rawStockDate = null;
+            if (type === '육성사') {
+                rawStockDate = data.date || getFirstValidDate(data.penDates) || null;
+            } else {
+                rawStockDate = getFirstValidDate(data.penDates) || data.date || null;
+            }
+            
+            if (rawStockDate) {
+                const stockDate = parseDate(rawStockDate);
+                if (stockDate) {
                     const today = new Date();
-                    today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
-                    diffDays = Math.floor((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
-                    age = diffDays + baseAge;
+                    today.setHours(0, 0, 0, 0); stockDate.setHours(0, 0, 0, 0);
+                    stockDiffDays = Math.floor((today.getTime() - stockDate.getTime()) / (1000 * 60 * 60 * 24));
+                    if (stockDiffDays < 0) stockDiffDays = 0; 
                 }
             }
 
-            if (age === null || isNaN(age)) {
-                if (data.avgAge) { age = Number(data.avgAge); sourceMsg = "저장된 평균 일령 적용"; }
-                else if (data.age) { age = Number(data.age); sourceMsg = "저장된 일령 적용"; }
-                else { age = 30; sourceMsg = "날짜 데이터 없음 (기본 30일)"; }
+            // 2. 돼지의 '생물학적 평균 일령' 계산
+            if (data.avgAge !== undefined && data.avgAge !== null && String(data.avgAge).trim() !== '') {
+                age = Number(data.avgAge); 
+                sourceMsg = "DB 평균 일령 적용"; 
+            } else if (data.age !== undefined && data.age !== null && String(data.age).trim() !== '') {
+                age = Number(data.age); 
+                sourceMsg = "DB 일령 적용"; 
+            } else {
+                let baseAge = (type === '육성사') ? 70 : 28;
+                let targetDateStr = null;
+
+                if (type === '육성사' && data.weaningDate && typeof data.weaningDate === 'string' && data.weaningDate.trim() !== '') { 
+                    targetDateStr = data.weaningDate.trim(); 
+                    baseAge = 28; 
+                    sourceMsg = "이유일 기준 역산(+28)"; 
+                } else if (rawStockDate) { 
+                    targetDateStr = rawStockDate; 
+                    sourceMsg = `입식일 기준 역산(+${baseAge})`; 
+                }
+
+                if (targetDateStr) {
+                    const targetDate = parseDate(targetDateStr);
+                    if (targetDate) {
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
+                        diffDays = Math.floor((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
+                        age = diffDays + baseAge;
+                    }
+                }
             }
-            return { age: Math.max(1, age), sourceMsg, diffDays };
+
+            if (age === null || isNaN(age) || age <= 0) {
+                age = 30; // 기본값
+                sourceMsg = "데이터 없음 (기본 30일)"; 
+            }
+            
+            return { age: Math.round(Math.max(1, age)), sourceMsg, diffDays, stockDiffDays };
         }
 
         async function initFirebase() {
@@ -519,8 +579,9 @@
                 let name = data.name || data.batchName || data.roomName || (`${data.id}번 배치`);
                 const batchNumStr = name.replace(/[^0-9]/g, '');
                 if (type === '육성사' && batchNumStr === '8') { delete fetchedBatches[`${type}_${doc.id}`]; return false; }
-                const { age, sourceMsg, diffDays } = calculatePigAge(data, type);
-                fetchedBatches[`${type}_${doc.id}`] = { type, id: doc.id, name, count, age, sourceMsg, diffDays };
+                
+                const { age, sourceMsg, diffDays, stockDiffDays } = calculatePigAge(data, type);
+                fetchedBatches[`${type}_${doc.id}`] = { type, id: doc.id, name, count, age, sourceMsg, diffDays, stockDiffDays };
                 return true;
             };
 
@@ -532,7 +593,6 @@
         }
 
         function startSensorDataSync() {
-            // 72시간 분량 데이터 (1분 1개 기준 3일 = 4320건)
             const historyRef = query(ref(rtdb, 'history_logs'), limitToLast(4320));
             onValue(historyRef, (snapshot) => {
                 sensorDataMap = {}; sensorHistoryMap = {}; 
@@ -561,8 +621,7 @@
             });
         }
 
-        // 핵심 알고리즘: 4단계 분할 릴레이 제어 및 CMH 계산
-        function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', diffDays = null) {
+        function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', stockDiffDays = null, outdoorTempHistory = []) {
             
             // 1그룹 (500휀 2대 상시 - 1도 단위)
             let t_500_1_raw = 23.0;
@@ -571,9 +630,32 @@
             let t_500_1 = Math.round(Math.max(23.0, Math.min(32.0, t_500_1_raw)));
 
             let acclimatizationMsg = "";
-            if (roomType === '육성사' && diffDays !== null && diffDays >= 0 && diffDays <= 3) {
-                t_500_1 += 2;
-                acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 적응기 온도 보상 (+2℃)</strong>육성사 이동 후 ${diffDays === 0 ? '당일' : diffDays + '일차'}입니다. 이동 및 합사 스트레스 완화, 새로운 환경 적응을 위해 권장 온도를 임시로 2℃ 상향 조정했습니다.</li>`;
+            let outdoorCompMsg = "";
+
+            // [추가/수정된 로직] 최근 이틀(48시간) 내 외기 온도 20도 이하 기록 확인
+            let minOutTemp48h = null;
+            if (outdoorTempHistory && outdoorTempHistory.length > 0) {
+                // limitToLast(4320)은 72시간 치이므로 최근 2880개가 약 48시간(이틀)에 해당함
+                const last48h = outdoorTempHistory.slice(-2880); 
+                minOutTemp48h = Math.min(...last48h);
+            }
+
+            // 최근 이틀 동안 단 한 번이라도 20도 이하로 떨어졌다면 고정온도 +1도 상향 보정
+            // 만약 이틀 동안 계속 20도 초과를 유지했다면 이 조건문은 false가 되어 원래 온도로 자동 복원됨
+            if (minOutTemp48h !== null && minOutTemp48h <= 20.0) {
+                t_500_1 += 1;
+                outdoorCompMsg = `<li class="text-blue-600 bg-blue-50 p-2 sm:p-3 rounded-lg border border-blue-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">📉</span> 외기 저온 방어 (+1℃ 상향)</strong>최근 이틀(48시간) 내 외부 최저 온도가 20℃ 이하(${minOutTemp48h.toFixed(1)}℃)로 떨어진 기록이 감지되었습니다. 차가운 공기 유입으로 인한 샛바람 피해를 방지하기 위해 <strong>고정 기준 온도를 1℃ 상향 조정</strong>했습니다. (이틀 연속 20℃ 초과 유지 시 원래 온도로 자동 복원됩니다)</li>`;
+            }
+
+            // 단계적 온도 강하 (Step-down) 처리
+            if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0) {
+                if (stockDiffDays <= 7) {
+                    t_500_1 += 2; // 입식 1주차
+                    acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 1주차 온도 보상 (+2℃)</strong>육성사 이동 후 <strong>${stockDiffDays === 0 ? '오늘(당일)' : stockDiffDays + '일차'}</strong>입니다. 이동 및 합사 스트레스 완화, 새로운 환경 적응을 위해 <strong>권장 온도를 2℃ 상향 조정</strong>했습니다.</li>`;
+                } else if (stockDiffDays <= 14) {
+                    t_500_1 += 1; // 입식 2주차
+                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 2주차 온도 보상 (+1℃)</strong>육성사 이동 후 <strong>${stockDiffDays}일차</strong>입니다. 1주차(+2℃)에 이어 점진적인 정상 온도 적응을 위해 <strong>권장 온도를 1℃ 상향 조정</strong>했습니다. (15일차부터 정상 복귀)</li>`;
+                }
             }
 
             // 72시간 센서 통계 기반 적응형 목표 온도 산출
@@ -628,6 +710,7 @@
                     평균: ${historyStats.avg.toFixed(1)}℃ | 최고: ${historyStats.max.toFixed(1)}℃ | 최저: ${historyStats.min.toFixed(1)}℃
                 </div>`;
             }
+            if (outdoorCompMsg) historyMsg += outdoorCompMsg;
             if (acclimatizationMsg) historyMsg += acclimatizationMsg;
 
             let min_cmh = fan_500_1_cap * (min_500_1 / 100); 
@@ -642,7 +725,6 @@
             if (weight > 90) optimal_max_vel = 2.2;
             if (roomType === '이유사') optimal_max_vel = 0.3;
 
-            // 이유사 예외 처리
             if (roomType === '이유사') {
                 t_500_2 = 0; t_800_1 = 0; t_800_2 = 0;
             }
@@ -683,6 +765,9 @@
                 return numA - numB;
             });
 
+            // 48시간(최대 2880개) 외기 온도 이력 배열 추출
+            let outTempHist = sensorHistoryMap['외부온도'] || [];
+
             sortedKeys.forEach(key => {
                 const batch = fetchedBatches[key];
                 const weight = calculateWeight(batch.age);
@@ -702,7 +787,7 @@
                     historyStats = { avg: sum / histArr.length, max, min, count: histArr.length };
                 }
 
-                const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.diffDays);
+                const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, outTempHist);
 
                 let g2Html = '', g3Html = '', g4Html = '';
                 
@@ -782,7 +867,10 @@
             document.getElementById('pig_age').value = batch.age;
             document.getElementById('pig_count').value = batch.count;
             document.getElementById('avg_weight').value = calculateWeight(batch.age);
-            document.getElementById('age-source-hint').textContent = `* ${batch.sourceMsg}`;
+            
+            let stockHint = batch.type === '육성사' && batch.stockDiffDays !== null ? ` <span class="text-blue-600 font-bold ml-1">(육성사 입식 ${batch.stockDiffDays === 0 ? '오늘' : batch.stockDiffDays + '일차'})</span>` : '';
+            document.getElementById('age-source-hint').innerHTML = `* ${batch.sourceMsg}${stockHint}`;
+            
             updateSensorUI(currentSelectedBatchId);
         });
 
@@ -872,11 +960,14 @@
 
             let historyStats = null;
             let currentRoomType = '육성사';
-            let diffDays = null;
+            let stockDiffDays = null;
+            let outTempHist = sensorHistoryMap['외부온도'] || [];
 
             if (currentSelectedBatchId && fetchedBatches[currentSelectedBatchId]) {
                 const batch = fetchedBatches[currentSelectedBatchId];
-                currentRoomType = batch.type; diffDays = batch.diffDays;
+                currentRoomType = batch.type; 
+                stockDiffDays = batch.stockDiffDays; 
+                
                 const numMatch = batch.name.match(/\d+/) || batch.id.match(/\d+/);
                 const exactSensorKey = (batch.type === '이유사' ? '이유' : '육성') + '_' + (numMatch ? numMatch[0] : '') + '배치';
                 
@@ -888,20 +979,17 @@
                 }
             }
 
-            const opt = calculateOptimalSettings(age, weight, count, historyStats, currentRoomType, diffDays);
+            const opt = calculateOptimalSettings(age, weight, count, historyStats, currentRoomType, stockDiffDays, outTempHist);
 
-            // 72시간 패널 업데이트
             document.getElementById('res_fixed_temp').textContent = opt.f500_1.t;
             document.getElementById('res_adaptive_temp').textContent = opt.adaptiveT;
             document.getElementById('adaptive_reason').innerHTML = opt.adaptiveReason;
 
-            // 1그룹
             document.getElementById('ui_base_t_1').textContent = opt.f500_1.t + '℃';
             document.getElementById('ui_t_1').textContent = opt.adapt.t1;
             document.getElementById('ui_min_1').textContent = opt.f500_1.min;
             document.getElementById('ui_p_1').textContent = opt.f500_1.diff;
 
-            // 이유사 판별 및 그룹 숨기기
             const g2 = document.getElementById('group2_panel');
             const g3 = document.getElementById('group3_panel');
             const g4 = document.getElementById('group4_panel');
@@ -1055,13 +1143,12 @@
             document.getElementById('results_container').classList.remove('hidden');
             document.getElementById('results_container').classList.add('flex');
             
-            // 데이터 기준 렌더링 (학술 기준 추가)
             const now = new Date().toLocaleString('ko-KR');
             let batchNameDisplay = currentSelectedBatchId && fetchedBatches[currentSelectedBatchId] ? `클라우드 연동: [${fetchedBatches[currentSelectedBatchId].type}] ${fetchedBatches[currentSelectedBatchId].name}` : "수동 입력 데이터";
             document.getElementById('analysis_source_info').innerHTML = `
                 <div class="flex-1 w-full">
                     <strong class="text-slate-800 text-[11px] sm:text-sm block mb-1">분석 기준 요약</strong>
-                    <p class="mb-2">${now} 기준 <strong>${batchNameDisplay}</strong> (일령: ${age}일, 체중: ${weight}kg) 데이터를 바탕으로 4단계 제어 알고리즘이 적용되었습니다.</p>
+                    <p class="mb-2">${now} 기준 <strong>${batchNameDisplay}</strong> (생물학적 평균 일령: ${age}일, 체중: ${weight}kg) 데이터를 바탕으로 4단계 제어 알고리즘이 적용되었습니다.</p>
                     <p class="text-[9px] sm:text-[10px] text-slate-500 mb-3 sm:mb-4">* 위 설정값은 매일 바꿀 필요 없이 <strong>주 1회</strong> 체중 증가에 맞춰 컨트롤러에 입력해주시면 됩니다. 아침/저녁 일교차는 설정된 4개의 그룹(단계)이 번갈아 개입하며 자동으로 방어합니다.</p>
                     
                     <div class="mt-3 pt-3 border-t border-slate-300/70 text-[9px] sm:text-[11px] text-slate-500 space-y-1.5 w-full">
@@ -1073,7 +1160,6 @@
                 </div>
             `;
             
-            // 차트에는 72h 적응형(최종 권장) 온도를 반영하여 시뮬레이션을 그립니다.
             const chartOpt = JSON.parse(JSON.stringify(opt));
             chartOpt.f500_1.t = opt.adapt.t1;
             chartOpt.f500_2.t = opt.adapt.t2;
