@@ -1655,6 +1655,10 @@
                         html: `<input type="hidden" id="m-stage" value="${t.stage}">
                         <input type="hidden" id="m-batch" value="${t.batchId}">
                         <div class="space-y-3.5">
+                            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                <label class="text-[11px] font-black text-slate-700 flex items-center gap-1.5"><i data-lucide="calendar-days" class="w-4 h-4 text-indigo-500"></i> ${t.stage === 'weaning' ? '이유사 입식(이유)일' : '육성사 입식일'}</label>
+                                <input type="date" id="m-batch-date" value="${b.date || ''}" class="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-[11px] font-black text-slate-800 outline-none focus:border-indigo-400 focus:bg-white transition-colors">
+                            </div>
                             ${ventHtml}
                             ${feedHtml}
                             ${vaccineHtml}
@@ -2080,13 +2084,15 @@
                 },
                 batch_settings: async () => {
                     const stg = document.getElementById('m-stage').value, bId = parseInt(document.getElementById('m-batch').value);
+                    const memoVal = document.getElementById('m-memo').value;
+                    const dateVal = document.getElementById('m-batch-date').value;
                     if (isLocalEnv) {
                         const arr = stg === 'weaning' ? state.wBatches : state.gBatches;
                         const idx = arr.findIndex(x => x.id === bId);
-                        if (idx !== -1) arr[idx].memo = document.getElementById('m-memo').value;
+                        if (idx !== -1) { arr[idx].memo = memoVal; arr[idx].date = dateVal; }
                     } else {
                         const col = stg === 'weaning' ? COLS.WEANING : COLS.GROWER;
-                        await db.doc(`${col}/batch_${bId}`).update({ memo: document.getElementById('m-memo').value });
+                        await db.doc(`${col}/batch_${bId}`).update({ memo: memoVal, date: dateVal });
                     }
                 },
                 transfer_pen: async () => {
