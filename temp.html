@@ -446,7 +446,9 @@
 
                 // 3. 파이어베이스(Firestore) 클라우드 영구 저장 (동기화)
                 try {
-                    const [type, docId] = batchKey.split('_');
+                    const separator = batchKey.indexOf('_');
+                    const type = batchKey.slice(0, separator);
+                    const docId = batchKey.slice(separator + 1);
                     if (type === '육성사' && db) {
                         const docRef = doc(db, 'farms/sungamfarm/grower', docId);
                         // val이 없으면 null로 저장하여 자동 산출 모드로 복귀
@@ -477,6 +479,7 @@
 
         const parseDate = (val) => {
             if (!val) return null;
+            if (val instanceof Date) return new Date(val.getTime());
             if (typeof val === 'object' && val.toDate) return val.toDate();
             if (typeof val === 'object' && val.seconds) return new Date(val.seconds * 1000); 
             
