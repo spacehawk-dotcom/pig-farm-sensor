@@ -62,7 +62,7 @@
     const uiText = {
       ko: {
         title: "성암농장 사양관리 지침서",
-        updated: "최종 업데이트: 2026. 08. 30",
+        updateLabel: "최종 업데이트:",
         feedTab: "사료 첨가제",
         waterTab: "음수 / 환경",
         infoMsg: "각 사육 구간별 정확한 사료 배합 비율입니다. 지대(20kg) 급여 시 탑드레싱 용량을 반드시 지켜주세요.",
@@ -92,7 +92,7 @@
       },
       ne: {
         title: "सुंगाम फार्म व्यवस्थापन निर्देशिका",
-        updated: "अन्तिम अपडेट: २०२६. ०८. ३०",
+        updateLabel: "अन्तिम अपडेट:",
         feedTab: "दाना / औषधि",
         waterTab: "पानी / वातावरण",
         infoMsg: "प्रत्येक हुर्काउने चरणको लागि सही दाना मिश्रण अनुपात। २० केजीको बोरा खुवाउँदा दानामाथि मिसाउने मात्रा अनिवार्य पालना गर्नुहोस्।",
@@ -130,7 +130,7 @@
           type: "단계별 급여 프로그램",
           items: [
             { name: "[입식 후 1주일] 항생제 + 구충제", amount: "50g/100g", desc: "탑드레싱 혼합. 수송 스트레스 및 새로운 질병 방어 (무제한 급이)" },
-            { name: "[1주 후 ~ 1개월] 첨가제 없음", amount: "-", desc: "약제 중단 후 맹사료 무제한 급이 (농장 균사 적응 및 골격 성장)" },
+            { name: "[1주 후 ~ 1개월] 맑은농장", amount: "1kg", desc: "약제 중단 후 무제한 급이 (농장 균사 적응 및 골격 성장)" },
             { name: "[입식 1개월 후] 제한 급이 전환", amount: "-", desc: "아침/저녁 2회 제한 급이 실시 (과비 방지 및 발정 유도)" }
           ],
           alert: "입식 후 1개월이 지나면 무제한 급이를 중단하고 반드시 제한 급이로 전환하여 과비를 막아주세요."
@@ -154,7 +154,8 @@
             { name: "마이맥스4 (광물질)", amount: "1.5kg", desc: "포유 중 뼈(칼슘/인) 손실 방어" },
             { name: "어분", amount: "3kg", desc: "고단백 공급, 모돈 야윔(체손실) 방지" },
             { name: "디톡신 (독소흡착제)", amount: "1kg", desc: "독소의 모유 이행 차단" },
-            { name: "맑은농장", amount: "2kg", desc: "장내 환경 개선 및 면역력 증진" }
+            { name: "모유업", amount: "1kg", desc: "유량 증진 및 초유 품질 개선" },
+            { name: "맑은농장", amount: "1kg", desc: "장내 환경 개선 및 면역력 증진" }
           ]
         },
         {
@@ -181,7 +182,7 @@
           target: "육성사 이동 스트레스 완화 및 초기 질병 방어",
           type: "상시 및 단기 급여 (사료 톤당)",
           items: [
-            { name: "항생제", amount: "1kg", desc: "단기: 육성사 이동 직후 딱 1주일만 급여 (환경 변화 스트레스 방어)" },
+            { name: "항생제(티썰파)", amount: "1kg", desc: "단기: 육성사 이동 직후 딱 1주일만 급여 (환경 변화 스트레스 방어)" },
             { name: "어분", amount: "2kg", desc: "상시: 폭발적 성장을 위한 단백질 베이스" },
             { name: "구충제", amount: "2kg", desc: "단기: 이동 후 투약 시작하여 딱 1주일만 급여 (간 독성 방지)" }
           ],
@@ -201,6 +202,7 @@
           target: "본격적인 골격 발달 및 근육 성장 주도",
           type: "상시 급여 (사료 톤당)",
           items: [
+            { name: "맑은농장", amount: "1kg", desc: "소화 및 면역력 증진" },
             { name: "스페셜 플러스", amount: "2kg", desc: "비타민/미네랄 공급 및 후기 성장 스트레스 완화" }
           ]
         },
@@ -209,10 +211,10 @@
           target: "살코기(정육률) 극대화, 출하 일령 단축",
           type: "상시 급여 (사료 톤당)",
           items: [
-            { name: "스페셜 플러스", amount: "2kg", desc: "락토파산 대사 스트레스 완화" },
-            { name: "락토파산", amount: "0.5kg", desc: "살코기 수율 극대화 (출하 전 약 4주 집중 투약)" }
+            { name: "락토파산", amount: "0.5kg", desc: "살코기 수율 극대화 (출하 전 약 4주 집중 투약)" },
+            { name: "스페셜 플러스", amount: "2kg", desc: "락토파산 대사 스트레스 완화" }
           ],
-          alert: "번식돈(모돈, 웅돈, 자돈)에게 락토파산을 절대 급여하지 마세요."
+          alert: "🚫 [금지] 번식돈(모돈, 웅돈, 자돈)에게 락토파산을 절대 급여하지 마세요.\n\n⚠️ [주의] 맑은농장과 락토파산은 같이 급여하지 않습니다."
         }
       ],
       ne: [
@@ -222,7 +224,7 @@
           type: "चरणबद्ध दाना कार्यक्रम",
           items: [
             { name: "[ल्याएको १ हप्ता] एन्टिबायोटिक + जुकाको औषधि", amount: "५०g/१००g", desc: "दानामाथि मिसाउने। यातायातको तनाव र नयाँ रोगबाट बचाउन (असीमित दाना)" },
-            { name: "[१ हप्ता पछि ~ १ महिना] कुनै औषधि छैन", amount: "-", desc: "औषधि रोकेपछि सादा दाना असीमित दिने (खोरको कीटाणुसँग घुलमिल र हड्डीको विकास)" },
+            { name: "[१ हप्ता पछि ~ १ महिना] माल्गुन नोङजाङ", amount: "१kg", desc: "औषधि रोकेपछि असीमित दाना दिने (खोरको कीटाणुसँग घुलमिल र हड्डीको विकास)" },
             { name: "[ल्याएको १ महिना पछि] दाना सीमित गर्ने", amount: "-", desc: "बिहान/बेलुका २ पटक मात्र दाना दिने (धेरै मोटो हुन नदिन र भाले खोज्न मद्दत गर्न)" }
           ],
           alert: "ल्याएको १ महिना पछि असीमित दाना रोक्नुहोस् र धेरै मोटो हुनबाट बचाउन दाना सीमित गर्नुहोस्।"
@@ -246,7 +248,8 @@
             { name: "माइम्याक्स-४ (खनिज)", amount: "१.५kg", desc: "दूध खुवाउँदा हड्डी (क्याल्सियम/फस्फोरस) कमजोर हुन नदिने" },
             { name: "माछाको धुलो", amount: "३kg", desc: "उच्च प्रोटिन दिने, सुत्केरी सुँगुर दुब्लाउन नदिने" },
             { name: "डिटोक्सिन (विष हटाउने)", amount: "१kg", desc: "विषलाई दूधमा जानबाट रोक्ने" },
-            { name: "माल्गुन नोङजाङ", amount: "२kg", desc: "आन्द्राको अवस्था सुधार्ने र रोग प्रतिरोधात्मक क्षमता बढाउने" }
+            { name: "मोयुअप", amount: "१kg", desc: "दूध बढाउने र बिगौती दूधको गुणस्तर सुधार गर्ने" },
+            { name: "माल्गुन नोङजाङ", amount: "१kg", desc: "आन्द्राको अवस्था सुधार्ने र रोग प्रतिरोधात्मक क्षमता बढाउने" }
           ]
         },
         {
@@ -273,7 +276,7 @@
           target: "हुर्काउने खोरमा सार्दा हुने तनाव कम गर्ने र सुरुवाती रोगबाट बचाउने",
           type: "सधैं र छोटो समय दिने (प्रति टन)",
           items: [
-            { name: "एन्टिबायोटिक", amount: "१kg", desc: "छोटो समय: खोर सारेपछि ठ्याक्कै १ हप्ता मात्र दिने (वातावरण परिवर्तनको तनावबाट बचाउन)" },
+            { name: "एन्टिबायोटिक (टी-सल्फा)", amount: "१kg", desc: "छोटो समय: खोर सारेपछि ठ्याक्कै १ हप्ता मात्र दिने (वातावरण परिवर्तनको तनावबाट बचाउन)" },
             { name: "माछाको धुलो", amount: "२kg", desc: "सधैं: तीव्र वृद्धिको लागि प्रोटिनको आधार" },
             { name: "जुकाको औषधि", amount: "२kg", desc: "छोटो समय: सारेपछि ठ्याक्कै १ हप्ता मात्र दिने (कलेजो खराब हुनबाट बचाउन)" }
           ],
@@ -293,6 +296,7 @@
           target: "हड्डीको पूर्ण विकास र मासु लाग्न मद्दत गर्ने",
           type: "सधैं दिने (प्रति टन दानामा)",
           items: [
+            { name: "माल्गुन नोङजाङ", amount: "१kg", desc: "पाचन र रोग प्रतिरोधात्मक क्षमता बढाउने" },
             { name: "स्पेसल प्लस", amount: "२kg", desc: "भिटामिन/मिनरल दिने र पछिल्लो चरणको वृद्धिको तनाव कम गर्ने" }
           ]
         },
@@ -301,10 +305,10 @@
           target: "मासुको मात्रा अधिकतम बढाउने, बजार पठाउने दिन घटाउने",
           type: "सधैं दिने (प्रति टन दानामा)",
           items: [
-            { name: "स्पेसल प्लस", amount: "२kg", desc: "ल्याक्टोपासन पाचन तनाव कम गर्ने" },
-            { name: "ल्याक्टोपासन", amount: "०.५kg", desc: "मासुको मात्रा अधिकतम बढाउने (बजार पठाउनुभन्दा करिब ४ हप्ता अघि लगातार दिने)" }
+            { name: "ल्याक्टोपासन", amount: "०.५kg", desc: "मासुको मात्रा अधिकतम बढाउने (बजार पठाउनुभन्दा करिब ४ हप्ता अघि लगातार दिने)" },
+            { name: "स्पेसल प्लस", amount: "२kg", desc: "ल्याक्टोपासन पाचन तनाव कम गर्ने" }
           ],
-          alert: "प्रजनन् गर्ने सुँगुर (माउ, भाले, पाठापाठी) लाई ल्याक्टोपासन कहिल्यै नखुवाउनुहोस्।"
+          alert: "🚫 [निषेध] प्रजनन् गर्ने सुँगुर (माउ, भाले, पाठापाठी) लाई ल्याक्टोपासन कहिल्यै नखुवाउनुहोस्।\n\n⚠️ [सावधानी] माल्गुन नोङजाङ र ल्याक्टोपासन एकैसाथ नखुवाउनुहोस्।"
         }
       ]
     };
@@ -333,6 +337,78 @@
     function App() {
       const [activeTab, setActiveTab] = useState('feed');
       const [lang, setLang] = useState('ko'); // 언어 상태 (ko 또는 ne)
+      const [updateDate, setUpdateDate] = useState('2026. 08. 30');
+      const [userId, setUserId] = useState(null);
+      const [syncStatus, setSyncStatus] = useState('');
+
+      // 클라우드 연동 (최종 업데이트 날짜 동기화)
+      useEffect(() => {
+        let unsubscribe;
+
+        const initCloudSync = async () => {
+          if (window.firebaseInitPromise) {
+            const fb = await window.firebaseInitPromise;
+            if (fb) {
+              try {
+                const { auth, signInAnonymously, signInWithCustomToken, db, doc, onSnapshot, appId } = fb;
+                
+                if (typeof __initial_auth_token !== 'undefined') {
+                  await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                  await signInAnonymously(auth);
+                }
+                setUserId(auth.currentUser.uid);
+                
+                // 공용 세팅 문서 구독
+                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'shared');
+                unsubscribe = onSnapshot(docRef, (docSnap) => {
+                  if (docSnap.exists() && docSnap.data().updateDate) {
+                    setUpdateDate(docSnap.data().updateDate);
+                  }
+                }, (error) => console.error("업데이트 날짜 동기화 오류:", error));
+                
+                return;
+              } catch (err) {
+                console.error("클라우드 연결 실패:", err);
+              }
+            }
+          }
+          // 클라우드 오프라인 시 로컬 스토리지 데이터 불러오기 (Fallback)
+          const savedDate = localStorage.getItem('sungam_updateDate');
+          if (savedDate) setUpdateDate(savedDate);
+        };
+        
+        initCloudSync();
+        
+        return () => { if (unsubscribe) unsubscribe(); };
+      }, []);
+
+      // 입력 중: 상태 변경 및 로컬 스토리지 즉시 저장
+      const handleDateChange = (e) => {
+        setUpdateDate(e.target.value);
+        localStorage.setItem('sungam_updateDate', e.target.value);
+      };
+
+      // 커서 벗어날 때(onBlur): 클라우드에 최종 저장
+      const handleDateBlur = async () => {
+        if (!userId) return; // 클라우드 미연결 시 로컬 스토리지에만 보존됨
+        
+        setSyncStatus('저장 중...');
+        try {
+          const fb = await window.firebaseInitPromise;
+          if (fb) {
+            const { db, doc, setDoc, appId } = fb;
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'shared');
+            await setDoc(docRef, { updateDate }, { merge: true });
+            
+            setSyncStatus('저장 완료');
+            setTimeout(() => setSyncStatus(''), 2000); // 2초 후 메시지 지움
+          }
+        } catch (e) {
+          console.error("클라우드 저장 실패", e);
+          setSyncStatus('저장 실패');
+        }
+      };
 
       // 현재 선택된 언어에 맞는 데이터 불러오기
       const t = uiText[lang];
@@ -346,7 +422,18 @@
               <h1 className="text-2xl font-bold flex items-center gap-2">
                 <Wheat /> {t.title}
               </h1>
-              <p className="text-blue-200 text-sm mt-1">{t.updated}</p>
+              <div className="text-blue-200 text-sm mt-1 flex items-center gap-2">
+                <span>{t.updateLabel}</span>
+                <input 
+                  type="text" 
+                  value={updateDate} 
+                  onChange={handleDateChange} 
+                  onBlur={handleDateBlur}
+                  className="bg-transparent border-b border-blue-500/50 hover:border-blue-300 focus:border-white focus:outline-none text-white px-1 py-0.5 w-32 transition-colors placeholder-blue-400"
+                  placeholder="날짜 직접 입력"
+                />
+                {syncStatus && <span className="text-xs bg-blue-900 text-blue-100 px-2 py-0.5 rounded-full">{syncStatus}</span>}
+              </div>
             </div>
             
             {/* 언어 전환 버튼 */}
@@ -411,9 +498,9 @@
                       </ul>
 
                       {stage.alert && (
-                        <div className="mt-4 bg-red-50 text-red-700 p-3 rounded-lg flex items-start gap-2 text-sm">
-                          <div className="mt-0.5"><AlertTriangle /></div>
-                          <p className="font-medium">{stage.alert}</p>
+                        <div className="mt-4 bg-red-100 text-red-700 p-3 rounded-lg flex items-start gap-2 text-sm border-2 border-red-300 shadow-sm">
+                          <div className="mt-0.5 text-red-600"><AlertTriangle /></div>
+                          <p className="font-bold whitespace-pre-line leading-relaxed text-red-800 tracking-wide">{stage.alert}</p>
                         </div>
                       )}
                     </div>
