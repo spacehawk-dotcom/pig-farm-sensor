@@ -43,7 +43,7 @@
 
     <div class="flex flex-col md:flex-row min-h-screen">
         
-        <!-- Sidebar (기존 좌측 숨김 처리) -->
+        <!-- Sidebar -->
         <div class="hidden w-full md:w-80 bg-white border-b md:border-r border-slate-200 p-4 sm:p-6 flex flex-col gap-4 sm:gap-6 shadow-sm z-20 md:h-screen md:overflow-y-auto shrink-0" style="display: none !important;">
             <div>
                 <h1 class="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
@@ -351,7 +351,7 @@
                 <div class="glass-panel p-3 sm:p-5 rounded-xl mt-2 border-t-4 border-t-indigo-400">
                     <div class="mb-4">
                         <h3 class="text-sm sm:text-lg font-bold text-slate-800">💨 온도별 총 환기량(CMH) 누적 시뮬레이션</h3>
-                        <p class="text-[10px] sm:text-sm text-slate-500">온도 변화에 따라 밖으로 배출되는 실제 공기의 총량($m^3/h$)입니다.</p>
+                        <p class="text-[10px] sm:text-sm text-slate-500">온도 변화에 따라 밖으로 배출되는 실제 공기의 총량(m³/h)입니다.</p>
                     </div>
                     <div class="w-full h-64 sm:h-80 relative bg-white rounded-lg p-2 border border-slate-100">
                         <canvas id="cmhChart"></canvas>
@@ -418,7 +418,6 @@
         window.handleInlineTempChange = (batchKey, val, inputElem) => {
             const numVal = val ? Number(val) : null;
             
-            // 1. 인메모리 업데이트
             if (numVal !== null) {
                 customBaseTemps[batchKey] = numVal;
             } else {
@@ -427,7 +426,6 @@
             
             clearTimeout(inlineTypingTimer);
             inlineTypingTimer = setTimeout(async () => {
-                // 2. UI 렌더링 및 포커스 복원
                 renderAllBatchesSummary(); 
                 
                 setTimeout(() => {
@@ -444,21 +442,17 @@
                     document.getElementById('btn_analyze').click();
                 }
 
-                // 3. 파이어베이스(Firestore) 클라우드 영구 저장 (동기화)
                 try {
-                    const separator = batchKey.indexOf('_');
-                    const type = batchKey.slice(0, separator);
-                    const docId = batchKey.slice(separator + 1);
+                    const [type, docId] = batchKey.split('_');
                     if (type === '육성사' && db) {
                         const docRef = doc(db, 'farms/sungamfarm/grower', docId);
-                        // val이 없으면 null로 저장하여 자동 산출 모드로 복귀
                         await updateDoc(docRef, { custom_vent_temp: numVal !== null ? numVal : null });
                         console.log(`✅ ${docId}번 배치 수동 온도(${numVal}) 클라우드 저장 완료`);
                     }
                 } catch (e) {
                     console.error("❌ Firestore 동기화 실패:", e);
                 }
-            }, 800); 
+            }, 500); 
         };
 
         function showModal(title, message) {
@@ -479,12 +473,10 @@
 
         const parseDate = (val) => {
             if (!val) return null;
-            if (val instanceof Date) return new Date(val.getTime());
             if (typeof val === 'object' && val.toDate) return val.toDate();
             if (typeof val === 'object' && val.seconds) return new Date(val.seconds * 1000); 
             
             let dStr = String(val).trim();
-            
             let match = dStr.match(/(20\d{2}|\d{2})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/);
             if (match) {
                 let year = parseInt(match[1], 10);
@@ -515,7 +507,7 @@
 
             let rawStockDate = null;
             if (type === '육성사') {
-                rawStockDate = data.date || getFirstValidDate(data.penDates) || data.moveDate || data.inDate || data.stockDate || data.startDate || null;
+                rawStockDate = data.date || getFirstValidDate(data.penDates) || data.moveDate || data.inDate || data.stockDate || data.startDate || data.growerInDate || null;
             } else {
                 rawStockDate = getFirstValidDate(data.penDates) || data.date || data.moveDate || data.inDate || null;
             }
@@ -530,7 +522,6 @@
                 }
             }
 
-            // 모든 가능한 일령 변수명 탐색
             const ageKeys = ['avgAge', 'averageAge', 'currentAge', 'age'];
             for (const key of ageKeys) {
                 if (data[key] !== undefined && data[key] !== null && String(data[key]).trim() !== '') {
@@ -540,7 +531,6 @@
                 }
             }
 
-            // 만약 일령 데이터가 없고 출생일(birthDate)이 있다면 역산
             if (age === null && data.birthDate) {
                 const bDate = parseDate(data.birthDate);
                 if (bDate) {
@@ -551,7 +541,6 @@
                 }
             }
 
-            // 과거 추정 방식 복구 (데이터가 아예 없는 경우)
             if (age === null) {
                 let baseAge = (type === '육성사') ? 70 : 28;
                 let targetDateStr = null;
@@ -577,7 +566,7 @@
             }
 
             if (age === null || isNaN(age) || age <= 0) {
-                age = 30; // 최종 안전 장치 (기본값)
+                age = 30; 
                 sourceMsg = "데이터 없음 (기본 30일)"; 
             }
             
@@ -643,7 +632,6 @@
                 const { age, sourceMsg, diffDays, stockDiffDays } = calculatePigAge(data, type);
                 fetchedBatches[`${type}_${doc.id}`] = { type, id: doc.id, name, count, age, sourceMsg, diffDays, stockDiffDays };
                 
-                // Firestore에서 custom_vent_temp 읽어오기 (양방향 동기화)
                 if (data.custom_vent_temp !== undefined && data.custom_vent_temp !== null) {
                     customBaseTemps[`${type}_${doc.id}`] = Number(data.custom_vent_temp);
                 } else {
@@ -699,22 +687,19 @@
 
             let acclimatizationMsg = "";
 
-            // 단계적 온도 강하 (Step-down) 처리
             if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0) {
                 if (stockDiffDays <= 7) {
-                    t_500_1 += 2; // 입식 1주차
+                    t_500_1 += 2; 
                     acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 1주차 온도 보상 (+2℃)</strong>육성사 이동 후 <strong>${stockDiffDays === 0 ? '오늘(당일)' : stockDiffDays + '일차'}</strong>입니다. 이동 및 합사 스트레스 완화, 새로운 환경 적응을 위해 <strong>권장 온도를 2℃ 상향 조정</strong>했습니다.</li>`;
                 } else if (stockDiffDays <= 14) {
-                    t_500_1 += 1; // 입식 2주차
+                    t_500_1 += 1; 
                     acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 2주차 온도 보상 (+1℃)</strong>육성사 이동 후 <strong>${stockDiffDays}일차</strong>입니다. 1주차(+2℃)에 이어 점진적인 정상 온도 적응을 위해 <strong>권장 온도를 1℃ 상향 조정</strong>했습니다. (15일차부터 정상 복귀)</li>`;
                 }
             }
 
-            // --- 외기 온도 방어 로직 (48시간 내 20도 이하 감지 시 +1도 보상) ---
             let outdoorMsg = "";
             if (outdoorTempHistory && outdoorTempHistory.length > 0) {
-                // 분 단위 저장이라 가정 시 48시간 = 2880 데이터
-                const checkLength = Math.min(outdoorTempHistory.length, 2880);
+                const checkLength = Math.min(outdoorTempHistory.length, 2880); // 최근 48시간
                 const recentHist = outdoorTempHistory.slice(-checkLength);
                 const isCold = recentHist.some(t => t <= 20.0);
                 
@@ -724,7 +709,6 @@
                 }
             }
 
-            // 사용자가 수동으로 1그룹 온도를 입력한 경우 덮어쓰기 로직
             let manualMsg = "";
             if (manualBaseTemp !== null && !isNaN(manualBaseTemp)) {
                 if (t_500_1 !== manualBaseTemp) {
@@ -733,7 +717,6 @@
                 t_500_1 = Math.round(manualBaseTemp);
             }
 
-            // 72시간 센서 통계 기반 적응형 목표 온도 산출
             let adaptiveT = t_500_1;
             let adaptiveReason = `최근 72시간 동안 돈사 내 온도가 안정적으로 유지되었습니다. <strong>고정형 기준 온도(${t_500_1}℃)를 그대로 사용하시는 것을 추천합니다.</strong>`;
             
@@ -748,14 +731,11 @@
                 }
             }
 
-            // 각 단계별 온도 세팅 (1도 단위)
-            let t_500_2 = Math.max(24, Math.min(33, t_500_1 + 1));
-            let t_800_1 = age <= 50 ? t_500_2 + 2 : t_500_2 + 1;
-            t_800_1 = Math.max(25, Math.min(34, t_800_1));
-            let t_800_2 = age <= 50 ? t_800_1 + 2 : t_800_1 + 1;
-            t_800_2 = Math.max(26, Math.min(35, t_800_2));
+            // 1그룹 기준 고정 간격 적용 (나이에 따른 변동 제거)
+            let t_500_2 = Math.max(24, Math.min(33, t_500_1 + 1)); // 2그룹: +1도
+            let t_800_1 = Math.max(25, Math.min(34, t_500_1 + 2)); // 3그룹: +2도
+            let t_800_2 = Math.max(26, Math.min(35, t_500_1 + 5)); // 4그룹: +5도
 
-            // CMH 및 유속 계산 변수
             let width = 11.5, length = 28.0, height = 2.2, inletGapArea = 0.2 * 28;
             let fan_500_1_cap = 12000; 
             let fan_500_2_cap = 18000; 
@@ -773,9 +753,10 @@
             let baseMinVentCMH = weight * count * 0.5; 
             if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
 
-            // 환기율 계산
             let min_500_1 = Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)); 
-            let diff_500_1 = 2, diff_500_2 = 2, diff_800_1 = 2, diff_800_2 = 2;
+            
+            // 그룹별 온도편차(P-Band) 수정 사항 적용 완료
+            let diff_500_1 = 2, diff_500_2 = 3, diff_800_1 = 4, diff_800_2 = 2; 
             let max_800_2 = Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))); 
 
             let historyMsg = "";
@@ -808,7 +789,7 @@
             let adaptiveShift = adaptiveT - Math.round(t_500_1);
             let adapt_t2 = roomType === '이유사' ? 0 : Math.max(24, Math.round(t_500_2) + adaptiveShift);
             let adapt_t3 = roomType === '이유사' ? 0 : Math.max(25, Math.round(t_800_1) + adaptiveShift);
-            let adapt_t4 = roomType === '이유사' ? 0 : Math.max(26, Math.round(t_800_2) + adaptiveShift);
+            let adapt_t4 = roomType === '이유사' ? 0 : Math.max(27, Math.round(t_800_2) + adaptiveShift);
 
             return {
                 f500_1: { t: Math.round(t_500_1), min: Math.round(min_500_1), max: 100, diff: diff_500_1 },
@@ -862,7 +843,6 @@
                     historyStats = { avg: sum / histArr.length, max, min, count: histArr.length };
                 }
 
-                // 표에서 수동 입력된 값이 있으면 적용 (customBaseTemps)
                 const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, outTempHist, customBaseTemps[key] || null);
 
                 let g2Html = '', g3Html = '', g4Html = '';
@@ -999,6 +979,103 @@
             return opt.min + ((opt.max - opt.min) / opt.diff) * (temp - opt.t);
         }
 
+        // 분리된 UI 업데이트 및 차트 그리기 로직
+        document.getElementById('btn_analyze').addEventListener('click', () => {
+            if (!currentSelectedBatchId) {
+                showModal('알림', '배치를 먼저 선택해주세요.');
+                return;
+            }
+            
+            const batch = fetchedBatches[currentSelectedBatchId];
+            const age = Number(document.getElementById('pig_age').value) || batch.age;
+            const weight = Number(document.getElementById('avg_weight').value) || calculateWeight(age);
+            const count = Number(document.getElementById('pig_count').value) || batch.count;
+            
+            const numMatch = batch.name.match(/\d+/) || batch.id.match(/\d+/);
+            const batchNum = numMatch ? numMatch[0] : '';
+            const prefix = (batch.type === '이유사') ? '이유' : '육성';
+            const exactSensorKey = `${prefix}_${batchNum}배치`;
+            
+            let historyStats = null;
+            const histArr = sensorHistoryMap[exactSensorKey];
+            if (histArr && histArr.length > 0) {
+                const max = Math.max(...histArr); const min = Math.min(...histArr);
+                const sum = histArr.reduce((a, b) => a + b, 0);
+                historyStats = { avg: sum / histArr.length, max, min, count: histArr.length };
+            }
+
+            let outTempHist = sensorHistoryMap['외부온도'] || [];
+            const manualBaseTemp = document.getElementById('base_temp_input').value ? Number(document.getElementById('base_temp_input').value) : null;
+            
+            const opt = calculateOptimalSettings(age, weight, count, historyStats, batch.type, batch.stockDiffDays, outTempHist, manualBaseTemp);
+            
+            document.getElementById('empty_state').classList.add('hidden');
+            document.getElementById('results_container').classList.remove('hidden');
+            document.getElementById('results_container').classList.add('flex');
+            
+            document.getElementById('ui_base_t_1').textContent = opt.f500_1.t + '℃';
+            document.getElementById('ui_t_1').textContent = opt.adapt.t1;
+            document.getElementById('ui_min_1').textContent = opt.f500_1.min;
+            document.getElementById('ui_p_1').textContent = opt.f500_1.diff;
+            
+            document.getElementById('ui_base_t_2').textContent = opt.f500_2.t + '℃';
+            document.getElementById('ui_t_2').textContent = opt.adapt.t2;
+            document.getElementById('ui_p_2').textContent = opt.f500_2.diff;
+            
+            document.getElementById('ui_base_t_3').textContent = opt.f800_1.t + '℃';
+            document.getElementById('ui_t_3').textContent = opt.adapt.t3;
+            document.getElementById('ui_p_3').textContent = opt.f800_1.diff;
+            
+            document.getElementById('ui_base_t_4').textContent = opt.f800_2.t + '℃';
+            document.getElementById('ui_t_4').textContent = opt.adapt.t4;
+            document.getElementById('ui_max_4').textContent = opt.f800_2.max;
+            document.getElementById('ui_p_4').textContent = opt.f800_2.diff;
+            
+            document.getElementById('res_fixed_temp').textContent = opt.f500_1.t;
+            document.getElementById('res_adaptive_temp').textContent = opt.adaptiveT;
+            document.getElementById('adaptive_reason').innerHTML = opt.adaptiveReason;
+            
+            document.getElementById('res_volume').textContent = opt.volume.toFixed(1);
+            document.getElementById('res_inlet_vel').textContent = opt.inletMaxVel.toFixed(2);
+            document.getElementById('res_min_vel').textContent = opt.minVel.toFixed(2);
+            document.getElementById('res_max_vel').textContent = opt.maxVel.toFixed(2);
+            
+            const velWarning = document.getElementById('vel_warning');
+            if (opt.maxVel > opt.optMaxVel) {
+                velWarning.textContent = `권장(${opt.optMaxVel}m/s) 초과`;
+                velWarning.className = "absolute bottom-2 right-2 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 block";
+            } else {
+                velWarning.textContent = '적정';
+                velWarning.className = "absolute bottom-2 right-2 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-100 text-green-700 block";
+            }
+            
+            const g2 = document.getElementById('group2_panel');
+            const g3 = document.getElementById('group3_panel');
+            const g4 = document.getElementById('group4_panel');
+            if (opt.roomType === '이유사') {
+                g2.style.display = 'none'; g3.style.display = 'none'; g4.style.display = 'none';
+            } else {
+                g2.style.display = 'flex'; g3.style.display = 'flex'; g4.style.display = 'flex';
+            }
+            
+            let expHtml = opt.historyMsg || "";
+            expHtml += `<li><strong>1그룹 (고정 ${opt.f500_1.t}℃ / 72h ${opt.adapt.t1}℃)</strong>: 돈사 체적(${opt.volume.toFixed(0)}㎥)과 현재 돼지 체중을 고려해 야간에도 최소 <strong>${opt.f500_1.min}%</strong> 가동하여 산소를 공급합니다. (온도 편차 ${opt.f500_1.diff}℃)</li>`;
+            if (opt.roomType !== '이유사') {
+                expHtml += `<li><strong>2그룹 (고정 ${opt.f500_2.t}℃ / 72h ${opt.adapt.t2}℃)</strong>: 온도가 오르면 800휀이 돌기 전 500휀 3대가 부드럽게 개입하여 온도 상승을 완충합니다.</li>`;
+                expHtml += `<li><strong>3그룹 (고정 ${opt.f800_1.t}℃ / 72h ${opt.adapt.t3}℃)</strong>: 더위가 심해질 때 800휀 2대가 1차로 개입합니다. (급격한 온도 하락 방지를 위해 <strong>편차 ${opt.f800_1.diff}℃ 적용</strong>)</li>`;
+                expHtml += `<li><strong>4그룹 (고정 ${opt.f800_2.t}℃ / 72h ${opt.adapt.t4}℃)</strong>: 폭염 시 800휀 2대가 추가로 돕니다. 단, 지나친 샛바람 방지를 위해 최대 가동률을 <strong>${opt.f800_2.max}%</strong>로 제한합니다. (<strong>편차 ${opt.f800_2.diff}℃ 적용</strong>)</li>`;
+            }
+            document.getElementById('res_explanation').innerHTML = expHtml;
+            
+            let sourceHtml = `<strong>[데이터 기준]</strong> ${batch.type} ${batch.name} | ${age}일령 | ${weight}kg | ${count}두<br>`;
+            sourceHtml += `* 일령 산출 근거: ${batch.sourceMsg}`;
+            if (batch.stockDiffDays !== null) sourceHtml += ` (현재 해당 돈사 입식 ${batch.stockDiffDays}일차)`;
+            if (historyStats) sourceHtml += `<br>* 72시간 센서 통계: 평균 ${historyStats.avg.toFixed(1)}℃, 최고 ${historyStats.max.toFixed(1)}℃, 최저 ${historyStats.min.toFixed(1)}℃`;
+            document.getElementById('analysis_source_info').innerHTML = sourceHtml;
+            
+            drawCharts(opt);
+        });
+
         function drawCharts(opt) {
             const ctxVent = document.getElementById('ventChart').getContext('2d');
             const ctxCmh = document.getElementById('cmhChart').getContext('2d');
@@ -1031,266 +1108,45 @@
                     datasets: [
                         { label: '1그룹 (500x2)', data: d500_1, borderColor: '#3b82f6', backgroundColor: '#3b82f6', borderWidth: 2, pointRadius: 0, tension: 0.1 },
                         { label: '2그룹 (500x3)', data: d500_2, borderColor: '#14b8a6', backgroundColor: '#14b8a6', borderWidth: 2, pointRadius: 0, tension: 0.1 },
-                        { label: '3그룹 (800x2)', data: d800_1, borderColor: '#f97316', backgroundColor: '#f97316', borderWidth: 2, pointRadius: 0, borderDash: [5, 5], tension: 0.1 },
+                        { label: '3그룹 (800x2)', data: d800_1, borderColor: '#f97316', backgroundColor: '#f97316', borderWidth: 2, pointRadius: 0, tension: 0.1 },
                         { label: '4그룹 (800x2)', data: d800_2, borderColor: '#f43f5e', backgroundColor: '#f43f5e', borderWidth: 2, pointRadius: 0, tension: 0.1 }
                     ]
                 },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: { position: isMobile ? 'bottom' : 'top', labels: { boxWidth: 12, font: { size: 10 } } } },
-                    scales: { 
-                        y: { max: 100, title: { display: !isMobile, text: '가동률(%)', font: { size: 10 } }, ticks: { font: { size: 9 } } },
-                        x: { ticks: { maxTicksLimit: 10, font: { size: 9 } } }
-                    }
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, max: 100, title: { display: !isMobile, text: '가동률 (%)' } } },
+                    interaction: { mode: 'index', intersect: false }
                 }
             });
 
             cmhChartInstance = new Chart(ctxCmh, {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels: labels,
-                    datasets: [{ label: '총 배출 환기량 (CMH)', data: dCmh, borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', borderWidth: 2, fill: true, pointRadius: 0, tension: 0.3 }]
+                    datasets: [{ label: '총 환기량 (CMH)', data: dCmh, backgroundColor: '#8b5cf6', borderRadius: 4 }]
                 },
-                options: { 
-                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    plugins: { legend: { display: false } },
-                    scales: { 
-                        y: { beginAtZero: true, title: { display: !isMobile, text: '환기량(CMH)', font: { size: 10 } }, ticks: { font: { size: 9 } } },
-                        x: { ticks: { maxTicksLimit: 10, font: { size: 9 } } }
-                    }
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { beginAtZero: true, title: { display: !isMobile, text: '환기량 (m³/h)' } } }
                 }
             });
         }
 
-        document.getElementById('btn_analyze').addEventListener('click', () => {
-            const age = Number(document.getElementById('pig_age').value);
-            const count = Number(document.getElementById('pig_count').value);
-            const weight = Number(document.getElementById('avg_weight').value);
-            
-            const manualBaseTempStr = document.getElementById('base_temp_input').value;
-            const manualBaseTemp = manualBaseTempStr ? Number(manualBaseTempStr) : null;
-            
-            if (!age || !count || !weight) return showModal("오류", "일령, 사육 두수, 체중을 확인하세요.");
-
-            let historyStats = null;
-            let currentRoomType = '육성사';
-            let stockDiffDays = null;
-            let outTempHist = sensorHistoryMap['외부온도'] || [];
-
-            if (currentSelectedBatchId && fetchedBatches[currentSelectedBatchId]) {
-                const batch = fetchedBatches[currentSelectedBatchId];
-                currentRoomType = batch.type; 
-                stockDiffDays = batch.stockDiffDays; 
-                
-                const numMatch = batch.name.match(/\d+/) || batch.id.match(/\d+/);
-                const exactSensorKey = (batch.type === '이유사' ? '이유' : '육성') + '_' + (numMatch ? numMatch[0] : '') + '배치';
-                
-                const histArr = sensorHistoryMap[exactSensorKey];
-                if (histArr && histArr.length > 0) {
-                    const max = Math.max(...histArr); const min = Math.min(...histArr);
-                    const sum = histArr.reduce((a, b) => a + b, 0);
-                    historyStats = { avg: sum / histArr.length, max, min, count: histArr.length };
-                }
-            }
-
-            const opt = calculateOptimalSettings(age, weight, count, historyStats, currentRoomType, stockDiffDays, outTempHist, manualBaseTemp);
-
-            document.getElementById('res_fixed_temp').textContent = opt.f500_1.t;
-            document.getElementById('res_adaptive_temp').textContent = opt.adaptiveT;
-            document.getElementById('adaptive_reason').innerHTML = opt.adaptiveReason;
-
-            document.getElementById('ui_base_t_1').textContent = opt.f500_1.t + '℃';
-            document.getElementById('ui_t_1').textContent = opt.adapt.t1;
-            document.getElementById('ui_min_1').textContent = opt.f500_1.min;
-            document.getElementById('ui_p_1').textContent = opt.f500_1.diff;
-
-            const g2 = document.getElementById('group2_panel');
-            const g3 = document.getElementById('group3_panel');
-            const g4 = document.getElementById('group4_panel');
-
-            if (opt.roomType === '이유사') {
-                g2.style.display = 'none'; g3.style.display = 'none'; g4.style.display = 'none';
-            } else {
-                g2.style.display = 'flex'; g3.style.display = 'flex'; g4.style.display = 'flex';
-                document.getElementById('ui_base_t_2').textContent = opt.f500_2.t + '℃';
-                document.getElementById('ui_t_2').textContent = opt.adapt.t2;
-                document.getElementById('ui_p_2').textContent = opt.f500_2.diff;
-                
-                document.getElementById('ui_base_t_3').textContent = opt.f800_1.t + '℃';
-                document.getElementById('ui_t_3').textContent = opt.adapt.t3;
-                document.getElementById('ui_p_3').textContent = opt.f800_1.diff;
-                
-                document.getElementById('ui_base_t_4').textContent = opt.f800_2.t + '℃';
-                document.getElementById('ui_t_4').textContent = opt.adapt.t4;
-                document.getElementById('ui_p_4').textContent = opt.f800_2.diff; 
-                document.getElementById('ui_max_4').textContent = opt.f800_2.max;
-            }
-
-            document.getElementById('res_volume').textContent = opt.volume.toFixed(1);
-            document.getElementById('res_inlet_vel').textContent = opt.roomType === '이유사' ? '덕트' : opt.inletMaxVel.toFixed(2);
-            document.getElementById('res_min_vel').textContent = opt.minVel.toFixed(2);
-            document.getElementById('res_max_vel').textContent = opt.maxVel.toFixed(2);
-
-            const velWarning = document.getElementById('vel_warning');
-            velWarning.className = "absolute bottom-2 right-2 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded block";
-            let velStatusText = "";
-            
-            if (opt.maxVel > opt.optMaxVel + 0.3) { velWarning.textContent = '유속 빠름'; velWarning.classList.add('bg-rose-100', 'text-rose-700'); velStatusText = `<span class="text-rose-600 font-semibold">유속 빠름 (호흡기 주의)</span>`; } 
-            else if (opt.maxVel < opt.optMaxVel - 0.5) { velWarning.textContent = '유속 부족'; velWarning.classList.add('bg-yellow-100', 'text-yellow-700'); velStatusText = `<span class="text-yellow-600 font-semibold">유속 부족 (열사병 주의)</span>`; } 
-            else { velWarning.textContent = '적정 유속'; velWarning.classList.add('bg-green-100', 'text-green-700'); velStatusText = `<span class="text-green-600 font-semibold">적정 유속</span>`; }
-
-            let guideHtml = (opt.historyMsg || "") + `
-                <li><strong class="text-blue-600">제1그룹 (500휀 2대 상시):</strong> 최저 환기를 전담하며 야간과 환절기 호흡을 위한 산소를 공급합니다. (일일 고정 설정 기준: ${opt.f500_1.t}℃)</li>`;
-            
-            if (opt.roomType !== '이유사') {
-                guideHtml += `
-                <li><strong class="text-teal-600">제2그룹 (500휀 3대 완충):</strong> 온도가 오를 때 서서히 개입하여 대형 휀(800)이 돌기 전 충격을 완화합니다.</li>
-                <li><strong class="text-orange-600">제3그룹 (800휀 2대 1차):</strong> 주간 고온 발생 시 강력한 배기를 시작하여 열 축적을 막습니다.</li>
-                <li><strong class="text-rose-600">제4그룹 (800휀 2대 극한):</strong> 폭염 시 극한 개입하며, 어린 돼지가 열사병보다 강풍에 피해를 보지 않도록 최대 가동률이 ${opt.f800_2.max}%로 제한됩니다.</li>`;
-            }
-            guideHtml += `<li><strong class="text-indigo-600">유속 평가:</strong> 계산된 최대 체감 유속은 ${opt.maxVel.toFixed(2)}m/s로 현재 일령에 <strong>${velStatusText}</strong> 수준입니다.</li>`;
-            
-            const tempEl = document.getElementById('current-indoor-temp');
-            const indoorTempText = tempEl.textContent;
-            const currentTempNum = parseFloat(indoorTempText) || 0;
-            const maxTemp = (historyStats && historyStats.max) ? historyStats.max : currentTempNum;
-
-            let fogEvapMsg = opt.maxVel >= 1.0 ? 
-                `<span class="text-teal-700 font-semibold">현재 산출된 최대 유속(${opt.maxVel.toFixed(2)}m/s)은 증발 냉각을 촉진시키기에 충분한 조건입니다.</span>` : 
-                `<span class="text-rose-600 font-semibold">주의: 최대 유속(${opt.maxVel.toFixed(2)}m/s)이 다소 낮아 수분이 덜 증발하고 습도가 정체될 위험이 있습니다. 최대 환기량을 점검하세요.</span>`;
-
-            let fogStatusText = "";
-            if (currentTempNum >= 30 || maxTemp >= 30) {
-                fogStatusText = `
-                    <li class="bg-teal-50 p-4 rounded-lg border border-teal-200 mt-3 list-none shadow-sm">
-                        <strong class="text-teal-800 flex items-center gap-1 mb-2"><span class="text-lg">💦</span> 안개분무 연동 분석 (현재 30℃ 이상)</strong>
-                        <p class="text-xs sm:text-sm text-teal-900 leading-relaxed">
-                            현재 돈사 최고 온도가 30℃를 초과하여 <strong>'1시간당 5분 안개분무'</strong>가 작동하는 위험 구역입니다.<br>
-                            안개분무는 기화열로 온도를 낮추지만 내부 습도(불쾌지수)를 급상승시키므로, 분무 가동 시점에는 반드시 <strong>800휀이 강력한 환기</strong>로 개입하여 고온다습한 공기를 즉각 배출해야 열사병을 막을 수 있습니다.<br>
-                            ${fogEvapMsg}
-                        </p>
-                    </li>
-                `;
-            } else {
-                fogStatusText = `
-                    <li class="bg-slate-50 p-4 rounded-lg border border-slate-200 mt-3 list-none shadow-sm">
-                        <strong class="text-slate-700 flex items-center gap-1 mb-2"><span class="text-lg opacity-70">💦</span> 안개분무 시스템 대기 (30℃ 이상 개입 조건)</strong>
-                        <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
-                            온도가 30℃에 도달하면 '1시간당 5분' 안개분무가 가동되도록 설정되어 있습니다. 기화열 냉각은 강력하지만 습도를 급증시키므로, 30℃ 도달 시 800휀이 충분한 풍량으로 개입하도록 미리 점검하세요.<br> 
-                            (현재 최대 환기 도달 시 유속 평가: ${fogEvapMsg})
-                        </p>
-                    </li>
-                `;
-            }
-
-            let inletMsg = "";
-            if (opt.roomType === '이유사') {
-                inletMsg = `
-                    <li class="bg-indigo-50 p-4 rounded-lg border border-indigo-200 mt-3 list-none shadow-sm">
-                        <strong class="text-indigo-800 flex items-center gap-1 mb-2"><span class="text-lg">🌬️</span> 천장 입기 덕트 구조 분석 (이유사)</strong>
-                        <p class="text-xs sm:text-sm text-indigo-900 leading-relaxed mb-2">
-                            이유사는 <strong>'천장 덕트 입기'</strong> 방식을 사용하여 공기가 지붕 공간에서 예열된 후 돈사 내부로 하향 유입됩니다.
-                        </p>
-                        <ul class="list-disc pl-5 space-y-1.5 text-xs text-indigo-800 mb-3">
-                            <li><strong>돈사 규격:</strong> 체적 ${opt.volume.toFixed(1)}㎥</li>
-                            <li><strong>입기 특성:</strong> 상부 덕트를 통한 확산 입기</li>
-                        </ul>
-                        <div class="p-3 bg-white/70 rounded border border-indigo-100 text-[11px] sm:text-[13px] text-indigo-900 leading-relaxed">
-                            <span class="text-rose-600 font-semibold block mb-1">⚠️ 환절기/동절기 덕트 입기 주의:</span>
-                            야간 최소 환기 시 배기휀(500휀) 가동률이 너무 낮아 음압이 약해지면, 덕트에서 공기를 넓게 뿜어내지 못하고 찬 공기가 바닥으로 직행하는 <strong>'콜드 드롭(Cold Drop)'</strong> 현상이 발생하여 자돈에게 치명적입니다. 최소 환기 시에도 덕트 내부 정압이 유지되도록 주의하세요.
-                        </div>
-                    </li>
-                `;
-            } else {
-                inletMsg = `
-                    <li class="bg-indigo-50 p-4 rounded-lg border border-indigo-200 mt-3 list-none shadow-sm">
-                        <strong class="text-indigo-800 flex items-center gap-1 mb-2"><span class="text-lg">🌬️</span> 측벽 입기구 (자동 개폐 + 수동 높이 조절) 및 천막 구조 분석</strong>
-                        <p class="text-xs sm:text-sm text-indigo-900 leading-relaxed mb-2">
-                            외부 윈치커튼이 <strong>'자동 개폐'</strong>되면서도 최대 개방 높이를 <strong>'수동'</strong>으로 제한하는 방식은 정압 관리에 매우 실용적인 하이브리드 제어 방식입니다. 외부 윈치를 통과한 공기가 <strong>내부 천막 틈새(20cm)</strong>를 거쳐 지붕으로 쏘아 올려지는 구조는 샛바람을 막는 <strong>코안다(Coanda) 효과</strong>를 완벽히 유도합니다.
-                        </p>
-                        <ul class="list-disc pl-5 space-y-1.5 text-xs text-indigo-800 mb-3">
-                            <li><strong>내부 천막 입기 단면적:</strong> <strong>${opt.inletArea.toFixed(1)}㎡</strong></li>
-                            <li><strong>최대 가동 시 천막 통과 유속:</strong> <strong>${opt.inletMaxVel.toFixed(1)}m/s</strong> (지붕 중앙까지 도달하기 충분한 추진력)</li>
-                        </ul>
-                        <div class="p-3 bg-white/70 rounded border border-indigo-100 text-[11px] sm:text-[13px] text-indigo-900 leading-relaxed">
-                            <span class="text-rose-600 font-semibold block mb-1">⚠️ 환절기/동절기 수동 높이 조절(음압 확보) 주의:</span>
-                            자동 개폐기가 작동하더라도, 야간이나 환절기에 <strong>'수동 제한 높이'</strong>가 너무 크게 풀려있으면 윈치가 살짝만 열려도 찬 공기가 쏟아져 들어옵니다. 이 경우 음압이 깨져 바닥으로 직행(샛바람)하게 됩니다. <strong>계절과 일교차에 맞춰 수동 개방 한계를 좁게(예: 동절기 5~10cm) 조절하여 팽팽한 음압을 유지</strong>해주세요.
-                        </div>
-
-                        <div class="mt-4 border border-indigo-200 rounded overflow-hidden">
-                            <table class="w-full text-[10px] sm:text-xs text-center bg-white">
-                                <thead class="bg-indigo-100 text-indigo-800">
-                                    <tr>
-                                        <th class="py-2 px-1 font-semibold">구간 (상황/계절)</th>
-                                        <th class="py-2 px-1 font-semibold">실내 온도 기준</th>
-                                        <th class="py-2 px-1 font-semibold">윈치 수동 제한 높이 권장</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="divide-y divide-indigo-50 text-indigo-900">
-                                    <tr>
-                                        <td class="py-2 px-1 bg-blue-50/50">최소 환기 (야간/동절기)</td>
-                                        <td class="py-2 px-1 font-medium">${opt.adapt.t1}℃ 이하</td>
-                                        <td class="py-2 px-1 font-bold text-blue-700">5 ~ 10 cm</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="py-2 px-1">점진적 증가 (환절기 주간)</td>
-                                        <td class="py-2 px-1 font-medium">${opt.adapt.t1 + 1} ~ ${opt.adapt.t2}℃</td>
-                                        <td class="py-2 px-1 font-bold text-indigo-600">15 ~ 25 cm</td>
-                                    </tr>
-                                    <tr>
-                                        <td class="py-2 px-1 bg-rose-50/50">고온 개입 (여름철 주간)</td>
-                                        <td class="py-2 px-1 font-medium">${opt.adapt.t3}℃ 이상</td>
-                                        <td class="py-2 px-1 font-bold text-rose-600">30 ~ 40 cm (최대 개방)</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </li>
-                `;
-            }
-
-            guideHtml += inletMsg;
-            guideHtml += fogStatusText;
-            
-            document.getElementById('res_explanation').innerHTML = guideHtml;
-            document.getElementById('empty_state').classList.add('hidden');
-            document.getElementById('results_container').classList.remove('hidden');
-            document.getElementById('results_container').classList.add('flex');
-            
-            const now = new Date().toLocaleString('ko-KR');
-            let batchNameDisplay = currentSelectedBatchId && fetchedBatches[currentSelectedBatchId] ? `클라우드 연동: [${fetchedBatches[currentSelectedBatchId].type}] ${fetchedBatches[currentSelectedBatchId].name}` : "수동 입력 데이터";
-            document.getElementById('analysis_source_info').innerHTML = `
-                <div class="flex-1 w-full">
-                    <strong class="text-slate-800 text-[11px] sm:text-sm block mb-1">분석 기준 요약</strong>
-                    <p class="mb-2">${now} 기준 <strong>${batchNameDisplay}</strong> (생물학적 평균 일령: ${age}일, 체중: ${weight}kg) 데이터를 바탕으로 4단계 제어 알고리즘이 적용되었습니다.</p>
-                    <p class="text-[9px] sm:text-[10px] text-slate-500 mb-3 sm:mb-4">* 위 설정값은 매일 바꿀 필요 없이 <strong>주 1회</strong> 체중 증가에 맞춰 컨트롤러에 입력해주시면 됩니다. 아침/저녁 일교차는 설정된 4개의 그룹(단계)이 번갈아 개입하며 자동으로 방어합니다.</p>
-                    
-                    <div class="mt-3 pt-3 border-t border-slate-300/70 text-[9px] sm:text-[11px] text-slate-500 space-y-1.5 w-full">
-                        <strong class="text-slate-700 block mb-2 text-[10px] sm:text-xs flex items-center gap-1"><span>📚</span> 알고리즘 적용 공공·학술 기준</strong>
-                        <p class="leading-relaxed"><strong class="font-semibold text-slate-600">적정 설정 온도 및 기초 환기량:</strong> 농촌진흥청(국립축산과학원) '돼지 사육기상도 및 환경관리 지침', 농림축산식품부 '스마트 돈사 표준 모델' 기준 준용 (외기 온도 보상 기법 반영)</p>
-                        <p class="leading-relaxed"><strong class="font-semibold text-slate-600">최소/최대 환기 한계 및 정압 제어:</strong> 미국 중서부농업기술서비스(MWPS, MidWest Plan Service) 축사 환기 표준 및 코안다(Coanda) 효과 기반 측벽 입기 기류 역학 적용</p>
-                        <p class="leading-relaxed"><strong class="font-semibold text-slate-600">체감온도(Wind-Chill) 및 열 스트레스 보상:</strong> 돈사 단면적 기반 풍속 산출 모델 및 유속(0.5~2.2m/s) 한계 기준 적용</p>
-                    </div>
-                </div>
-            `;
-            
-            const chartOpt = JSON.parse(JSON.stringify(opt));
-            chartOpt.f500_1.t = opt.adapt.t1;
-            chartOpt.f500_2.t = opt.adapt.t2;
-            chartOpt.f800_1.t = opt.adapt.t3;
-            chartOpt.f800_2.t = opt.adapt.t4;
-            drawCharts(chartOpt);
-        });
-
+        // PDF 다운로드 기능
         document.getElementById('btn_pdf').addEventListener('click', () => {
             const element = document.getElementById('results_container');
-            const actionButtons = document.getElementById('action_buttons');
-            actionButtons.style.display = 'none';
-            const opt = { margin: [5, 5, 5, 5], filename: `환기분석_${new Date().toISOString().slice(0,10)}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 1.5, useCORS: true }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(element).save().then(() => { actionButtons.style.display = 'flex'; }).catch(err => { actionButtons.style.display = 'flex'; showModal("오류", "PDF 생성 실패"); });
+            const opt = {
+                margin:       10,
+                filename:     `환기최적화_${new Date().toISOString().slice(0,10)}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
         });
 
-        window.addEventListener('DOMContentLoaded', initFirebase);
+        // 파이어베이스 초기화 실행
+        initFirebase();
     </script>
 </body>
 </html>
