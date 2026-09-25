@@ -136,7 +136,7 @@
                                     <th class="p-2 border-b border-l border-slate-200 font-bold w-12 whitespace-nowrap">평균일령</th>
                                     <th class="p-2 border-b border-l border-slate-200 font-bold w-14 whitespace-nowrap">체중</th>
                                     <th class="p-2 border-b border-l border-slate-200 font-bold w-14 whitespace-nowrap">두수</th>
-                                    <th class="p-2 border-b border-l border-slate-200 font-bold w-14 whitespace-nowrap">온도</th>
+                                    <th class="p-2 border-b border-l border-slate-200 font-bold w-16 whitespace-nowrap">온도(편차)</th>
                                     <th class="p-2 border-b border-l border-blue-200 text-blue-800 bg-blue-50/80 font-bold">1그룹(500x2대)</th>
                                     <th class="p-2 border-b border-l border-teal-200 text-teal-800 bg-teal-50/80 font-bold">2그룹(500x3대)</th>
                                     <th class="p-2 border-b border-l border-orange-200 text-orange-800 bg-orange-50/80 font-bold">3그룹(800x2대)</th>
@@ -166,33 +166,6 @@
                     </div>
                 </div>
 
-                <!-- 72시간 온도 분석 비교 패널 -->
-                <div class="bg-purple-50/80 p-3 sm:p-5 rounded-xl border border-purple-100 shadow-sm mt-1">
-                    <h3 class="text-xs sm:text-sm font-bold text-purple-800 mb-3 flex items-center gap-2">
-                        <span class="bg-purple-100 p-1 sm:p-1.5 rounded-full text-[10px] sm:text-xs">⏱️</span> 72시간 센서 통계 기반 AI 권장 설정 (비교용)
-                    </h3>
-                    <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 items-start sm:items-center">
-                        <div class="flex-1 bg-white p-3 sm:p-4 rounded-lg border border-purple-100 flex items-center justify-between w-full shadow-sm">
-                            <span class="text-[10px] sm:text-xs text-slate-500 font-medium">일령/체중 기반 (고정)</span>
-                            <div class="flex items-end gap-1">
-                                <span class="text-xl sm:text-2xl font-bold text-slate-800" id="res_fixed_temp">--</span>
-                                <span class="text-xs sm:text-sm text-slate-500 mb-0.5 sm:mb-1">℃</span>
-                            </div>
-                        </div>
-                        <div class="text-purple-300 font-black text-lg hidden sm:block">VS</div>
-                        <div class="flex-1 bg-purple-100/50 p-3 sm:p-4 rounded-lg border border-purple-200 flex items-center justify-between w-full shadow-sm">
-                            <span class="text-[10px] sm:text-xs text-purple-800 font-bold">72h 환경 보정 (적응형)</span>
-                            <div class="flex items-end gap-1">
-                                <span class="text-xl sm:text-2xl font-bold text-purple-700" id="res_adaptive_temp">--</span>
-                                <span class="text-xs sm:text-sm text-purple-600 mb-0.5 sm:mb-1">℃</span>
-                            </div>
-                        </div>
-                    </div>
-                    <p id="adaptive_reason" class="text-[10px] sm:text-[11px] text-purple-700 mt-3 bg-white/60 p-2 sm:p-3 rounded border border-purple-100 leading-relaxed">
-                        분석 대기 중...
-                    </p>
-                </div>
-
                 <!-- 4단계 그리드 레이아웃 -->
                 <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                     
@@ -202,15 +175,9 @@
                             <span class="bg-blue-100 p-1.5 rounded-full text-xs">🌀</span> 1그룹 (500휀 2대 상시)
                         </h3>
                         <div class="space-y-3 flex-1">
-                            <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-purple-400">
-                                <div class="flex justify-between items-center mb-1 pb-1 border-b border-slate-50">
-                                    <span class="text-[10px] text-slate-400">일일 고정 기준</span>
-                                    <span class="text-[11px] font-bold text-slate-400" id="ui_base_t_1">--℃</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[11px] font-bold text-purple-700">72h 권장 온도</span>
-                                    <div class="flex items-end gap-1"><span class="text-xl font-black text-purple-700" id="ui_t_1">--</span><span class="text-[10px] text-purple-500 mb-0.5">℃</span></div>
-                                </div>
+                            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-blue-400 flex justify-between items-center">
+                                <span class="text-xs text-slate-500">기준 온도</span>
+                                <span class="text-xl font-bold text-blue-700" id="ui_base_t_1">--℃</span>
                             </div>
                             <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center">
                                 <span class="text-xs text-slate-500">최소 환기</span>
@@ -229,15 +196,9 @@
                             <span class="bg-teal-100 p-1.5 rounded-full text-xs">💨</span> 2그룹 (500휀 3대 완충)
                         </h3>
                         <div class="space-y-3 flex-1">
-                            <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-purple-400">
-                                <div class="flex justify-between items-center mb-1 pb-1 border-b border-slate-50">
-                                    <span class="text-[10px] text-slate-400">일일 고정 기준</span>
-                                    <span class="text-[11px] font-bold text-slate-400" id="ui_base_t_2">--℃</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[11px] font-bold text-purple-700">72h 권장 개입</span>
-                                    <div class="flex items-end gap-1"><span class="text-xl font-black text-purple-700" id="ui_t_2">--</span><span class="text-[10px] text-purple-500 mb-0.5">℃</span></div>
-                                </div>
+                            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-teal-400 flex justify-between items-center">
+                                <span class="text-xs text-slate-500">기준 온도</span>
+                                <span class="text-xl font-bold text-teal-700" id="ui_base_t_2">--℃</span>
                             </div>
                             <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center opacity-50">
                                 <span class="text-xs text-slate-500">최소 환기</span>
@@ -256,15 +217,9 @@
                             <span class="bg-orange-100 p-1.5 rounded-full text-xs">🌤️</span> 3그룹 (800휀 2대 1차)
                         </h3>
                         <div class="space-y-3 flex-1">
-                            <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-purple-400">
-                                <div class="flex justify-between items-center mb-1 pb-1 border-b border-slate-50">
-                                    <span class="text-[10px] text-slate-400">일일 고정 기준</span>
-                                    <span class="text-[11px] font-bold text-slate-400" id="ui_base_t_3">--℃</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[11px] font-bold text-purple-700">72h 권장 개입</span>
-                                    <div class="flex items-end gap-1"><span class="text-xl font-black text-purple-700" id="ui_t_3">--</span><span class="text-[10px] text-purple-500 mb-0.5">℃</span></div>
-                                </div>
+                            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-orange-400 flex justify-between items-center">
+                                <span class="text-xs text-slate-500">기준 온도</span>
+                                <span class="text-xl font-bold text-orange-700" id="ui_base_t_3">--℃</span>
                             </div>
                             <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center opacity-50">
                                 <span class="text-xs text-slate-500">최소 환기</span>
@@ -283,15 +238,9 @@
                             <span class="bg-rose-100 p-1.5 rounded-full text-xs">🔥</span> 4그룹 (800휀 2대 극한)
                         </h3>
                         <div class="space-y-3 flex-1">
-                            <div class="bg-white p-2.5 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-purple-400">
-                                <div class="flex justify-between items-center mb-1 pb-1 border-b border-slate-50">
-                                    <span class="text-[10px] text-slate-400">일일 고정 기준</span>
-                                    <span class="text-[11px] font-bold text-slate-400" id="ui_base_t_4">--℃</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-[11px] font-bold text-purple-700">72h 권장 개입</span>
-                                    <div class="flex items-end gap-1"><span class="text-xl font-black text-purple-700" id="ui_t_4">--</span><span class="text-[10px] text-purple-500 mb-0.5">℃</span></div>
-                                </div>
+                            <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-rose-400 flex justify-between items-center">
+                                <span class="text-xs text-slate-500">기준 온도</span>
+                                <span class="text-xl font-bold text-rose-700" id="ui_base_t_4">--℃</span>
                             </div>
                             <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm flex justify-between items-center border-l-4 border-l-rose-400">
                                 <span class="text-xs text-slate-500 font-bold">최대 제한</span>
@@ -341,7 +290,7 @@
                 <div class="glass-panel p-3 sm:p-5 rounded-xl mt-2">
                     <div class="mb-4">
                         <h3 class="text-sm sm:text-lg font-bold text-slate-800">📈 그룹별 환기 가동률(%) 시뮬레이션</h3>
-                        <p class="text-[10px] sm:text-sm text-slate-500">실내 온도 상승에 따라 각 그룹이 순차적으로 개입하는 형태입니다.</p>
+                        <p class="text-[10px] sm:text-sm text-slate-500">실내 온도를 1℃ 간격으로 표시하며, 온도 상승에 따라 각 그룹이 순차적으로 개입합니다.</p>
                     </div>
                     <div class="w-full h-64 sm:h-80 relative bg-white rounded-lg p-2 border border-slate-100">
                         <canvas id="ventChart"></canvas>
@@ -351,7 +300,7 @@
                 <div class="glass-panel p-3 sm:p-5 rounded-xl mt-2 border-t-4 border-t-indigo-400">
                     <div class="mb-4">
                         <h3 class="text-sm sm:text-lg font-bold text-slate-800">💨 온도별 총 환기량(CMH) 누적 시뮬레이션</h3>
-                        <p class="text-[10px] sm:text-sm text-slate-500">온도 변화에 따라 밖으로 배출되는 실제 공기의 총량(m³/h)입니다.</p>
+                        <p class="text-[10px] sm:text-sm text-slate-500">색상별로 각 그룹의 환기량(m³/h)을 표시하며, 막대 전체 높이는 총 환기량입니다.</p>
                     </div>
                     <div class="w-full h-64 sm:h-80 relative bg-white rounded-lg p-2 border border-slate-100">
                         <canvas id="cmhChart"></canvas>
@@ -363,6 +312,18 @@
                     <div id="analysis_source_info" class="text-[10px] sm:text-xs text-slate-600 leading-relaxed w-full">
                     </div>
                 </div>
+
+                <section id="ventilation_references" aria-labelledby="ventilation_references_title" class="bg-slate-50 p-4 sm:p-5 rounded-xl border border-slate-200 mt-2">
+                    <h3 id="ventilation_references_title" class="text-sm sm:text-base font-bold text-slate-800 mb-3">📚환기량 및 설정치 산출 근거 (참고 자료)</h3>
+                    <ul class="text-xs sm:text-sm text-slate-600 space-y-3 list-disc pl-5 leading-relaxed">
+                        <li><strong class="text-slate-700">최소/최대 환기 요구량:</strong> 농촌진흥청 국립축산과학원 양돈 사양관리 지침 및 국제 축산환기 표준(MWPS, Midwest Plan Service)의 '생체중 대비 필요 환기량 공식'을 준용하여 돼지의 일령과 체중에 맞게 산출하였습니다.</li>
+                        <li><strong class="text-slate-700">가동 휀 제원(풍량):</strong> 첨부된 근옥 휀 제원을 적용했습니다. 500Ø 4P (0.5HP, 1,700RPM)는 1대당 최대 <span id="spec_fan500_cmh"></span> m³/h, 800Ø 8P (1HP, 820RPM)는 1대당 최대 <span id="spec_fan800_cmh"></span> m³/h를 계산 기준으로 사용합니다. 500Ø 6P와 650Ø 모델은 제외했습니다.</li>
+                        <li><strong class="text-slate-700">800Ø 풍량 적용 기준:</strong> 제원 이미지의 최대 CMH 표기는 71,975로 읽혀 같은 행의 10,574 CFM과 일치하지 않습니다. 확인 전까지 <strong>10,574 CFM × 1.69901082 ≈ 17,965 m³/h</strong>를 적용합니다.</li>
+                        <li><strong class="text-slate-700">그룹별 최대 풍량:</strong> <span id="spec_group_capacities"></span> (각 그룹 100% 가동 기준이며, 4그룹의 최대 가동률 제한 적용 전 수치입니다.)</li>
+                        <li><strong class="text-slate-700">가동률별 풍량 추정:</strong> 그룹 최대 풍량 × 가동률(%) ÷ 100으로 계산합니다. 제원의 최저·최고 풍량만으로 제어 신호별 풍량 곡선을 알 수 없어 기존 비례 추정 방식을 유지하며, 실제 풍량은 정압과 설치 조건에 따라 달라질 수 있습니다.</li>
+                        <li><strong class="text-slate-700">유속 및 체적 계산:</strong> 돈사 체적은 폭 × 높이 × 길이, 예상 유속은 환기량 ÷ 3,600 ÷ 단면적으로 계산합니다. 육성사는 기존 일령·체중별 기준 유속(0.5~2.2m/s)과 비교해 초과 여부를 표시하며, 4그룹의 최대 가동률은 기존 체중 기반 제한식을 적용합니다.</li>
+                    </ul>
+                </section>
             </div>
 
             <!-- Empty State -->
@@ -391,7 +352,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getDatabase, ref, query, limitToLast, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getDatabase, ref, query, limitToLast, orderByKey, startAt, endAt, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
         const firebaseConfig = {
@@ -404,10 +365,19 @@
             appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
         };
 
+        // 근옥 휀 1대당 최대 풍량 (m³/h). 그룹 풍량은 설치 대수로 계산한다.
+        const FAN_AIRFLOW = { fan500: 6960, fan800: Math.round(10574 * 1.69901082) };
+        document.getElementById('spec_fan500_cmh').textContent = FAN_AIRFLOW.fan500.toLocaleString('ko-KR');
+        document.getElementById('spec_fan800_cmh').textContent = FAN_AIRFLOW.fan800.toLocaleString('ko-KR');
+        document.getElementById('spec_group_capacities').textContent = [
+            FAN_AIRFLOW.fan500 * 2, FAN_AIRFLOW.fan500 * 3, FAN_AIRFLOW.fan800 * 2, FAN_AIRFLOW.fan800 * 2
+        ].map((flow, index) => `${index + 1}그룹 ${flow.toLocaleString('ko-KR')} m³/h`).join(', ');
+
         let app, db, rtdb, auth;
         let fetchedBatches = {}; 
         let sensorDataMap = {}; 
         let sensorHistoryMap = {}; 
+        let dailySensorHistoryMap = {};
         let currentSelectedBatchId = null;
         let ventChartInstance = null;
         let cmhChartInstance = null;
@@ -648,7 +618,63 @@
             });
         }
 
+        function getKoreanDayBounds(now = Date.now()) {
+            const offset = 9 * 60 * 60 * 1000;
+            const dayMs = 24 * 60 * 60 * 1000;
+            const start = Math.floor((now + offset) / dayMs) * dayMs - offset;
+            return { start, end: start + dayMs };
+        }
+
+        function getDailyTemperatureStats(readings = [], now = Date.now()) {
+            const { start, end } = getKoreanDayBounds(now);
+            let min = Infinity, max = -Infinity, count = 0;
+            for (const { time, temp } of readings) {
+                if (!Number.isFinite(time) || !Number.isFinite(temp) || time < start || time >= end || time > now) continue;
+                min = Math.min(min, temp);
+                max = Math.max(max, temp);
+                count++;
+            }
+            return count ? { min, max, count, diff: max - min } : null;
+        }
+
+        function startDailyTemperatureSync() {
+            let activeDay = null, unsubscribe = null, rolloverTimer = null;
+            const syncDay = () => {
+                const { start, end } = getKoreanDayBounds();
+                if (activeDay === start) return;
+                activeDay = start;
+                if (unsubscribe) unsubscribe();
+                clearTimeout(rolloverTimer);
+                dailySensorHistoryMap = {};
+                renderAllBatchesSummary();
+                // 로그 키는 기록 시각의 Unix 밀리초 값. 건수 제한 없이 오늘 기록을 조회한다.
+                const dailyRef = query(ref(rtdb, 'history_logs'), orderByKey(), startAt(String(start)), endAt(String(end - 1)));
+                unsubscribe = onValue(dailyRef, snapshot => {
+                    if (activeDay !== start) return;
+                    dailySensorHistoryMap = {};
+                    snapshot.forEach(child => {
+                        const time = Number(child.key);
+                        for (const [sensorKey, sensorData] of Object.entries(child.val() || {})) {
+                            const rawTemp = sensorData?.temp;
+                            if (rawTemp == null || (typeof rawTemp !== 'number' && typeof rawTemp !== 'string') || String(rawTemp).trim() === '') continue;
+                            const temp = Number(rawTemp);
+                            if (!Number.isFinite(temp) || !Number.isFinite(time)) continue;
+                            if (!dailySensorHistoryMap[sensorKey]) dailySensorHistoryMap[sensorKey] = [];
+                            dailySensorHistoryMap[sensorKey].push({ time, temp });
+                        }
+                    });
+                    renderAllBatchesSummary();
+                });
+                rolloverTimer = setTimeout(syncDay, Math.max(1, end - Date.now() + 50));
+            };
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) syncDay();
+            });
+            syncDay();
+        }
+
         function startSensorDataSync() {
+            startDailyTemperatureSync();
             const historyRef = query(ref(rtdb, 'history_logs'), limitToLast(4320));
             onValue(historyRef, (snapshot) => {
                 sensorDataMap = {}; sensorHistoryMap = {}; 
@@ -680,10 +706,10 @@
         function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', stockDiffDays = null, outdoorTempHistory = [], manualBaseTemp = null) {
             
             // 1그룹 (500휀 2대 상시 - 1도 단위)
-            let t_500_1_raw = 23.0;
+            let t_500_1_raw = 22.0;
             if (age <= 21) t_500_1_raw = 28.0 - (age * 0.1);
             else if (age <= 70) t_500_1_raw = 25.9 - ((age - 21) * 0.06);
-            let t_500_1 = Math.round(Math.max(23.0, Math.min(32.0, t_500_1_raw)));
+            let t_500_1 = Math.round(Math.max(22.0, Math.min(32.0, t_500_1_raw)));
 
             let acclimatizationMsg = "";
 
@@ -717,30 +743,21 @@
                 t_500_1 = Math.round(manualBaseTemp);
             }
 
-            let adaptiveT = t_500_1;
-            let adaptiveReason = `최근 72시간 동안 돈사 내 온도가 안정적으로 유지되었습니다. <strong>고정형 기준 온도(${t_500_1}℃)를 그대로 사용하시는 것을 추천합니다.</strong>`;
-            
-            if (historyStats && historyStats.count > 0) {
-                const { avg, min } = historyStats;
-                if (min < t_500_1 - 1.0) {
-                    adaptiveT = t_500_1 + 1;
-                    adaptiveReason = `⚠️ <strong>야간 저온/샛바람 감지:</strong> 최근 72시간 내 최저 온도가 ${min.toFixed(1)}℃까지 하락했습니다. 야간 샛바람 방지를 위해 <strong>기준 온도를 1℃ 상향 조정한 [${adaptiveT}℃]를 적용</strong>하시길 권장합니다.`;
-                } else if (avg > t_500_1 + 1.5) {
-                    adaptiveT = Math.max(23, t_500_1 - 1);
-                    adaptiveReason = `🔥 <strong>평균 고온/열 축적 감지:</strong> 최근 72시간 평균 온도가 ${avg.toFixed(1)}℃로 높습니다. 환기 개입을 앞당기기 위해 <strong>기준 온도를 1℃ 하향 조정한 [${adaptiveT}℃]를 적용</strong>하시길 권장합니다.`;
-                }
-            }
+            // 1그룹 온도에 연동하여 그룹별 개입 간격 유지
+            let t_500_2 = t_500_1 + 2; // 2그룹: +2도
+            let t_800_1 = t_500_1 + 4; // 3그룹: +4도
+            let t_800_2 = t_500_1 + 6; // 4그룹: +6도
 
-            // 1그룹 기준 고정 간격 적용 (나이에 따른 변동 제거)
-            let t_500_2 = Math.max(24, Math.min(33, t_500_1 + 1)); // 2그룹: +1도
-            let t_800_1 = Math.max(25, Math.min(34, t_500_1 + 2)); // 3그룹: +2도
-            let t_800_2 = Math.max(26, Math.min(35, t_500_1 + 5)); // 4그룹: +5도
+            let diff_500_1 = 2;
+            let diff_500_2 = 3;  // 2그룹 편차 3
+            let diff_800_1 = 4;  // 3그룹 편차 4
+            let diff_800_2 = 2;  // 4그룹 편차 2
 
             let width = 11.5, length = 28.0, height = 2.2, inletGapArea = 0.2 * 28;
-            let fan_500_1_cap = 12000; 
-            let fan_500_2_cap = 18000; 
-            let fan_800_1_cap = 36000; 
-            let fan_800_2_cap = 36000; 
+            let fan_500_1_cap = FAN_AIRFLOW.fan500 * 2;
+            let fan_500_2_cap = FAN_AIRFLOW.fan500 * 3;
+            let fan_800_1_cap = FAN_AIRFLOW.fan800 * 2;
+            let fan_800_2_cap = FAN_AIRFLOW.fan800 * 2;
 
             if (roomType === '이유사') {
                 width = 9.0; length = 15.0; height = 2.2; inletGapArea = 1.0;
@@ -753,19 +770,11 @@
             let baseMinVentCMH = weight * count * 0.5; 
             if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
 
-            let min_500_1 = Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)); 
-            
-            // 그룹별 온도편차(P-Band) 수정 사항 적용 완료
-            let diff_500_1 = 2, diff_500_2 = 3, diff_800_1 = 4, diff_800_2 = 2; 
-            let max_800_2 = Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))); 
+            // 표와 그래프, 유속 계산 모두 실제 표시되는 정수 가동률을 사용한다.
+            let min_500_1 = Math.round(Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)));
+            let max_800_2 = Math.round(Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))));
 
             let historyMsg = "";
-            if (historyStats && historyStats.count > 0) {
-                historyMsg = `<div class="bg-blue-50 border border-blue-200 p-2 sm:p-3 rounded-lg mb-2 sm:mb-3 text-[10px] sm:text-xs text-blue-800">
-                    <strong>🕒 최근 72h 통계 분석</strong><br>
-                    평균: ${historyStats.avg.toFixed(1)}℃ | 최고: ${historyStats.max.toFixed(1)}℃ | 최저: ${historyStats.min.toFixed(1)}℃
-                </div>`;
-            }
             if (acclimatizationMsg) historyMsg += acclimatizationMsg;
             if (outdoorMsg) historyMsg += outdoorMsg;
             if (manualMsg) historyMsg += manualMsg;
@@ -786,20 +795,14 @@
                 t_500_2 = 0; t_800_1 = 0; t_800_2 = 0;
             }
 
-            let adaptiveShift = adaptiveT - Math.round(t_500_1);
-            let adapt_t2 = roomType === '이유사' ? 0 : Math.max(24, Math.round(t_500_2) + adaptiveShift);
-            let adapt_t3 = roomType === '이유사' ? 0 : Math.max(25, Math.round(t_800_1) + adaptiveShift);
-            let adapt_t4 = roomType === '이유사' ? 0 : Math.max(27, Math.round(t_800_2) + adaptiveShift);
-
             return {
                 f500_1: { t: Math.round(t_500_1), min: Math.round(min_500_1), max: 100, diff: diff_500_1 },
                 f500_2: { t: Math.round(t_500_2), min: 0, max: 100, diff: diff_500_2 },
                 f800_1: { t: Math.round(t_800_1), min: 0, max: 100, diff: diff_800_1 },
                 f800_2: { t: Math.round(t_800_2), min: 0, max: Math.round(max_800_2), diff: diff_800_2 },
-                adaptiveT, adaptiveReason, historyMsg, volume: buildingVolume, minVel: min_velocity, maxVel: max_velocity,
+                historyMsg, volume: buildingVolume, minVel: min_velocity, maxVel: max_velocity,
                 optMaxVel: optimal_max_vel, inletArea: inletGapArea, inletMaxVel: inletMaxVel, roomType: roomType,
                 caps: { c1: fan_500_1_cap, c2: fan_500_2_cap, c3: fan_800_1_cap, c4: fan_800_2_cap },
-                adapt: { t1: adaptiveT, t2: adapt_t2, t3: adapt_t3, t4: adapt_t4 } 
             };
         }
 
@@ -833,6 +836,8 @@
                 const exactSensorKey = `${prefix}_${batchNum}배치`;
                 
                 let curTempStr = '--.-';
+                let tempWarningHtml = ''; 
+
                 if (sensorDataMap[exactSensorKey]) curTempStr = sensorDataMap[exactSensorKey].temp + '℃';
 
                 let historyStats = null;
@@ -841,6 +846,23 @@
                     const max = Math.max(...histArr); const min = Math.min(...histArr);
                     const sum = histArr.reduce((a, b) => a + b, 0);
                     historyStats = { avg: sum / histArr.length, max, min, count: histArr.length };
+                    
+                }
+
+                const dailyStats = getDailyTemperatureStats(dailySensorHistoryMap[exactSensorKey]);
+                const rangeHint = '한국시간 오늘 00:00부터 현재까지 기록된 최고 온도 − 최저 온도';
+                if (!dailyStats || dailyStats.count < 2) {
+                    tempWarningHtml = `<br><span title="${rangeHint}" class="text-[9px] sm:text-[10px] text-slate-400 mt-1 inline-block">오늘 일교차: ${dailyStats ? '기록 수집 중' : '기록 없음'}</span>`;
+                } else {
+                    const diff = dailyStats.diff.toFixed(1);
+                    const details = `${rangeHint} (최고 ${dailyStats.max.toFixed(1)}℃ / 최저 ${dailyStats.min.toFixed(1)}℃)`;
+                    if (dailyStats.diff >= 4.0) {
+                        tempWarningHtml = `<br><span title="${details}" class="text-[9px] sm:text-[10px] bg-rose-100 text-rose-700 px-1 py-0.5 rounded font-bold mt-1 inline-block">🚨 오늘 일교차 ${diff}℃ (위험)</span>`;
+                    } else if (dailyStats.diff >= 3.0) {
+                        tempWarningHtml = `<br><span title="${details}" class="text-[9px] sm:text-[10px] bg-orange-100 text-orange-700 px-1 py-0.5 rounded font-bold mt-1 inline-block">⚠️ 오늘 일교차 ${diff}℃ (주의)</span>`;
+                    } else {
+                        tempWarningHtml = `<br><span title="${details}" class="text-[9px] sm:text-[10px] text-slate-400 mt-1 inline-block">오늘 일교차 ${diff}℃ (안정)</span>`;
+                    }
                 }
 
                 const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, outTempHist, customBaseTemps[key] || null);
@@ -854,18 +876,15 @@
                 } else {
                     g2Html = `<td class="p-1.5 sm:p-2 border-r border-teal-100 text-[9px] sm:text-[11px] bg-teal-50/30 text-left align-middle min-w-[110px]">
                         <div class="flex justify-between items-center mb-0.5 border-b border-teal-200/50 pb-0.5"><span class="text-slate-500">고정:</span> <b class="text-teal-700 text-sm">${opt.f500_2.t}℃</b></div>
-                        <div class="flex justify-between items-center mb-0.5 border-b border-teal-200/50 pb-0.5"><span class="text-purple-600 font-medium">72h:</span> <b class="text-purple-700 text-sm">${opt.adapt.t2}℃</b></div>
-                        <span class="text-slate-500">환기:</span> <b class="text-teal-700">0 ~ 100%</b>
+                        <span class="text-slate-500">편차:</span> <b class="text-teal-700">${opt.f500_2.diff}℃</b>
                     </td>`;
                     g3Html = `<td class="p-1.5 sm:p-2 border-r border-orange-100 text-[9px] sm:text-[11px] bg-orange-50/30 text-left align-middle min-w-[110px]">
                         <div class="flex justify-between items-center mb-0.5 border-b border-orange-200/50 pb-0.5"><span class="text-slate-500">고정:</span> <b class="text-orange-700 text-sm">${opt.f800_1.t}℃</b></div>
-                        <div class="flex justify-between items-center mb-0.5 border-b border-orange-200/50 pb-0.5"><span class="text-purple-600 font-medium">72h:</span> <b class="text-purple-700 text-sm">${opt.adapt.t3}℃</b></div>
-                        <span class="text-slate-500">환기:</span> <b class="text-orange-700">0 ~ 100%</b>
+                        <span class="text-slate-500">편차:</span> <b class="text-orange-700">${opt.f800_1.diff}℃</b>
                     </td>`;
                     g4Html = `<td class="p-1.5 sm:p-2 text-[9px] sm:text-[11px] bg-rose-50/30 text-left align-middle min-w-[110px]">
                         <div class="flex justify-between items-center mb-0.5 border-b border-rose-200/50 pb-0.5"><span class="text-slate-500">고정:</span> <b class="text-rose-700 text-sm">${opt.f800_2.t}℃</b></div>
-                        <div class="flex justify-between items-center mb-0.5 border-b border-rose-200/50 pb-0.5"><span class="text-purple-600 font-medium">72h:</span> <b class="text-purple-700 text-sm">${opt.adapt.t4}℃</b></div>
-                        <span class="text-slate-500">환기:</span> <b class="text-rose-700">0 ~ ${opt.f800_2.max}%</b>
+                        <span class="text-slate-500">편차:</span> <b class="text-rose-700">${opt.f800_2.diff}℃</b>
                     </td>`;
                 }
 
@@ -878,7 +897,10 @@
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 text-slate-600 text-[10px] sm:text-xs align-middle whitespace-nowrap">${batch.age}일</td>
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 text-slate-600 text-[10px] sm:text-xs align-middle whitespace-nowrap">${weight}kg</td>
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 text-slate-600 text-[10px] sm:text-xs align-middle whitespace-nowrap">${batch.count}두</td>
-                        <td class="p-1.5 sm:p-2 border-r border-slate-100 font-bold text-[11px] sm:text-sm ${curTempStr !== '--.-' ? 'text-slate-800' : 'text-slate-300'} align-middle whitespace-nowrap">${curTempStr}</td>
+                        <td class="p-1.5 sm:p-2 border-r border-slate-100 font-bold text-[11px] sm:text-sm ${curTempStr !== '--.-' ? 'text-slate-800' : 'text-slate-300'} align-middle whitespace-nowrap">
+                            ${curTempStr}
+                            ${tempWarningHtml}
+                        </td>
                         <td class="p-1.5 sm:p-2 border-r border-blue-100 text-[9px] sm:text-[11px] bg-blue-50/30 text-left align-middle min-w-[110px]">
                             <div class="flex justify-between items-center mb-0.5 border-b border-blue-200/50 pb-0.5">
                                 <span class="text-slate-500">고정:</span> 
@@ -891,7 +913,6 @@
                                     <span class="text-blue-700 text-sm ml-0.5">℃</span>
                                 </div>
                             </div>
-                            <div class="flex justify-between items-center mb-0.5 border-b border-blue-200/50 pb-0.5"><span class="text-purple-600 font-medium">72h:</span> <b class="text-purple-700 text-sm">${opt.adaptiveT}℃</b></div>
                             <span class="text-slate-500">최소:</span> <b class="text-blue-700">${opt.f500_1.min}%</b>
                         </td>
                         ${g2Html}
@@ -965,21 +986,12 @@
             }
         });
 
-        document.getElementById('pig_age').addEventListener('input', (e) => {
-            const age = Number(e.target.value);
-            if (age > 0) {
-                document.getElementById('avg_weight').value = calculateWeight(age);
-                document.getElementById('age-source-hint').textContent = '* 수동 입력됨';
-            }
-        });
-
         function getVentRate(temp, opt) {
             if (temp <= opt.t) return opt.min;
             if (temp >= opt.t + opt.diff) return opt.max;
             return opt.min + ((opt.max - opt.min) / opt.diff) * (temp - opt.t);
         }
 
-        // 분리된 UI 업데이트 및 차트 그리기 로직
         document.getElementById('btn_analyze').addEventListener('click', () => {
             if (!currentSelectedBatchId) {
                 showModal('알림', '배치를 먼저 선택해주세요.');
@@ -1014,26 +1026,19 @@
             document.getElementById('results_container').classList.add('flex');
             
             document.getElementById('ui_base_t_1').textContent = opt.f500_1.t + '℃';
-            document.getElementById('ui_t_1').textContent = opt.adapt.t1;
             document.getElementById('ui_min_1').textContent = opt.f500_1.min;
             document.getElementById('ui_p_1').textContent = opt.f500_1.diff;
             
             document.getElementById('ui_base_t_2').textContent = opt.f500_2.t + '℃';
-            document.getElementById('ui_t_2').textContent = opt.adapt.t2;
             document.getElementById('ui_p_2').textContent = opt.f500_2.diff;
             
             document.getElementById('ui_base_t_3').textContent = opt.f800_1.t + '℃';
-            document.getElementById('ui_t_3').textContent = opt.adapt.t3;
             document.getElementById('ui_p_3').textContent = opt.f800_1.diff;
             
             document.getElementById('ui_base_t_4').textContent = opt.f800_2.t + '℃';
-            document.getElementById('ui_t_4').textContent = opt.adapt.t4;
             document.getElementById('ui_max_4').textContent = opt.f800_2.max;
             document.getElementById('ui_p_4').textContent = opt.f800_2.diff;
             
-            document.getElementById('res_fixed_temp').textContent = opt.f500_1.t;
-            document.getElementById('res_adaptive_temp').textContent = opt.adaptiveT;
-            document.getElementById('adaptive_reason').innerHTML = opt.adaptiveReason;
             
             document.getElementById('res_volume').textContent = opt.volume.toFixed(1);
             document.getElementById('res_inlet_vel').textContent = opt.inletMaxVel.toFixed(2);
@@ -1059,18 +1064,17 @@
             }
             
             let expHtml = opt.historyMsg || "";
-            expHtml += `<li><strong>1그룹 (고정 ${opt.f500_1.t}℃ / 72h ${opt.adapt.t1}℃)</strong>: 돈사 체적(${opt.volume.toFixed(0)}㎥)과 현재 돼지 체중을 고려해 야간에도 최소 <strong>${opt.f500_1.min}%</strong> 가동하여 산소를 공급합니다. (온도 편차 ${opt.f500_1.diff}℃)</li>`;
+            expHtml += `<li><strong>1그룹 (고정 ${opt.f500_1.t}℃)</strong>: 돈사 체적(${opt.volume.toFixed(0)}㎥)과 현재 돼지 체중을 고려해 야간에도 최소 <strong>${opt.f500_1.min}%</strong> 가동하여 산소를 공급합니다. (온도 편차 ${opt.f500_1.diff}℃)</li>`;
             if (opt.roomType !== '이유사') {
-                expHtml += `<li><strong>2그룹 (고정 ${opt.f500_2.t}℃ / 72h ${opt.adapt.t2}℃)</strong>: 온도가 오르면 800휀이 돌기 전 500휀 3대가 부드럽게 개입하여 온도 상승을 완충합니다.</li>`;
-                expHtml += `<li><strong>3그룹 (고정 ${opt.f800_1.t}℃ / 72h ${opt.adapt.t3}℃)</strong>: 더위가 심해질 때 800휀 2대가 1차로 개입합니다. (급격한 온도 하락 방지를 위해 <strong>편차 ${opt.f800_1.diff}℃ 적용</strong>)</li>`;
-                expHtml += `<li><strong>4그룹 (고정 ${opt.f800_2.t}℃ / 72h ${opt.adapt.t4}℃)</strong>: 폭염 시 800휀 2대가 추가로 돕니다. 단, 지나친 샛바람 방지를 위해 최대 가동률을 <strong>${opt.f800_2.max}%</strong>로 제한합니다. (<strong>편차 ${opt.f800_2.diff}℃ 적용</strong>)</li>`;
+                expHtml += `<li><strong>2그룹 (고정 ${opt.f500_2.t}℃)</strong>: 500휀 3대에 <strong>편차 ${opt.f500_2.diff}℃</strong>를 적용하여 가동률을 완만하게 높이고, 800휀 개입 전 온도 상승을 완충합니다.</li>`;
+                expHtml += `<li><strong>3그룹 (고정 ${opt.f800_1.t}℃)</strong>: 800휀 2대에 <strong>편차 ${opt.f800_1.diff}℃</strong>를 적용하여 급가속을 완화하고, 급격한 온도 하락과 반복적인 가동률 변동을 줄이도록 설정합니다.</li>`;
+                expHtml += `<li><strong>4그룹 (고정 ${opt.f800_2.t}℃)</strong>: 폭염 시 800휀 2대가 추가로 돕니다. 단, 지나친 샛바람 방지를 위해 최대 가동률을 <strong>${opt.f800_2.max}%</strong>로 제한합니다. (<strong>편차 ${opt.f800_2.diff}℃ 적용</strong>)</li>`;
             }
             document.getElementById('res_explanation').innerHTML = expHtml;
             
             let sourceHtml = `<strong>[데이터 기준]</strong> ${batch.type} ${batch.name} | ${age}일령 | ${weight}kg | ${count}두<br>`;
             sourceHtml += `* 일령 산출 근거: ${batch.sourceMsg}`;
             if (batch.stockDiffDays !== null) sourceHtml += ` (현재 해당 돈사 입식 ${batch.stockDiffDays}일차)`;
-            if (historyStats) sourceHtml += `<br>* 72시간 센서 통계: 평균 ${historyStats.avg.toFixed(1)}℃, 최고 ${historyStats.max.toFixed(1)}℃, 최저 ${historyStats.min.toFixed(1)}℃`;
             document.getElementById('analysis_source_info').innerHTML = sourceHtml;
             
             drawCharts(opt);
@@ -1083,20 +1087,28 @@
             if (ventChartInstance) ventChartInstance.destroy();
             if (cmhChartInstance) cmhChartInstance.destroy();
 
-            const labels = [], d500_1 = [], d500_2 = [], d800_1 = [], d800_2 = [], dCmh = [];
+            const labels = [], ventLabels = [], d500_1 = [], d500_2 = [], d800_1 = [], d800_2 = [];
+            const cmh500_1 = [], cmh500_2 = [], cmh800_1 = [], cmh800_2 = [];
             const startTemp = opt.f500_1.t - 2;
             const endTemp = opt.roomType === '이유사' ? opt.f500_1.t + opt.f500_1.diff + 2 : opt.f800_2.t + opt.f800_2.diff + 2;
             
-            for (let t = startTemp; t <= endTemp; t += 0.5) {
-                labels.push(t.toFixed(1) + '℃');
+            for (let t = startTemp; t <= endTemp; t += 1) {
+                labels.push(t + '℃');
                 
-                const v1 = getVentRate(t, opt.f500_1); d500_1.push(v1);
-                const v2 = opt.roomType === '이유사' ? 0 : getVentRate(t, opt.f500_2); d500_2.push(v2);
-                const v3 = opt.roomType === '이유사' ? 0 : getVentRate(t, opt.f800_1); d800_1.push(v3);
-                const v4 = opt.roomType === '이유사' ? 0 : getVentRate(t, opt.f800_2); d800_2.push(v4);
+                const v1 = getVentRate(t, opt.f500_1);
+                const v2 = opt.roomType === '이유사' ? 0 : getVentRate(t, opt.f500_2);
+                const v3 = opt.roomType === '이유사' ? 0 : getVentRate(t, opt.f800_1);
+                const v4 = opt.roomType === '이유사' ? 0 : getVentRate(t, opt.f800_2);
 
-                let totalCmh = (opt.caps.c1 * (v1/100)) + (opt.caps.c2 * (v2/100)) + (opt.caps.c3 * (v3/100)) + (opt.caps.c4 * (v4/100));
-                dCmh.push(totalCmh);
+                if (Number.isInteger(t)) {
+                    ventLabels.push(t + '℃');
+                    d500_1.push(v1); d500_2.push(v2); d800_1.push(v3); d800_2.push(v4);
+                }
+
+                cmh500_1.push(opt.caps.c1 * (v1 / 100));
+                cmh500_2.push(opt.caps.c2 * (v2 / 100));
+                cmh800_1.push(opt.caps.c3 * (v3 / 100));
+                cmh800_2.push(opt.caps.c4 * (v4 / 100));
             }
 
             const isMobile = window.innerWidth < 768;
@@ -1104,7 +1116,7 @@
             ventChartInstance = new Chart(ctxVent, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: ventLabels,
                     datasets: [
                         { label: '1그룹 (500x2)', data: d500_1, borderColor: '#3b82f6', backgroundColor: '#3b82f6', borderWidth: 2, pointRadius: 0, tension: 0.1 },
                         { label: '2그룹 (500x3)', data: d500_2, borderColor: '#14b8a6', backgroundColor: '#14b8a6', borderWidth: 2, pointRadius: 0, tension: 0.1 },
@@ -1114,7 +1126,10 @@
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, max: 100, title: { display: !isMobile, text: '가동률 (%)' } } },
+                    scales: {
+                        x: { ticks: { autoSkip: false }, title: { display: !isMobile, text: '실내 온도 (1℃ 간격)' } },
+                        y: { beginAtZero: true, max: 100, title: { display: !isMobile, text: '가동률 (%)' } }
+                    },
                     interaction: { mode: 'index', intersect: false }
                 }
             });
@@ -1123,11 +1138,28 @@
                 type: 'bar',
                 data: {
                     labels: labels,
-                    datasets: [{ label: '총 환기량 (CMH)', data: dCmh, backgroundColor: '#8b5cf6', borderRadius: 4 }]
+                    datasets: [
+                        { label: '1그룹 (500x2)', data: cmh500_1, backgroundColor: '#3b82f6' },
+                        { label: '2그룹 (500x3)', data: cmh500_2, backgroundColor: '#14b8a6' },
+                        { label: '3그룹 (800x2)', data: cmh800_1, backgroundColor: '#f97316' },
+                        { label: '4그룹 (800x2)', data: cmh800_2, backgroundColor: '#f43f5e' }
+                    ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    scales: { y: { beginAtZero: true, title: { display: !isMobile, text: '환기량 (m³/h)' } } }
+                    scales: {
+                        x: { stacked: true, ticks: { autoSkip: false }, title: { display: !isMobile, text: '실내 온도 (1℃ 간격)' } },
+                        y: { stacked: true, beginAtZero: true, title: { display: !isMobile, text: '환기량 (m³/h)' } }
+                    },
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: context => `${context.dataset.label}: ${context.parsed.y.toLocaleString('ko-KR', { maximumFractionDigits: 1 })} m³/h`,
+                                footer: items => `합계: ${items.reduce((sum, item) => sum + item.parsed.y, 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 })} m³/h`
+                            }
+                        }
+                    }
                 }
             });
         }
