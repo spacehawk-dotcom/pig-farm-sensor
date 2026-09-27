@@ -124,12 +124,15 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             let acclimatizationMsg = "";
 
             if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0) {
-                if (stockDiffDays < 3) {
+                // 앱에 표시하는 입식 경과일 기준: 당일(0일차)~3일차 +2, 4~6일차 +1.
+                if (stockDiffDays <= 3) {
                     t_500_1 += 2; 
-                    acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 초기 온도 보상 (+2℃)</strong>육성사 이동 후 <strong>${stockDiffDays === 0 ? '오늘(당일)' : stockDiffDays + '일 경과'}</strong>입니다. 이동 후 3일 미만은 <strong>기준 온도에 2℃를 더해 적용</strong>합니다. 3일 경과 시 +1℃로 낮추고, 6일 경과 시 입식 보상을 해제합니다.</li>`;
-                } else if (stockDiffDays < 6) {
+                    acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 초기 온도 보상 (+2℃)</strong>현재 <strong>${stockDiffDays === 0 ? '입식 당일(0일차)' : '입식 ' + stockDiffDays + '일차'}</strong>입니다. 입식 당일부터 3일차까지 <strong>기준온도 +2℃</strong>를 적용합니다. 4~6일차에는 +1℃, 7일차부터는 기준온도를 적용합니다.</li>`;
+                } else if (stockDiffDays <= 6) {
                     t_500_1 += 1; 
-                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 적응 온도 보상 (+1℃)</strong>육성사 이동 후 <strong>${stockDiffDays}일 경과</strong>했습니다. 이동 후 3일이 지나 초기 보상보다 <strong>1℃ 낮춘 기준 온도 +1℃</strong>를 적용합니다. 6일 경과 시 입식 보상을 해제하고 원래 기준 온도로 복귀합니다. 외기 조건에 따른 보정은 별도로 적용됩니다.</li>`;
+                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 적응 온도 보상 (+1℃)</strong>현재 <strong>입식 ${stockDiffDays}일차</strong>입니다. 4~6일차에 해당하여 <strong>기준온도 +1℃</strong>를 적용합니다. 7일차부터 입식 보상을 해제하고 기준온도로 복귀합니다. 외기 조건에 따른 보정은 별도로 적용됩니다.</li>`;
+                } else {
+                    acclimatizationMsg = `<li class="text-slate-700 text-[11px] sm:text-xs"><strong>입식 적응 완료 · 기준온도 적용</strong>: 육성사 입식 후 ${stockDiffDays}일이 경과하여 입식 온도 보상 없이 기준온도를 적용합니다. 외기 조건에 따른 보정은 별도로 적용됩니다.</li>`;
                 }
             }
 

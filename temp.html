@@ -127,6 +127,7 @@
                         <span>☁️</span> 4단계 분할 제어 실시간 권장 설정
                     </h3>
                     <p class="text-[10px] sm:text-xs text-slate-500 mb-3 sm:mb-4">클라우드 데이터 기준입니다. <strong class="text-blue-600">행을 클릭하면 하단에 상세 분석이 실행됩니다.</strong> (모바일에서는 표를 좌우로 스크롤하세요)</p>
+                    <p class="text-[11px] sm:text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3 leading-relaxed"><strong>육성사 입식 온도 보정</strong> · 입식 당일은 0일차<br>입식 당일~3일차: 기준온도 +2℃ → 4~6일차: 기준온도 +1℃ → 7일차부터: 기준온도 적용<br><span class="text-slate-500">기존 외기 보정은 별도로 반영됩니다.</span></p>
                     
                     <div class="overflow-x-auto rounded-lg border border-slate-200 shadow-sm relative">
                         <table class="w-full text-center border-collapse min-w-[800px]">
@@ -364,7 +365,7 @@
         </div>
     </div>
 
-    <script src="ventilation.js"></script>
+    <script src="ventilation.js?v=20260927-stock-days"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -675,7 +676,7 @@
                     <tr class="hover:bg-slate-50 transition-colors cursor-pointer group" onclick="if(event.target.tagName !== 'INPUT') { document.getElementById('batch-select').value='${key}'; document.getElementById('batch-select').dispatchEvent(new Event('change')); }">
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 font-bold text-slate-700 text-[10px] sm:text-xs group-hover:text-blue-600 transition-colors align-middle leading-tight whitespace-nowrap sticky-col">
                             ${batch.type}<br>${batch.name}
-                            ${batch.stockDiffDays === 0 ? '<br><span class="text-[9px] text-blue-500 font-bold">(입식 0일차)</span>' : ''}
+                            ${batch.type === '육성사' && Number.isFinite(batch.stockDiffDays) ? `<br><span class="text-[9px] text-blue-500 font-bold">(입식 ${batch.stockDiffDays}일차)</span>` : ''}
                         </td>
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 text-slate-600 text-[10px] sm:text-xs align-middle whitespace-nowrap">${batch.age}일</td>
                         <td class="p-1.5 sm:p-2 border-r border-slate-100 text-slate-600 text-[10px] sm:text-xs align-middle whitespace-nowrap">${weight}kg</td>
