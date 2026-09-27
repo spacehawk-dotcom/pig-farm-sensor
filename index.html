@@ -39,7 +39,8 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-    </head>
+        <script src="ventilation.js"></script>
+</head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
         <header class="bg-white border-b border-slate-200 sticky top-0 z-30 px-5 py-4 shadow-sm">
@@ -281,193 +282,26 @@
             /* [2] 자바스크립트 영역 */
 
     // 최신 알고리즘이 모두 통합된 핵심 산출 함수
+    const ventilationSource = window.FarmVentilation;
     function getStandaloneVentSettings(age, weight, count, roomType = '육성사', stockDiffDays = null, manualBaseTemp = null, outdoorTempHistory = []) {
-        
-        // 1. 기준 온도 산출 (1도 단위 반올림)
-        let t_500_1_raw = 22.0;
-        if (age <= 21) t_500_1_raw = 28.0 - (age * 0.1);
-        else if (age <= 70) t_500_1_raw = 25.9 - ((age - 21) * 0.06);
-        let t_500_1 = Math.round(Math.max(22.0, Math.min(32.0, t_500_1_raw)));
-
-        let msgs = [];
-
-        // 2. 육성사 입식 보상 (+2도, +1도 Step-down)
-        if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0) {
-            if (stockDiffDays <= 7) {
-                t_500_1 += 2;
-                msgs.push("입식 1주차 적응기(+2℃)");
-            } else if (stockDiffDays <= 14) {
-                t_500_1 += 1;
-                msgs.push("입식 2주차 적응기(+1℃)");
-            }
+        const opt = ventilationSource.calculateOptimalSettings(age, weight, count, null,
+            roomType, stockDiffDays, outdoorTempHistory, manualBaseTemp);
+        const messages = [];
+        if (manualBaseTemp !== null) messages.push('환기량 앱의 수동 지정 온도 적용');
+        else {
+            if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0 && stockDiffDays <= 14)
+                messages.push(stockDiffDays <= 7 ? '입식 1주차 적응기(+2℃)' : '입식 2주차 적응기(+1℃)');
+            if (outdoorTempHistory.slice(-2880).some(t => t <= 20)) messages.push('외기 저온 방어(+1℃)');
         }
-
-        // 3. 외기 20도 이하 방어 모드 (사육 현황 앱에서 외기 배열을 넘겨줄 경우 작동)
-        if (Array.isArray(outdoorTempHistory) && outdoorTempHistory.length > 0) {
-            const checkLength = Math.min(outdoorTempHistory.length, 2880); // 1분 간격 기록 기준 약 48시간, 오래된 순서로 전달
-            const recentHist = outdoorTempHistory.slice(-checkLength);
-            if (recentHist.some(t => typeof t === 'number' && Number.isFinite(t) && t <= 20.0)) {
-                t_500_1 += 1;
-                msgs.push("외기 저온 방어(+1℃)");
-            }
-        }
-
-        // 4. 수동 온도 덮어쓰기 (환기 앱에서 설정한 값이 파이어베이스에 있다면 강제 적용)
-        if (manualBaseTemp !== null && !isNaN(manualBaseTemp)) {
-            t_500_1 = Math.round(manualBaseTemp);
-            msgs = ["사용자 수동 지정 온도 적용됨"];
-        }
-
-        // 새 환기량 분석앱과 동일한 그룹별 고정 온도 간격
-        let t_500_2 = t_500_1 + 2;
-        let t_800_1 = t_500_1 + 4;
-        let t_800_2 = t_500_1 + 6;
-
-        // 6. 최소 환기량(%) 및 극한 가동률 제한 계산
-        let fan_500_1_cap = 12000; // 500휀 2개
-        let buildingVolume = roomType === '이유사' ? (9.0 * 15.0 * 2.2) : (11.5 * 28.0 * 2.2);
-        let baseMinVentCMH = weight * count * 0.5; 
-        if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
-        
-        let min_500_1 = Math.max(25.0, Math.min(80.0, (baseMinVentCMH / fan_500_1_cap) * 100)); 
-        let max_800_2 = Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))); 
-
-        if (roomType === '이유사') {
-            t_500_2 = 0; t_800_1 = 0; t_800_2 = 0;
-        }
-
         return {
-            t1: t_500_1, min1: Math.round(min_500_1),
-            diff1: 2, diff2: 3, diff3: 4, diff4: 2,
-            t2: t_500_2,
-            t3: t_800_1,
-            t4: t_800_2, max4: Math.round(max_800_2),
-            roomType: roomType,
-            msg: msgs.length > 0 ? "* 적용된 보정: " + msgs.join(", ") : "* 해당 배치의 현재 일령 및 체중을 기준으로 산출되었습니다."
+            t1: opt.f500_1.t, min1: opt.f500_1.min, diff1: opt.f500_1.diff,
+            t2: opt.f500_2.t, diff2: opt.f500_2.diff,
+            t3: opt.f800_1.t, diff3: opt.f800_1.diff,
+            t4: opt.f800_2.t, max4: opt.f800_2.max, diff4: opt.f800_2.diff,
+            roomType: opt.roomType,
+            msg: '* 환기량 앱 연동 · ' + (messages.join(', ') || '현재 일령·체중·두수 기준 자동 산출')
         };
     }
-
-
-
-    const ventilationSource = (() => {
-        function calculateWeight(age) {
-            let w = 5;
-            if (age <= 21) { w = 5 + (age / 21) * 2; } 
-            else if (age <= 70) { w = 7 + ((age - 21) / 49) * 23; } 
-            else if (age <= 180) { w = 30 + ((age - 70) / 110) * 85; } 
-            else { w = 115; }
-            return parseFloat(w.toFixed(1));
-        }
-
-        const parseDate = (val) => {
-            if (!val) return null;
-            if (val instanceof Date) return new Date(val.getTime());
-            if (typeof val === 'object' && val.toDate) return val.toDate();
-            if (typeof val === 'object' && val.seconds) return new Date(val.seconds * 1000); 
-            
-            let dStr = String(val).trim();
-            
-            let match = dStr.match(/(20\d{2}|\d{2})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/);
-            if (match) {
-                let year = parseInt(match[1], 10);
-                if (year < 100) year += 2000;
-                return new Date(year, parseInt(match[2], 10) - 1, parseInt(match[3], 10));
-            }
-
-            let d = dStr.replace(/[^0-9]/g, '');
-            if (d.length === 8) {
-                return new Date(parseInt(d.substring(0,4), 10), parseInt(d.substring(4,6), 10) - 1, parseInt(d.substring(6,8), 10));
-            } else if (d.length === 6) {
-                return new Date(parseInt("20"+d.substring(0,2), 10), parseInt(d.substring(2,4), 10) - 1, parseInt(d.substring(4,6), 10));
-            }
-            return null;
-        };
-
-        const getFirstValidDate = (arr) => {
-            if (!Array.isArray(arr)) return null;
-            for (let item of arr) {
-                if (parseDate(item) !== null) return parseDate(item);
-            }
-            return null;
-        };
-
-        function calculatePigAge(data, type) {
-            let age = null; let sourceMsg = ""; 
-            let diffDays = null; let stockDiffDays = null;
-
-            let rawStockDate = null;
-            if (type === '육성사') {
-                rawStockDate = data.date || getFirstValidDate(data.penDates) || data.moveDate || data.inDate || data.stockDate || data.startDate || null;
-            } else {
-                rawStockDate = getFirstValidDate(data.penDates) || data.date || data.moveDate || data.inDate || null;
-            }
-            
-            if (rawStockDate) {
-                const stockDate = parseDate(rawStockDate);
-                if (stockDate) {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0); stockDate.setHours(0, 0, 0, 0);
-                    stockDiffDays = Math.floor((today.getTime() - stockDate.getTime()) / (1000 * 60 * 60 * 24));
-                    if (stockDiffDays < 0) stockDiffDays = 0; 
-                }
-            }
-
-            // 모든 가능한 일령 변수명 탐색
-            const ageKeys = ['avgAge', 'averageAge', 'currentAge', 'age'];
-            for (const key of ageKeys) {
-                if (data[key] !== undefined && data[key] !== null && String(data[key]).trim() !== '') {
-                    age = Number(data[key]);
-                    sourceMsg = `DB 일령(${key}) 적용`;
-                    break;
-                }
-            }
-
-            // 만약 일령 데이터가 없고 출생일(birthDate)이 있다면 역산
-            if (age === null && data.birthDate) {
-                const bDate = parseDate(data.birthDate);
-                if (bDate) {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0); bDate.setHours(0, 0, 0, 0);
-                    age = Math.floor((today.getTime() - bDate.getTime()) / (1000 * 60 * 60 * 24));
-                    sourceMsg = "출생일 기준 역산";
-                }
-            }
-
-            // 과거 추정 방식 복구 (데이터가 아예 없는 경우)
-            if (age === null) {
-                let baseAge = (type === '육성사') ? 70 : 28;
-                let targetDateStr = null;
-
-                if (type === '육성사' && data.weaningDate && typeof data.weaningDate === 'string' && data.weaningDate.trim() !== '') { 
-                    targetDateStr = data.weaningDate.trim(); 
-                    baseAge = 28; 
-                    sourceMsg = "이유일 기준 역산(+28)"; 
-                } else if (rawStockDate) { 
-                    targetDateStr = rawStockDate; 
-                    sourceMsg = `입식일 기준 역산(+${baseAge})`; 
-                }
-
-                if (targetDateStr) {
-                    const targetDate = parseDate(targetDateStr);
-                    if (targetDate) {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
-                        diffDays = Math.floor((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
-                        age = diffDays + baseAge;
-                    }
-                }
-            }
-
-            if (age === null || isNaN(age) || age <= 0) {
-                age = 30; // 최종 안전 장치 (기본값)
-                sourceMsg = "데이터 없음 (기본 30일)"; 
-            }
-            
-            return { age: Math.round(Math.max(1, age)), sourceMsg, diffDays, stockDiffDays };
-        }
-
-
-return { calculateWeight, calculatePigAge }; })();
 
     // Firebase Timestamp, Date, 기존 날짜 문자열을 모두 처리한다.
     function parseVentilationDate(value) {
@@ -621,7 +455,7 @@ return { calculateWeight, calculatePigAge }; })();
         <h3 class="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2">
             <span class="text-blue-500">🌀</span> 4단계 환기 실시간 권장 설정
         </h3>
-        <span class="text-[10px] sm:text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">AI 자동 산출</span>
+        <span class="text-[10px] sm:text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">환기량 앱 연동</span>
     </div>
     
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3" id="vent_integration_panel">
