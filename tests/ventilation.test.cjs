@@ -3,6 +3,22 @@ const assert = require('node:assert/strict');
 require('../ventilation.js');
 const { calculateOptimalSettings: calculate } = globalThis.FarmVentilation;
 
+test('별도 육성사 입식일을 우선 적용하고 기존 일령을 유지한다', () => {
+    const { calculatePigAge } = globalThis.FarmVentilation;
+    const today = new Date();
+    const format = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const entered = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3);
+    const batch = { date: '2026-01-01', weaningDate: '2025-12-01', penDates: ['2025-12-01'] };
+    const previous = calculatePigAge(batch, '육성사');
+    const updated = calculatePigAge({ ...batch, growerInDate: format(entered) }, '육성사');
+    assert.equal(updated.stockDiffDays, 3);
+    assert.equal(updated.age, previous.age);
+    assert.equal(updated.sourceMsg, previous.sourceMsg);
+    assert.equal(calculate(updated.age, 40, 300, null, '육성사', updated.stockDiffDays).f500_1.t, 24);
+    assert.equal(calculatePigAge({ ...batch, growerInDate: '' }, '육성사').stockDiffDays, null);
+    assert.deepEqual(calculatePigAge({ ...batch, growerInDate: format(entered) }, '이유사'), calculatePigAge(batch, '이유사'));
+});
+
 test('육성사 입식 3일차와 6일차를 각 보정 기간에 포함한다', () => {
     for (const [day, expected] of [[0, 24], [1, 24], [2, 24], [3, 24], [4, 23], [5, 23], [6, 23], [7, 22], [30, 22]]) {
         const result = calculate(76, 34.6, 307, null, '육성사', day, [26.1, 18.8]);

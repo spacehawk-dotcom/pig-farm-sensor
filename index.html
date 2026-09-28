@@ -39,7 +39,7 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-        <script src="ventilation.js?v=20260927-stock-days"></script>
+        <script src="ventilation.js?v=20260928-grower-date"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -242,7 +242,7 @@
                     penDetails: Array(pensCount).fill(0), penDates: Array(pensCount).fill(''),
                     penIsResidual: Array(pensCount).fill(false), penIsSick: Array(pensCount).fill(false)
                 };
-                if (isGrower) { b.sourceId = null; b.weaningDate = ''; b.pendingShipments = []; }
+                if (isGrower) { b.sourceId = null; b.weaningDate = ''; b.growerInDate = ''; b.pendingShipments = []; }
                 return b;
             }
 
@@ -294,7 +294,9 @@
             t3: opt.f800_1.t, diff3: opt.f800_1.diff,
             t4: opt.f800_2.t, max4: opt.f800_2.max, diff4: opt.f800_2.diff,
             roomType: opt.roomType,
-            msg: '* 환기량 앱 연동 · ' + (message.textContent + ' · ' + opt.minimumStatus)
+            minRequiredCMH: opt.minRequiredCMH, minSuppliedCMH: opt.minSuppliedCMH,
+            minShortfallCMH: opt.minShortfallCMH, minimumStatus: opt.minimumStatus,
+            msg: '* 환기량 앱 연동 · ' + message.textContent
         };
     }
 
@@ -389,6 +391,7 @@
         if (!panel) return;
         const opt = getVentilationOptions(batchData, outdoorTempHistory);
         const msgEl = document.getElementById('integ_vent_msg');
+        const minimumStatusEl = document.getElementById('integ_min_status');
         const saveBtn = document.getElementById('integ_save_vent');
         if (saveBtn) {
             saveBtn.style.display = batchData.type === '이유사' ? 'none' : 'block';
@@ -408,8 +411,10 @@
         ['integ_g2_panel', 'integ_g3_panel', 'integ_g4_panel'].forEach(id => {
             document.getElementById(id).style.display = isWeaning ? 'none' : 'block';
         });
-        ['integ_t_1', 'integ_min_1', 'integ_min_2', 'integ_t_2', 'integ_t_3', 'integ_t_4', 'integ_max_4', 'integ_diff_1', 'integ_diff_2', 'integ_diff_3', 'integ_diff_4']
+        ['integ_t_1', 'integ_min_1', 'integ_min_2', 'integ_t_2', 'integ_t_3', 'integ_t_4', 'integ_max_4', 'integ_diff_1', 'integ_diff_2', 'integ_diff_3', 'integ_diff_4', 'integ_min_required', 'integ_min_supplied']
             .forEach(id => document.getElementById(id).textContent = '--');
+        minimumStatusEl.textContent = '';
+        minimumStatusEl.className = 'text-xs text-slate-700 mt-2';
         if (!opt) {
             msgEl.textContent = Number(batchData.count ?? batchData.pigs ?? batchData.totalPigs) > 0
                 ? (ventilationHistoryStatus === 'error' ? '* 외기 기록 연결 실패로 자동 설정을 확인할 수 없습니다.' : '* 환기계산앱의 외기 기록을 불러오는 중입니다.')
@@ -419,6 +424,10 @@
         }
         document.getElementById('integ_t_1').textContent = opt.t1;
         document.getElementById('integ_min_1').textContent = opt.min1;
+        document.getElementById('integ_min_required').textContent = opt.minRequiredCMH.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+        document.getElementById('integ_min_supplied').textContent = opt.minSuppliedCMH.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
+        minimumStatusEl.textContent = opt.minimumStatus;
+        if (opt.minShortfallCMH > 0) minimumStatusEl.className = 'text-xs text-rose-700 font-bold mt-2';
         [1, 2, 3, 4].forEach(i => document.getElementById('integ_diff_' + i).textContent = opt['diff' + i]);
         if (!isWeaning) {
             document.getElementById('integ_t_2').textContent = opt.t2;
@@ -458,7 +467,7 @@
         <div class="bg-blue-50/70 p-3 rounded-lg border border-blue-100 shadow-sm relative">
             <div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-1.5">1그룹 (500휀 2대)</div>
             <div class="flex justify-between items-end mb-1">
-                <span class="text-[10px] text-slate-500">고정온도</span>
+                <span class="text-[10px] text-slate-500">자동 설정온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-blue-700" id="integ_t_1">--</span><span class="text-[10px] text-blue-600 mb-0.5">℃</span></div>
             </div>
             <div class="flex justify-between items-end">
@@ -506,6 +515,15 @@
             </div>
 <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-[11px]"><span class="text-slate-500">온도 편차</span><span class="font-bold text-slate-700"><span id="integ_diff_4">--</span>℃</span></div>
         </div>
+    </div>
+    <div class="mt-3 p-3 bg-blue-50/70 rounded-lg border border-blue-100">
+        <h4 class="text-xs font-bold text-blue-800 mb-2">배치별 최소 환기량 확인</h4>
+        <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
+            <p>최소 환기 요구량<br><strong id="integ_min_required">--</strong> m³/h</p>
+            <p>적용 최소 예상 풍량<br><strong id="integ_min_supplied">--</strong> m³/h</p>
+        </div>
+        <p id="integ_min_status" class="text-xs text-slate-700 mt-2" aria-live="polite"></p>
+        <p class="text-[10px] text-slate-500 mt-2">요구량은 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값입니다. 기본 최소 가동률은 20%이며, 부족하면 사용 그룹의 최소 가동률을 1%p 단위로 올립니다. 풍량은 제원에 비례한 추정값입니다.</p>
     </div>
     <p class="text-[10px] text-slate-400 mt-2 text-right" id="integ_vent_msg">* 해당 배치의 현재 일령 및 체중을 기준으로 산출되었습니다.</p>
 </div>
@@ -988,11 +1006,14 @@
                         }
                         pensHtml += `<div onclick="window.handlePenClick(event, '${stage}', ${b.id}, ${i})" class="pen-box ${penClass}">${txt}</div>`;
                     }
+                    const headerInput = stage === 'grower' && !isRes
+                        ? `<label class="flex-1 min-w-0" onclick="event.stopPropagation()"><span class="block text-[9px] font-bold text-slate-500">육성사 입식일</span><input type="date" value="${/^\d{4}-\d{2}-\d{2}$/.test(b.growerInDate || '') ? b.growerInDate : ''}" aria-label="${title} 육성사 입식일" class="${iptCls} min-w-0" onkeydown="if(event.key==='Enter') this.blur();" onchange="window.quickSaveGrowerInDate(${b.id}, this)"></label>`
+                        : `<input type="text" value="${b.memo || ''}" placeholder="메모 입력" class="${iptCls}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter') this.blur();" onchange="window.quickSaveBatchMemo('${stage}', ${b.id}, this.value)">`;
                     return `<div onclick="window.handleBatchClick('${stage}', ${b.id})" class="bg-white p-4 rounded-2xl border ${isEmpty ? 'border-dashed border-slate-200 opacity-60' : bgCls} relative flex flex-col justify-between cursor-pointer hover:shadow-sm transition-all">
                         ${alertBadgeHtml}
                         <div>
                             <div class="flex justify-between items-center mb-1">
-                                <div class="flex items-center gap-2 flex-1 mr-2"><h4 class="text-sm font-black text-slate-800 whitespace-nowrap">${title}</h4><input type="text" value="${b.memo || ''}" placeholder="메모 입력" class="${iptCls}" onclick="event.stopPropagation()" onkeydown="if(event.key==='Enter') this.blur();" onchange="window.quickSaveBatchMemo('${stage}', ${b.id}, this.value)"></div>
+                                <div class="flex items-center gap-2 flex-1 min-w-0 mr-2"><h4 class="text-sm font-black text-slate-800 whitespace-nowrap">${title}</h4>${headerInput}</div>
                                 <span class="text-[14px] font-black ${txtCls} shrink-0">${b.pigs}두</span>
                             </div>
                         </div>
@@ -1804,7 +1825,7 @@
                         if (b.savedVentSettings) {
                             const sDate = b.savedVentSettings.date;
                             const sOpt = b.savedVentSettings.settings;
-                            savedVentHtml = `<div class="mt-3 p-3 bg-slate-100/80 rounded-xl border border-slate-200"><div class="flex justify-between items-center mb-2 px-1"><span class="text-[11px] font-black text-slate-700 flex items-center gap-1.5"><i data-lucide="pin" class="w-3.5 h-3.5 text-slate-500"></i> 고정된 설정 기록</span><span class="text-[9px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">${sDate} 저장됨</span></div><div class="grid grid-cols-4 gap-1.5 text-center"><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">1그룹</p><div><p class="text-[12px] font-black text-blue-600 leading-tight">${sOpt.f500_1.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f500_1.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">${sOpt.f500_1.min}%~</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">2그룹</p><div><p class="text-[12px] font-black text-teal-600 leading-tight">${sOpt.f500_2.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f500_2.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">완충</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">3그룹</p><div><p class="text-[12px] font-black text-orange-600 leading-tight">${sOpt.f800_1.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f800_1.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">1차</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">4그룹</p><div><p class="text-[12px] font-black text-rose-600 leading-tight">${sOpt.f800_2.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f800_2.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">~${sOpt.f800_2.max}%</p></div></div></div>`;
+                            savedVentHtml = `<div class="mt-3 p-3 bg-slate-100/80 rounded-xl border border-slate-200"><div class="flex justify-between items-center mb-2 px-1"><span class="text-[11px] font-black text-slate-700 flex items-center gap-1.5"><i data-lucide="pin" class="w-3.5 h-3.5 text-slate-500"></i> 고정된 설정 기록</span><span class="text-[9px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200 shadow-sm">${sDate} 저장됨</span></div><div class="grid grid-cols-4 gap-1.5 text-center"><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">1그룹</p><div><p class="text-[12px] font-black text-blue-600 leading-tight">${sOpt.f500_1.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f500_1.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">${sOpt.f500_1.min}%~</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">2그룹</p><div><p class="text-[12px] font-black text-teal-600 leading-tight">${sOpt.f500_2.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f500_2.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">${sOpt.f500_2.min ?? '--'}%~</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">3그룹</p><div><p class="text-[12px] font-black text-orange-600 leading-tight">${sOpt.f800_1.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f800_1.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">1차</p></div><div class="bg-white rounded-lg border border-slate-200 p-1.5 shadow-sm flex flex-col justify-between"><p class="text-[9px] font-bold text-slate-500 mb-1">4그룹</p><div><p class="text-[12px] font-black text-rose-600 leading-tight">${sOpt.f800_2.t}℃</p><p class="text-[9px] font-bold text-slate-400 mt-0.5">편차 ${sOpt.f800_2.diff}</p></div><p class="text-[9px] font-bold text-slate-400 mt-1 border-t border-slate-50 pt-1">~${sOpt.f800_2.max}%</p></div></div></div>`;
                         }
 
                         ventHtml += savedVentHtml;
@@ -2602,6 +2623,34 @@
                 } catch (e) { 
                     console.error(e); 
                     utils.showToast("저장 실패"); 
+                }
+            };
+
+            window.quickSaveGrowerInDate = async (batchId, input) => {
+                const batch = state.gBatches.find(b => String(b.id) === String(batchId));
+                if (!batch || Number(batchId) === 8) return;
+                const value = input.value;
+                const date = value ? utils.parseDate(value) : null;
+                const normalized = date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : '';
+                if (value && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || normalized !== value)) {
+                    input.value = batch.growerInDate || '';
+                    utils.showToast('올바른 입식 날짜를 입력하세요.');
+                    return;
+                }
+                input.disabled = true;
+                try {
+                    if (!isLocalEnv) await db.doc(`${COLS.GROWER}/batch_${batchId}`).update({ growerInDate: value });
+                    const currentBatch = state.gBatches.find(b => String(b.id) === String(batchId));
+                    if (currentBatch) currentBatch.growerInDate = value;
+                    renderGrower();
+                    refreshBatchVentilation('grower');
+                    utils.showToast(isLocalEnv ? '입식일 임시 저장됨' : '입식일 저장 완료');
+                } catch (error) {
+                    input.value = batch.growerInDate || '';
+                    console.error(error);
+                    utils.showToast('입식일 저장 실패');
+                } finally {
+                    input.disabled = false;
                 }
             };
 

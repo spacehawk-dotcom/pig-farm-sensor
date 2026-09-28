@@ -262,7 +262,7 @@
                         <p>적용 최소 예상 풍량<br><strong id="res_min_supplied">--</strong> m³/h</p>
                     </div>
                     <p id="res_min_status" class="text-xs text-slate-700 mt-3"></p>
-                    <p class="text-xs text-slate-500 mt-2">요구량 = 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값. 기본 최소 가동률은 25%이며, 부족하면 사용 그룹의 최소 가동률을 1%p 단위로 올립니다. 풍량은 제원에 비례한 추정값입니다.</p>
+                    <p class="text-xs text-slate-500 mt-2">요구량 = 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값. 기본 최소 가동률은 20%이며, 부족하면 사용 그룹의 최소 가동률을 1%p 단위로 올립니다. 풍량은 제원에 비례한 추정값입니다.</p>
                 </div>
 
                 <div class="bg-indigo-50/50 p-3 sm:p-4 rounded-xl border border-indigo-100 shadow-sm mt-2">
@@ -365,7 +365,7 @@
         </div>
     </div>
 
-    <script src="ventilation.js?v=20260927-stock-days"></script>
+    <script src="ventilation.js?v=20260928-grower-date"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
