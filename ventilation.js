@@ -183,9 +183,9 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             let baseMinVentCMH = weight * count * 0.5; 
             if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5; 
 
-            // 1·2그룹은 20%를 하한으로 함께 증량한다. 이유사는 사용 중인 1그룹만 계산한다.
+            // 요구 환기량을 충족하는 가동률을 1%p 단위로 올림한다. 이유사는 1그룹만 계산한다.
             const minimumFanCapacity = fan_500_1_cap + fan_500_2_cap;
-            const minimumRate = Math.min(100, Math.max(20, Math.ceil(baseMinVentCMH * 100 / minimumFanCapacity)));
+            const minimumRate = Math.min(100, Math.ceil(baseMinVentCMH * 100 / minimumFanCapacity));
             const min_500_1 = minimumRate;
             const min_500_2 = fan_500_2_cap > 0 ? minimumRate : 0;
             let max_800_2 = Math.round(Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))));
@@ -199,9 +199,7 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             const minimumGroups = roomType === '이유사' ? '1그룹' : '1·2그룹 각각';
             const minimumStatus = minShortfallCMH > 0
                 ? `${minimumGroups} 100% 적용. 최소 요구량 대비 ${Math.ceil(minShortfallCMH).toLocaleString()} m³/h 부족합니다.`
-                : minimumRate > 20
-                    ? `${minimumGroups} 기본 20% → ${minimumRate}%로 증량하여 최소 요구량을 충족합니다.`
-                    : `${minimumGroups} 기본 20%를 유지하며 최소 요구량을 충족합니다.`;
+                : `${minimumGroups} 계산 가동률 ${minimumRate}% 적용. 최소 요구량을 충족하도록 1%p 단위로 올림한 값입니다.`;
             let min_velocity = min_cmh / 3600 / crossSectionArea; 
             let max_cmh = fan_500_1_cap + fan_500_2_cap + fan_800_1_cap + (fan_800_2_cap * (max_800_2 / 100)); 
             let max_velocity = max_cmh / 3600 / crossSectionArea; 

@@ -3,6 +3,30 @@ const assert = require('node:assert/strict');
 require('../ventilation.js');
 const { calculateOptimalSettings: calculate } = globalThis.FarmVentilation;
 
+test('최소 가동률은 20% 하한 없이 요구량에 맞게 계산한다', () => {
+    const grower = calculate(78, 36.2, 307, null, '육성사', 8);
+    assert.equal(grower.minRequiredCMH, 5556.700000000001);
+    assert.equal(grower.f500_1.min, 16);
+    assert.equal(grower.f500_2.min, 16);
+    assert.equal(grower.minSuppliedCMH, 5568);
+    assert.equal(grower.minShortfallCMH, 0);
+    const nursery = calculate(40, 15, 200, null, '이유사');
+    assert.equal(nursery.f500_1.min, 11);
+    assert.equal(nursery.f500_2.min, 0);
+    assert.ok(nursery.minSuppliedCMH >= nursery.minRequiredCMH);
+});
+
+test('체적 기준 최소 요구량과 팬 100% 상한을 유지한다', () => {
+    const small = calculate(78, 36.2, 1, null, '육성사');
+    assert.equal(small.minRequiredCMH, small.volume * 1.5);
+    assert.equal(small.f500_1.min, 4);
+    const large = calculate(180, 115, 1000, null, '육성사');
+    assert.equal(large.f500_1.min, 100);
+    assert.equal(large.f500_2.min, 100);
+    assert.equal(large.minShortfallCMH, 22700);
+    assert.match(large.minimumStatus, /부족/);
+});
+
 test('별도 육성사 입식일을 우선 적용하고 기존 일령을 유지한다', () => {
     const { calculatePigAge } = globalThis.FarmVentilation;
     const today = new Date();

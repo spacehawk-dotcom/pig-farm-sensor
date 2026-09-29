@@ -39,7 +39,7 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-        <script src="ventilation.js?v=20260928-grower-date"></script>
+        <script src="ventilation.js?v=20260929-calculated-min"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -188,7 +188,7 @@
             <section>
                 <div class="flex justify-between items-end mb-3 px-1" id="grower-header">
                     <h2 class="text-base font-black text-slate-800 flex items-center gap-2">
-                        <div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span>
+                        <div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> <a href="temp.html" title="환기량 앱 열기" class="hover:text-indigo-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded">육성사</a> <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span>
                     </h2>
                 </div>
                 <div id="grower-list" class="grid grid-cols-1 sm:grid-cols-2 gap-3"></div>
@@ -257,7 +257,7 @@
             };
 
             const WEANING_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-emerald-500 rounded-sm"></div> 이유사 <span class="text-[10px] text-emerald-600 font-bold ml-1 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100">칸 터치 시 기록/이동</span></h2>`;
-            const GROWER_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> 육성사 <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span></h2>`;
+            const GROWER_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-indigo-500 rounded-sm"></div> <a href="temp.html" title="환기량 앱 열기" class="hover:text-indigo-600 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-500 rounded">육성사</a> <span class="text-[10px] text-indigo-600 font-bold ml-1 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">칸 터치 시 기록/이동</span></h2>`;
             const GILT_HEADER_DEFAULT = `<h2 class="text-base font-black text-slate-800 flex items-center gap-2"><div class="w-3 h-3 bg-purple-500 rounded-sm"></div> 후보사 <span class="text-[10px] text-purple-600 font-bold ml-1 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">칸 터치 시 기록/이동</span></h2>`;
 
             let app, auth, db, isLocalEnv = false, appId = 'sungamfarm';
@@ -523,7 +523,7 @@
             <p>적용 최소 예상 풍량<br><strong id="integ_min_supplied">--</strong> m³/h</p>
         </div>
         <p id="integ_min_status" class="text-xs text-slate-700 mt-2" aria-live="polite"></p>
-        <p class="text-[10px] text-slate-500 mt-2">요구량은 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값입니다. 기본 최소 가동률은 20%이며, 부족하면 사용 그룹의 최소 가동률을 1%p 단위로 올립니다. 풍량은 제원에 비례한 추정값입니다.</p>
+        <p class="text-[10px] text-slate-500 mt-2">요구량은 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값입니다. 최소 가동률은 요구량 ÷ 사용 그룹의 팬 정격 풍량 합계 × 100을 1%p 단위로 올림하여 계산합니다(최대 100%). 풍량은 제원에 비례한 추정값입니다.</p>
     </div>
     <p class="text-[10px] text-slate-400 mt-2 text-right" id="integ_vent_msg">* 해당 배치의 현재 일령 및 체중을 기준으로 산출되었습니다.</p>
 </div>

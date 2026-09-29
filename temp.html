@@ -123,9 +123,12 @@
             <!-- 전체 배치 요약 대시보드 -->
             <div id="all_batches_summary" class="hidden flex-col gap-3 max-w-6xl mx-auto mb-6">
                 <div class="glass-panel p-3 sm:p-5 rounded-xl border-t-4 border-t-blue-500 shadow-sm">
-                    <h3 class="text-sm sm:text-lg font-bold text-slate-800 mb-2 sm:mb-3 flex items-center gap-2">
-                        <span>☁️</span> 4단계 분할 제어 실시간 권장 설정
-                    </h3>
+                    <div class="flex flex-wrap items-center gap-3 mb-2 sm:mb-3">
+                        <h3 class="text-sm sm:text-lg font-bold text-slate-800 flex items-center gap-2">
+                            <span>☁️</span> 4단계 분할 제어 실시간 권장 설정
+                        </h3>
+                        <a href="simu.html" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-3 py-2 text-xs sm:text-sm shrink-0 font-bold text-white shadow-sm hover:bg-indigo-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"><span aria-hidden="true">⏱️</span> 환기 시뮬레이션</a>
+                    </div>
                     <p class="text-[10px] sm:text-xs text-slate-500 mb-3 sm:mb-4">클라우드 데이터 기준입니다. <strong class="text-blue-600">행을 클릭하면 하단에 상세 분석이 실행됩니다.</strong> (모바일에서는 표를 좌우로 스크롤하세요)</p>
                     <p class="text-[11px] sm:text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3 leading-relaxed"><strong>육성사 입식 온도 보정</strong> · 입식 당일은 0일차<br>입식 당일~3일차: 기준온도 +2℃ → 4~6일차: 기준온도 +1℃ → 7일차부터: 기준온도 적용<br><span class="text-slate-500">기존 외기 보정은 별도로 반영됩니다.</span></p>
                     
@@ -262,7 +265,7 @@
                         <p>적용 최소 예상 풍량<br><strong id="res_min_supplied">--</strong> m³/h</p>
                     </div>
                     <p id="res_min_status" class="text-xs text-slate-700 mt-3"></p>
-                    <p class="text-xs text-slate-500 mt-2">요구량 = 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값. 기본 최소 가동률은 20%이며, 부족하면 사용 그룹의 최소 가동률을 1%p 단위로 올립니다. 풍량은 제원에 비례한 추정값입니다.</p>
+                    <p class="text-xs text-slate-500 mt-2">요구량 = 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값. 최소 가동률은 요구량 ÷ 사용 그룹의 팬 정격 풍량 합계 × 100을 1%p 단위로 올림하여 계산합니다(최대 100%). 풍량은 제원에 비례한 추정값입니다.</p>
                 </div>
 
                 <div class="bg-indigo-50/50 p-3 sm:p-4 rounded-xl border border-indigo-100 shadow-sm mt-2">
@@ -365,7 +368,7 @@
         </div>
     </div>
 
-    <script src="ventilation.js?v=20260928-grower-date"></script>
+    <script src="ventilation.js?v=20260929-calculated-min"></script>
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
