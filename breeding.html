@@ -58,6 +58,7 @@
     const CheckCircle2 = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>;
     const Calendar = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
     const Globe = () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/><path d="M2 12h20"/></svg>;
+    const Lightbulb = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.9 1.2 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>;
 
     const uiText = {
       ko: {
@@ -130,7 +131,7 @@
           type: "단계별 급여 프로그램",
           items: [
             { name: "[입식 후 1주일] 항생제 + 구충제", amount: "50g/100g", desc: "탑드레싱 혼합. 수송 스트레스 및 새로운 질병 방어 (무제한 급이)" },
-            { name: "[1주 후 ~ 1개월] 맑은농장", amount: "1kg", desc: "약제 중단 후 무제한 급이 (농장 균사 적응 및 골격 성장)" },
+            { name: "[1주 후 ~ 1개월] 맑은농장", amount: "1kg", desc: "장내 환경 개선 및 면역력 증진 (무제한 급이)" },
             { name: "[입식 1개월 후] 제한 급이 전환", amount: "-", desc: "아침/저녁 2회 제한 급이 실시 (과비 방지 및 발정 유도)" }
           ],
           alert: "입식 후 1개월이 지나면 무제한 급이를 중단하고 반드시 제한 급이로 전환하여 과비를 막아주세요."
@@ -157,7 +158,7 @@
             { name: "모유업", amount: "1kg", desc: "유량 증진 및 초유 품질 개선" },
             { name: "맑은농장", amount: "1kg", desc: "장내 환경 개선 및 면역력 증진" }
           ],
-          alert: "[분만 시 특별 지침] 분만 중이거나 분만 직후, 모돈 엉덩이 쪽 바닥과 자돈 보온상자에 '맑은농장'을 한 줌씩 골고루 뿌려주세요. 자돈의 초기 유익균 섭취 및 설사 예방에 탁월한 효과가 있습니다."
+          tip: "[분만 시 특별 지침]\n분만 중이거나 분만 직후, 모돈 엉덩이 쪽 바닥과 자돈 보온상자에 '맑은농장'을 한 줌씩 골고루 뿌려주세요. 자돈의 초기 유익균 섭취 및 설사 예방에 탁월한 효과가 있습니다."
         },
         {
           stage: "이유자돈 (이유 ~ 55일령)",
@@ -187,7 +188,7 @@
             { name: "어분", amount: "2kg", desc: "상시: 폭발적 성장을 위한 단백질 베이스" },
             { name: "구충제", amount: "2kg", desc: "단기: 이동 후 투약 시작하여 딱 1주일만 급여 (간 독성 방지)" }
           ],
-          alert: "항생제와 구충제는 육성사 이동 후 1주일만 단기 투약하세요."
+          alert: "항생제(티썰파)와 구충제는 육성사 이동 후 1주일만 단기 투약하세요."
         },
         {
           stage: "젖돈 후기 (81 ~ 105일령)",
@@ -225,7 +226,7 @@
           type: "चरणबद्ध दाना कार्यक्रम",
           items: [
             { name: "[ल्याएको १ हप्ता] एन्टिबायोटिक + जुकाको औषधि", amount: "५०g/१००g", desc: "दानामाथि मिसाउने। यातायातको तनाव र नयाँ रोगबाट बचाउन (असीमित दाना)" },
-            { name: "[१ हप्ता पछि ~ १ महिना] माल्गुन नोङजाङ", amount: "१kg", desc: "औषधि रोकेपछि असीमित दाना दिने (खोरको कीटाणुसँग घुलमिल र हड्डीको विकास)" },
+            { name: "[१ हप्ता पछि ~ १ महिना] माल्गुन नोङजाङ", amount: "१kg", desc: "आन्द्राको अवस्था सुधार्ने र रोग प्रतिरोधात्मक क्षमता बढाउने (असीमित दाना)" },
             { name: "[ल्याएको १ महिना पछि] दाना सीमित गर्ने", amount: "-", desc: "बिहान/बेलुका २ पटक मात्र दाना दिने (धेरै मोटो हुन नदिन र भाले खोज्न मद्दत गर्न)" }
           ],
           alert: "ल्याएको १ महिना पछि असीमित दाना रोक्नुहोस् र धेरै मोटो हुनबाट बचाउन दाना सीमित गर्नुहोस्।"
@@ -252,7 +253,7 @@
             { name: "मोयुअप", amount: "१kg", desc: "दूध बढाउने र बिगौती दूधको गुणस्तर सुधार गर्ने" },
             { name: "माल्गुन नोङजाङ", amount: "१kg", desc: "आन्द्राको अवस्था सुधार्ने र रोग प्रतिरोधात्मक क्षमता बढाउने" }
           ],
-          alert: "[ब्याउने बेलाको विशेष निर्देशन] ब्याउँदै गर्दा वा ब्याएको तुरुन्तै पछि, माउ सुँगुरको पछाडिपट्टिको भुइँ र पाठापाठीलाई न्यानो राख्ने बाकसमा 'माल्गुन नोङजाङ (맑은농장)' एक-एक मुठी समान रूपमा छर्कनुहोस्। यसले पाठापाठीलाई सुरुमै लाभदायक जीवाणु ग्रहण गर्न र पखाला रोक्न उत्कृष्ट प्रभाव पार्छ।"
+          tip: "[सुत्केरी हुँदाको विशेष निर्देशन]\nसुत्केरी भइरहेको बेला वा भर्खरै सुत्केरी भएपछि, माउको पछाडिको भुइँमा र पाठापाठी बस्ने न्यानो बाकसमा एक मुठी 'माल्गुन नोङजाङ' छर्किदिनुहोस्। यसले पाठापाठीलाई सुरुमै राम्रो कीटाणु दिन्छ र छेर्ने रोगबाट बचाउन धेरै मद्दत गर्छ।"
         },
         {
           stage: "दूध छुटाएका पाठापाठी (~ ५५ दिन)",
@@ -282,7 +283,7 @@
             { name: "माछाको धुलो", amount: "२kg", desc: "सधैं: तीव्र वृद्धिको लागि प्रोटिनको आधार" },
             { name: "जुकाको औषधि", amount: "२kg", desc: "छोटो समय: सारेपछि ठ्याक्कै १ हप्ता मात्र दिने (कलेजो खराब हुनबाट बचाउन)" }
           ],
-          alert: "एन्टिबायोटिक र जुकाको औषधि खोर सारेपछि १ हप्ता मात्र दिनुहोस्।"
+          alert: "एन्टिबायोटिक (टी-सल्फा) र जुकाको औषधि खोर सारेपछि १ हप्ता मात्र दिनुहोस्।"
         },
         {
           stage: "हुर्कदै गरेका पाठापाठी २ (८१~१०५ दिन)",
@@ -342,6 +343,7 @@
       const [updateDate, setUpdateDate] = useState('2026. 08. 30');
       const [userId, setUserId] = useState(null);
       const [syncStatus, setSyncStatus] = useState('');
+      const [isConnected, setIsConnected] = useState(false); // 클라우드 연결 상태 추가
 
       // 클라우드 연동 (최종 업데이트 날짜 동기화)
       useEffect(() => {
@@ -364,18 +366,23 @@
                 // 공용 세팅 문서 구독
                 const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'shared');
                 unsubscribe = onSnapshot(docRef, (docSnap) => {
+                  setIsConnected(true); // 연결 성공 시 초록불 켜기
                   if (docSnap.exists() && docSnap.data().updateDate) {
                     setUpdateDate(docSnap.data().updateDate);
                   }
-                }, (error) => console.error("업데이트 날짜 동기화 오류:", error));
+                }, (error) => {
+                  console.error("업데이트 날짜 동기화 오류:", error);
+                  setIsConnected(false);
+                });
                 
                 return;
               } catch (err) {
                 console.error("클라우드 연결 실패:", err);
-              }
+                setIsConnected(false);
+              } // 여기가 누락되어 있었습니다!
             }
           }
-          // 클라우드 오프라인 시 로컬 스토리지 데이터 불러오기 (Fallback)
+          // 클라우드 미연결 시 로컬 스토리지 불러오기
           const savedDate = localStorage.getItem('sungam_updateDate');
           if (savedDate) setUpdateDate(savedDate);
         };
@@ -395,7 +402,7 @@
       const handleDateBlur = async () => {
         if (!userId) return; // 클라우드 미연결 시 로컬 스토리지에만 보존됨
         
-        setSyncStatus('저장 중...');
+        setSyncStatus('전체 동기화 중...');
         try {
           const fb = await window.firebaseInitPromise;
           if (fb) {
@@ -403,8 +410,8 @@
             const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'settings', 'shared');
             await setDoc(docRef, { updateDate }, { merge: true });
             
-            setSyncStatus('저장 완료');
-            setTimeout(() => setSyncStatus(''), 2000); // 2초 후 메시지 지움
+            setSyncStatus('모든 기기에 적용됨');
+            setTimeout(() => setSyncStatus(''), 2500); // 2.5초 후 메시지 지움
           }
         } catch (e) {
           console.error("클라우드 저장 실패", e);
@@ -421,9 +428,17 @@
         <div className="min-h-screen bg-slate-100 font-sans pb-20">
           <header className="bg-blue-800 text-white shadow-md relative">
             <div className="p-5 pr-36">
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Wheat /> {t.title}
-              </h1>
+              <div className="flex items-center gap-2 mb-2">
+                <h1 className="text-2xl font-bold flex items-center gap-2">
+                  <Wheat /> {t.title}
+                </h1>
+                {/* 실시간 클라우드 연결 상태등 */}
+                {isConnected && (
+                  <span className="flex items-center gap-1 bg-green-500/20 text-green-300 text-[10px] px-2 py-0.5 rounded-full border border-green-500/30 whitespace-nowrap" title="클라우드 실시간 연동 중">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span> 실시간 연동 중
+                  </span>
+                )}
+              </div>
               <div className="text-blue-200 text-sm mt-1 flex items-center gap-2">
                 <span>{t.updateLabel}</span>
                 <input 
@@ -431,10 +446,11 @@
                   value={updateDate} 
                   onChange={handleDateChange} 
                   onBlur={handleDateBlur}
-                  className="bg-transparent border-b border-blue-500/50 hover:border-blue-300 focus:border-white focus:outline-none text-white px-1 py-0.5 w-32 transition-colors placeholder-blue-400"
+                  className="bg-transparent border-b border-blue-500/50 hover:border-blue-300 focus:border-white focus:outline-none text-white px-1 py-0.5 w-32 transition-colors placeholder-blue-400 font-semibold"
                   placeholder="날짜 직접 입력"
+                  title="수정 후 바깥을 클릭하면 다른 사람의 폰에도 자동으로 변경됩니다."
                 />
-                {syncStatus && <span className="text-xs bg-blue-900 text-blue-100 px-2 py-0.5 rounded-full">{syncStatus}</span>}
+                {syncStatus && <span className="text-xs bg-white text-blue-800 font-bold px-2 py-0.5 rounded-full shadow-sm animate-bounce">{syncStatus}</span>}
               </div>
             </div>
             
@@ -498,6 +514,13 @@
                           </li>
                         ))}
                       </ul>
+
+                      {stage.tip && (
+                        <div className="mt-4 bg-teal-50 text-teal-800 p-3 rounded-lg flex items-start gap-2 text-sm border-2 border-teal-300 shadow-sm">
+                          <div className="mt-0.5 text-teal-600"><Lightbulb /></div>
+                          <p className="font-bold whitespace-pre-line leading-relaxed tracking-wide">{stage.tip}</p>
+                        </div>
+                      )}
 
                       {stage.alert && (
                         <div className="mt-4 bg-red-100 text-red-700 p-3 rounded-lg flex items-start gap-2 text-sm border-2 border-red-300 shadow-sm">
