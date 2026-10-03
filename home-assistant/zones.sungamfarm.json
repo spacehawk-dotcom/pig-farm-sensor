@@ -1,0 +1,56 @@
+{
+  "zones": {
+    "이유_1배치": {
+      "temp": "sensor.iyu_1baeci",
+      "humi": "sensor.iyu_1baeci_2"
+    },
+    "이유_2배치": {
+      "temp": "sensor.iyu_2baeci",
+      "humi": "sensor.iyu_2baeci_2"
+    },
+    "이유_3배치": {
+      "temp": "sensor.iyu_3baeci",
+      "humi": "sensor.iyu_3baeci_2"
+    },
+    "이유_4배치": {
+      "temp": "sensor.iyu_4baeci",
+      "humi": "sensor.iyu_4baeci_2"
+    },
+    "이유_5배치": {
+      "temp": "sensor.iyu_5baeci",
+      "humi": "sensor.iyu_5baeci_2"
+    },
+    "육성_1배치": {
+      "temp": "sensor.yugseong1baeci",
+      "humi": "sensor.yugseong1baeci_2"
+    },
+    "육성_2배치": {
+      "temp": "sensor.yugseong_2baeci",
+      "humi": "sensor.yugseong_2baeci_2"
+    },
+    "육성_3배치": {
+      "temp": "sensor.yugseong_3bae_yugseong_3baeci",
+      "humi": "sensor.yugseong_3bae_yugseong_3baeci_2"
+    },
+    "육성_4배치": {
+      "temp": "sensor.yugseong_4baeci",
+      "humi": "sensor.yugseong_4baeci_yugseong_4bae"
+    },
+    "육성_5배치": {
+      "temp": "sensor.yugseong_5baeci",
+      "humi": "sensor.yugseong_5baeci_2"
+    },
+    "육성_6배치": {
+      "temp": "sensor.yugseong_6baeci",
+      "humi": "sensor.yugseong_6baeci_2"
+    },
+    "육성_7배치": {
+      "temp": "sensor.yugseong_7baeci",
+      "humi": "sensor.yugseong_7baeci_2"
+    },
+    "외부온도": {
+      "temp": "sensor.oebuondo",
+      "humi": "sensor.oebuondo_2"
+    }
+  }
+}

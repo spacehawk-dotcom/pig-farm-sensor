@@ -18,7 +18,7 @@ const expected=V.calculateOptimalSettings(76,V.calculateWeight(76),307,null,'육
 ['f500_1','f500_2','f800_1','f800_2'].forEach((key,i)=>{
     for(const [field,value] of Object.entries({t:expected[key].t,p:expected[key].diff,min:expected[key].min,max:expected[key].max})) assert.equal(elements[`g${i+1}_${field}`].value,value);
 });
-assert.equal(elements.g1_t.value,26,'stocking and outdoor adjustments both apply');
+assert.equal(elements.g1_t.value,25,'stocking adjustment remains without outdoor adjustment');
 assert.equal(elements.g3_p.value,3);
 assert.equal(elements.pigWeight.value,V.calculateWeight(76));
 ctx.groupDirty=true; elements.g1_t.value=27;
@@ -33,8 +33,8 @@ assert.equal(elements.g1_t.value,'');assert.equal(elements.pigWeight.value,'');
 ctx.farmBatches=[batch,{...batch}];ctx.loadSelectedBatch(true);
 assert.equal(elements.g1_t.value,'','ambiguous matching must clear previous batch settings');
 ctx.farmBatches=[{id:5,pigs:101,avgAge:335}];ctx.loadSelectedBatch(true);
-assert.equal(elements.pigWeight.value,115,'same capped growth curve as farm app');
-assert.equal(elements.g1_min.value,17);
+assert.equal(elements.pigWeight.value,110,'same capped growth curve as farm app');
+assert.equal(elements.g1_min.value,16);
 // Current recommendation weather is independent from the historical chart range.
 const callbacks=[],queries=[];
 Object.assign(ctx,{rtdb:{},outdoorRequest:0,unsubscribeOutdoor:null,

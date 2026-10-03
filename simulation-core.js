@@ -77,9 +77,9 @@
         return { maxDrop, pairs };
     }
     function estimatedWeight(age) {
-        if (!Number.isFinite(age) || age <= 0 || age > 180) return null;
+        if (!Number.isFinite(age) || age <= 0) return null;
         const w = age <= 21 ? 5 + age / 21 * 2 : age <= 70 ? 7 + (age - 21) / 49 * 23 : 30 + (age - 70) / 110 * 85;
-        return Math.round(w * 10) / 10;
+        return Math.round(Math.min(110, w) * 10) / 10;
     }
     // NIAS, '돈사 설계시 고려해야할 환기홴 선정 방법', tables 1 and 2.
     // At shared boundaries use the heavier class; upper endpoint of final class is inclusive.

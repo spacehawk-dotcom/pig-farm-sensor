@@ -1,0 +1,17 @@
+# automations.yaml의 목록에 추가합니다. UI의 자동화 YAML 편집기에서는 첫 '-'를 제거하세요.
+- id: farm_firebase_push
+  alias: "농장 온습도 Firebase 전송"
+  triggers:
+    - trigger: time_pattern
+      minutes: "/5"
+  actions:
+    - action: shell_command.firebase_push
+      response_variable: result
+    - if: "{{ result['returncode'] != 0 }}"
+      then:
+        - action: persistent_notification.create
+          data:
+            notification_id: farm_firebase_push_error
+            title: "농장 Firebase 전송 실패"
+            message: "{{ result['stderr'] or result['stdout'] or '출력 없음: HA 로그 확인' }}"
+  mode: single

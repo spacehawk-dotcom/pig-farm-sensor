@@ -398,8 +398,8 @@
         <p class="mt-2">500팬: 6,960m³/h/대. 800팬: 10,574CFM × 1.69901082 ≈ 17,965m³/h/대. 출력 비율과 풍량이 비례한다고 가정한 추정이며 정압·오염·자연환기 영향은 반영하지 않았습니다. 출력 하강도 동일한 1℃ 구간을 사용하며 히스테리시스·시간 지연은 확인되지 않아 미반영입니다.</p>
         <p class="mt-2"><a class="text-blue-700 underline" href="https://nias.go.kr/front/soboarddown.do?boardSeqNum=530&amp;cmCode=M090814151125016&amp;fileSeqNum=555" target="_blank" rel="noopener">국립축산과학원 원문 · 표 1·2</a> · <a class="text-blue-700 underline" href="https://extension.sdstate.edu/sites/default/files/2020-09/MC-01013.pdf" target="_blank" rel="noopener">MWPS-32 적용 계산 예시 (SDSU)</a></p>
     </section>
-    <script src="./simulation-core.js"></script>
-    <script src="./ventilation.js?v=20261001-groups24-24-26-29"></script>
+    <script src="./simulation-core.js?v=20261003-weight-cap110"></script>
+    <script src="./ventilation.js?v=20261003-no-outdoor-adjustment"></script>
     <link rel="stylesheet" href="./eet-simulator.css">
     <script src="./eet-simulator.js"></script>
     <script type="module">
@@ -584,7 +584,7 @@
                 for (const [field,value] of Object.entries({t:g.t,p:g.diff,min:g.min,max:g.max})) $('g'+i+'_'+field).value=value;
             });
             const stock = inputs.stockDiffDays === null ? '입식일 없음' : '입식 '+inputs.stockDiffDays+'일차';
-            $('groupSource').textContent = `${$('sensorSelect').value} · 사육현황 연동 · ${inputs.age}일령 / 계산 체중 ${inputs.weight}kg / ${inputs.count}두 / ${stock} · ${outdoor.length ? '최근 48시간 외기 '+outdoor.length+'건 반영' : '최근 48시간 외기 기록 없음 · 외기 보정 미적용'} · 현재 권장 설정이며 실제 팬 기록은 아닙니다.`;
+            $('groupSource').textContent = `${$('sensorSelect').value} · 사육현황 연동 · ${inputs.age}일령 / 계산 체중 ${inputs.weight}kg / ${inputs.count}두 / ${stock} · ${outdoor.length ? '최근 48시간 외기 '+outdoor.length+'건 참고 (온도 보정 없음)' : '최근 48시간 외기 기록 없음 · 외기 보정 미적용'} · 현재 권장 설정이며 실제 팬 기록은 아닙니다.`;
         }
         function fetchOutdoor() {
             const request=++outdoorRequest;
@@ -809,9 +809,9 @@
         $('estimateWeight').addEventListener('click',()=>{
             const weight=C.estimatedWeight(readNumber('pigAge'));
             farmDirty=true;syncGroupSettings();
-            if(weight===null) {$('weightSource').textContent='성장곡선 적용 범위는 1~180일입니다. 실측 체중을 입력하세요.';return;}
+            if(weight===null) {$('weightSource').textContent='일령은 0보다 큰 숫자로 입력하세요.';return;}
             $('pigWeight').value=weight;
-            $('weightSource').textContent='일령별 성장곡선 추정값 · 실제 측정 체중이 아닙니다.';
+            $('weightSource').textContent='일령별 성장곡선 추정값 · 상한 110kg(180일 이후도 110kg) · 실제 측정 체중이 아닙니다.';
             runSimulation();
         });
         $('fanSpec').textContent=`500팬 ${fmt(C.FAN500)}m³/h/대 × 5대 · 800팬 10,574CFM → ${fmt(C.FAN800)}m³/h/대 × 4대 · 전체 정격 합계 ${fmt(C.CAPS.reduce((a,b)=>a+b))}m³/h`;

@@ -1,0 +1,11 @@
+{
+  "ha_url": "http://127.0.0.1:8123/api/states",
+  "ha_token": "REPLACE_WITH_NEW_HA_LONG_LIVED_TOKEN",
+  "firebase_database_url": "https://sungamfarm-default-rtdb.firebaseio.com",
+  "firebase_auth": {
+    "api_key": "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
+    "email": "REPLACE_WITH_FIREBASE_WRITER_EMAIL",
+    "password": "REPLACE_WITH_FIREBASE_WRITER_PASSWORD"
+  },
+  "zones": {}
+}

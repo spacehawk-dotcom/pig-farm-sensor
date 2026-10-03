@@ -3,6 +3,25 @@ const assert = require('node:assert/strict');
 require('../ventilation.js');
 const { calculateOptimalSettings: calculate } = globalThis.FarmVentilation;
 
+test('예측 체중은 110kg 상한이며 180일 경계에서 하락하지 않고 시뮬레이터와 일치한다', () => {
+    const { calculateWeight } = globalThis.FarmVentilation;
+    const { estimatedWeight } = require('../simulation-core.js');
+    let previous = 0;
+    for (let age = 1; age <= 400; age++) {
+        const weight = calculateWeight(age);
+        assert.ok(weight >= previous && weight <= 110, `age ${age}`);
+        assert.equal(weight, estimatedWeight(age), `same prediction at age ${age}`);
+        previous = weight;
+    }
+    for (const age of [180, 181, 191, 338]) assert.equal(calculateWeight(age), 110);
+    const batch3 = calculate(191, calculateWeight(191), 175, null, '육성사');
+    const batch6 = calculate(338, calculateWeight(338), 89, null, '육성사');
+    assert.equal(batch3.minRequiredCMH, 9625);
+    assert.equal(batch3.f500_1.min, 28);
+    assert.equal(batch6.minRequiredCMH, 4895);
+    assert.equal(batch6.f500_1.min, 15);
+});
+
 test('최소 가동률은 20% 하한 없이 요구량에 맞게 계산한다', () => {
     const grower = calculate(78, 36.2, 307, null, '육성사', 8);
     assert.equal(grower.minRequiredCMH, 5556.700000000001);
@@ -56,9 +75,13 @@ test('육성사 입식 3일차와 6일차를 각 보정 기간에 포함한다',
     }
 });
 
-test('외기 보정은 입식 보정과 함께 반영한다', () => {
+test('외기 최고 30℃ 이상·최저 20℃ 이하에서도 온도를 올리지 않고 입식 보정만 유지한다', () => {
     const result = calculate(76, 34.6, 307, null, '육성사', 6, [30, 20]);
-    assert.equal(result.f500_1.t, 26);
+    assert.equal(result.f500_1.t, 25);
+    for (const outdoor of [[30, 20], [30.9, 13.2], [35, 10], [28, 20], []]) {
+        const settled = calculate(102, 54.7, 323, null, '육성사', 32, outdoor);
+        assert.deepEqual([settled.f500_1.t, settled.f500_2.t, settled.f800_1.t, settled.f800_2.t], [24, 24, 26, 29]);
+    }
 });
 
 test('입식일이 없거나 이유사인 경우 육성사 보정을 적용하지 않는다', () => {

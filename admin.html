@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>성암농장 앱 런처</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 모바일 터치 하이라이트 제거 및 스무스 스크롤 */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none; /* 당겨서 새로고침 방지 등 앱스러운 느낌 부여 */
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans min-h-screen flex flex-col">
+
+    <!-- 헤더 -->
+    <header class="bg-white shadow-sm py-4 px-5 flex justify-between items-center sticky top-0 z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-green-600 text-white p-2 rounded-lg shadow-sm w-10 h-10 flex items-center justify-center">
+                <i class="fas fa-leaf text-lg"></i>
+            </div>
+            <h1 class="text-xl sm:text-2xl font-bold text-gray-800 tracking-tight">성암농장</h1>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <div id="current-date" class="text-xs sm:text-sm text-gray-500 font-medium bg-gray-100 py-1.5 px-3 rounded-full border border-gray-200 shadow-inner">
+                <!-- 날짜가 여기에 표시됩니다 -->
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
+        
+        <div class="mb-4">
+            <h2 class="text-lg font-bold text-gray-700">바로가기 메뉴</h2>
+            <p class="text-sm text-gray-500">원하시는 항목을 선택해주세요.</p>
+        </div>
+
+        <!-- 앱 그리드 (모바일 2열, 태블릿 3열, 데스크탑 4열) -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
+            
+            <!-- 1. 사육현황 -->
+            <a href="https://sungamfarm.netlify.app" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-blue-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-chart-column text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">사육현황</h3>
+                </div>
+            </a>
+
+            <!-- 2. 사료 -->
+            <a href="https://sungamfarm.netlify.app/feed" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-amber-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-wheat-awn text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">사료 관리</h3>
+                </div>
+            </a>
+
+            <!-- 3. 모돈(임신사) -->
+            <a href="https://sungamfarm.netlify.app/pigmom" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-pink-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-pink-50 flex items-center justify-center text-pink-500 group-hover:bg-pink-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-piggy-bank text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">모돈 (임신사)</h3>
+                </div>
+            </a>
+
+            <!-- 4. 온도 -->
+            <a href="https://sungamfarm.netlify.app/env" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-red-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center text-red-500 group-hover:bg-red-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-temperature-high text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">온도 관리</h3>
+                </div>
+            </a>
+
+            <!-- 5. 사양관리(첨가제) -->
+            <a href="https://sungamfarm.netlify.app/breeding" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-purple-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-purple-50 flex items-center justify-center text-purple-600 group-hover:bg-purple-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-flask text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">사양관리 (첨가제)</h3>
+                </div>
+            </a>
+
+            <!-- 6. 출하 -->
+            <a href="https://sungamfarm.netlify.app/onepass" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-indigo-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-truck-moving text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">출하 관리</h3>
+                </div>
+            </a>
+
+            <!-- 7. 성적관리 -->
+            <a href="https://sungamfarm.netlify.app/report" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-clipboard-list text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">성적 관리</h3>
+                </div>
+            </a>
+
+            <!-- 8. 환기분석 -->
+            <a href="https://sungamfarm.netlify.app/temp" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-cyan-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-cyan-50 flex items-center justify-center text-cyan-600 group-hover:bg-cyan-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-fan text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">환기 분석</h3>
+                </div>
+            </a>
+
+        </div>
+    </main>
+
+    <script>
+        // 오늘 날짜 표시 기능
+        function displayCurrentDate() {
+            const dateElement = document.getElementById('current-date');
+            if (dateElement) {
+                const now = new Date();
+                const year = now.getFullYear();
+                // 월과 일은 1자리 수일 때 앞에 0을 붙여 깔끔하게 정렬
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const date = String(now.getDate()).padStart(2, '0');
+                const days = ['일', '월', '화', '수', '목', '금', '토'];
+                const dayName = days[now.getDay()];
+                
+                // 예: 2026. 10. 03 (토)
+                dateElement.textContent = `${year}. ${month}. ${date} (${dayName})`;
+            }
+        }
+        
+        // DOM이 모두 로드된 후 날짜를 화면에 뿌려줌
+        document.addEventListener('DOMContentLoaded', displayCurrentDate);
+    </script>
+</body>
+</html>

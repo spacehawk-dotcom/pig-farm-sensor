@@ -1,0 +1,16 @@
+# HA 새 스크립트의 YAML 편집기에 붙여 넣고 실행합니다.
+# 실제 전송을 한 번 실행하며, 성공/실패 모두 새 알림으로 표시합니다.
+alias: "농장 Firebase 전송 결과 확인"
+sequence:
+  - action: shell_command.firebase_push
+    response_variable: result
+  - action: persistent_notification.create
+    data:
+      notification_id: farm_firebase_manual_result
+      title: "농장 Firebase 최근 실행 결과"
+      message: |-
+        실행 시각: {{ now().strftime('%Y-%m-%d %H:%M:%S') }}
+        종료 코드: {{ result['returncode'] }}
+        표준 출력: {{ result['stdout'] }}
+        오류 출력: {{ result['stderr'] }}
+mode: single

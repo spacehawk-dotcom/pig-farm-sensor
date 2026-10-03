@@ -7,8 +7,9 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             if (age <= 21) { w = 5 + (age / 21) * 2; }
             else if (age <= 70) { w = 7 + ((age - 21) / 49) * 23; }
             else if (age <= 180) { w = 30 + ((age - 70) / 110) * 85; }
-            else { w = 115; }
-            return parseFloat(w.toFixed(1));
+            else { w = 110; }
+            // 기존 성장곡선에 110kg 상한 적용: 180일 전후에 체중이 하락하지 않는다.
+            return parseFloat(Math.min(110, w).toFixed(1));
         }
 
         const parseDate = (val) => {
@@ -134,9 +135,9 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
                     acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 초기 온도 보상 (+2℃)</strong>현재 <strong>${stockDiffDays === 0 ? '입식 당일(0일차)' : '입식 ' + stockDiffDays + '일차'}</strong>입니다. 입식 당일부터 3일차까지 <strong>기준온도 +2℃</strong>를 적용합니다. 4~6일차에는 +1℃, 7일차부터는 기준온도를 적용합니다.</li>`;
                 } else if (stockDiffDays <= 6) {
                     t_500_1 += 1;
-                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 적응 온도 보상 (+1℃)</strong>현재 <strong>입식 ${stockDiffDays}일차</strong>입니다. 4~6일차에 해당하여 <strong>기준온도 +1℃</strong>를 적용합니다. 7일차부터 입식 보상을 해제하고 기준온도로 복귀합니다. 외기 조건에 따른 보정은 별도로 적용됩니다.</li>`;
+                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 적응 온도 보상 (+1℃)</strong>현재 <strong>입식 ${stockDiffDays}일차</strong>입니다. 4~6일차에 해당하여 <strong>기준온도 +1℃</strong>를 적용합니다. 7일차부터 입식 보상을 해제하고 기준온도로 복귀합니다. 외기 온도에 따른 추가 보정은 없습니다.</li>`;
                 } else {
-                    acclimatizationMsg = `<li class="text-slate-700 text-[11px] sm:text-xs"><strong>입식 적응 완료 · 기준온도 적용</strong>: 육성사 입식 후 ${stockDiffDays}일이 경과하여 입식 온도 보상 없이 기준온도를 적용합니다. 외기 조건에 따른 보정은 별도로 적용됩니다.</li>`;
+                    acclimatizationMsg = `<li class="text-slate-700 text-[11px] sm:text-xs"><strong>입식 적응 완료 · 기준온도 적용</strong>: 육성사 입식 후 ${stockDiffDays}일이 경과하여 입식 온도 보상 없이 기준온도를 적용합니다. 외기 온도에 따른 추가 보정은 없습니다.</li>`;
                 }
             }
 
@@ -146,14 +147,7 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
                 const outdoorMax = Math.max(...outdoorTempHistory);
                 const outdoorMin = Math.min(...outdoorTempHistory);
                 const outdoorRange = `최근 48시간 외기 최고 ${outdoorMax.toFixed(1)}℃ / 최저 ${outdoorMin.toFixed(1)}℃`;
-                if (outdoorMax >= 30 && outdoorMin <= 20) {
-                    t_500_1 += 1;
-                    outdoorMsg = `<li class="text-blue-700 bg-blue-50/80 p-2 sm:p-3 rounded-lg border border-blue-200 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong>외기 조건 1: 기준 온도 +1℃</strong><br>${outdoorRange}. 최고 30℃ 이상이면서 최저 20℃ 이하이므로 기준 온도를 1℃ 높였습니다.</li>`;
-                } else if (outdoorMax <= 28 && outdoorMin <= 20) {
-                    outdoorMsg = `<li class="text-slate-700 bg-slate-50 p-2 sm:p-3 rounded-lg border border-slate-200 mt-2 list-none text-[11px] sm:text-xs"><strong>외기 조건 2: 기준 온도 유지</strong><br>${outdoorRange}. 최고 28℃ 이하이면서 최저 20℃ 이하이므로 외기 보정 없이 기준 온도를 유지합니다.</li>`;
-                } else {
-                    outdoorMsg = `<li class="text-slate-700 text-[11px] sm:text-xs"><strong>외기 보정 없음</strong>: ${outdoorRange}. 지정된 보정 조건에 해당하지 않아 기준 온도를 유지합니다.</li>`;
-                }
+                outdoorMsg = `<li class="text-slate-700 text-[11px] sm:text-xs"><strong>외기 기록 (참고)</strong>: ${outdoorRange}. 외기 온도에 따른 설정온도 보정은 적용하지 않습니다.</li>`;
             }
 
             // 1그룹 온도에 연동하여 그룹별 개입 간격 유지
@@ -190,7 +184,7 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             const min_500_2 = fan_500_2_cap > 0 ? minimumRate : 0;
             let max_800_2 = Math.round(Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))));
 
-            let historyMsg = `<li><strong>기본 기준 ${BASE_TEMPERATURE}℃ · 조건별 자동 적용</strong>: 일령에 따른 기준 ${Math.round(Math.max(BASE_TEMPERATURE, Math.min(32, t_500_1_raw)))}℃에 입식 경과일과 최근 48시간 외기 조건을 반영합니다.</li>`;
+            let historyMsg = `<li><strong>기본 기준 ${BASE_TEMPERATURE}℃ · 조건별 자동 적용</strong>: 일령에 따른 기준 ${Math.round(Math.max(BASE_TEMPERATURE, Math.min(32, t_500_1_raw)))}℃에 입식 경과일을 반영합니다.</li>`;
             if (acclimatizationMsg) historyMsg += acclimatizationMsg;
             if (outdoorMsg) historyMsg += outdoorMsg;
 

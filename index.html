@@ -15,6 +15,9 @@
         <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
         <!-- SheetJS -->
         <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+        <script src="simulation-core.js?v=20261003-weight-cap110"></script>
+        <script src="batch-temperature-chart.js?v=20261003"></script>
         
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap'); 
@@ -39,7 +42,7 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-        <script src="ventilation.js?v=20261001-groups24-24-26-29"></script>
+        <script src="ventilation.js?v=20261003-no-outdoor-adjustment"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -329,6 +332,7 @@
     }
 
     let ventilationOutdoorHistory = [];
+    let ventilationSensorHistory = [];
     let ventilationHistoryStatus = 'loading';
     let ventilationHistoryRef = null;
     function getVentilationOptions(batchData, outdoorTempHistory = ventilationOutdoorHistory) {
@@ -367,7 +371,9 @@
             ventilationHistoryRef = firebase.database().ref('history_logs').limitToLast(4320);
             ventilationHistoryRef.on('value', snapshot => {
                 const history = [];
+                ventilationSensorHistory = [];
                 snapshot.forEach(child => {
+                    ventilationSensorHistory.push({ time: Number(child.key), data: child.val() });
                     const reading = child.val()?.['외부온도']?.temp;
                     if (reading !== null && reading !== undefined && String(reading).trim() !== '' && Number.isFinite(Number(reading))) history.push({ time: Number(child.key), temp: Number(reading) });
                 });
@@ -390,8 +396,7 @@
         const panel = document.getElementById('vent_integration_panel');
         if (!panel) return;
         const opt = getVentilationOptions(batchData, outdoorTempHistory);
-        const msgEl = document.getElementById('integ_vent_msg');
-        const minimumStatusEl = document.getElementById('integ_min_status');
+        window.BatchTemperatureChart.render(batchData, opt, ventilationSensorHistory, ventilationHistoryStatus);
         const saveBtn = document.getElementById('integ_save_vent');
         if (saveBtn) {
             saveBtn.style.display = batchData.type === '이유사' ? 'none' : 'block';
@@ -411,23 +416,13 @@
         ['integ_g2_panel', 'integ_g3_panel', 'integ_g4_panel'].forEach(id => {
             document.getElementById(id).style.display = isWeaning ? 'none' : 'block';
         });
-        ['integ_t_1', 'integ_min_1', 'integ_min_2', 'integ_t_2', 'integ_t_3', 'integ_t_4', 'integ_max_4', 'integ_diff_1', 'integ_diff_2', 'integ_diff_3', 'integ_diff_4', 'integ_min_required', 'integ_min_supplied']
+        ['integ_t_1', 'integ_min_1', 'integ_min_2', 'integ_t_2', 'integ_t_3', 'integ_t_4', 'integ_max_4', 'integ_diff_1', 'integ_diff_2', 'integ_diff_3', 'integ_diff_4']
             .forEach(id => document.getElementById(id).textContent = '--');
-        minimumStatusEl.textContent = '';
-        minimumStatusEl.className = 'text-xs text-slate-700 mt-2';
         if (!opt) {
-            msgEl.textContent = Number(batchData.count ?? batchData.pigs ?? batchData.totalPigs) > 0
-                ? (ventilationHistoryStatus === 'error' ? '* 외기 기록 연결 실패로 자동 설정을 확인할 수 없습니다.' : '* 환기계산앱의 외기 기록을 불러오는 중입니다.')
-                : '* 배치에 사육 중인 돼지가 없어 권장값을 표시하지 않습니다.';
-            msgEl.className = 'text-[10px] text-slate-400 mt-2 text-right';
             return;
         }
         document.getElementById('integ_t_1').textContent = opt.t1;
         document.getElementById('integ_min_1').textContent = opt.min1;
-        document.getElementById('integ_min_required').textContent = opt.minRequiredCMH.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
-        document.getElementById('integ_min_supplied').textContent = opt.minSuppliedCMH.toLocaleString('ko-KR', { maximumFractionDigits: 1 });
-        minimumStatusEl.textContent = opt.minimumStatus;
-        if (opt.minShortfallCMH > 0) minimumStatusEl.className = 'text-xs text-rose-700 font-bold mt-2';
         [1, 2, 3, 4].forEach(i => document.getElementById('integ_diff_' + i).textContent = opt['diff' + i]);
         if (!isWeaning) {
             document.getElementById('integ_t_2').textContent = opt.t2;
@@ -436,9 +431,6 @@
             document.getElementById('integ_t_4').textContent = opt.t4;
             document.getElementById('integ_max_4').textContent = opt.max4;
         }
-        msgEl.textContent = opt.msg || '* 해당 배치의 현재 일령 및 체중을 기준으로 산출되었습니다.';
-        msgEl.className = (opt.msg.includes('보정') || opt.msg.includes('수동')) ? 'text-[10px] text-blue-600 font-bold mt-2 text-right'
-            : 'text-[10px] text-slate-400 mt-2 text-right';
     }
 
     function refreshBatchVentilation(stage) {
@@ -516,16 +508,19 @@
 <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-[11px]"><span class="text-slate-500">온도 편차</span><span class="font-bold text-slate-700"><span id="integ_diff_4">--</span>℃</span></div>
         </div>
     </div>
-    <div class="mt-3 p-3 bg-blue-50/70 rounded-lg border border-blue-100">
-        <h4 class="text-xs font-bold text-blue-800 mb-2">배치별 최소 환기량 확인</h4>
-        <div class="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-            <p>최소 환기 요구량<br><strong id="integ_min_required">--</strong> m³/h</p>
-            <p>적용 최소 예상 풍량<br><strong id="integ_min_supplied">--</strong> m³/h</p>
+    <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <h4 class="text-xs font-bold text-slate-500">🌡️ 실내 온도 흐름 및 외기 (선택 기간)</h4>
+            <select id="batch-temp-period" aria-label="온도 그래프 조회 기간" class="text-xs border border-slate-200 rounded-lg bg-white p-1.5" onchange="refreshBatchVentilation()">
+                <option value="6">최근 6시간</option>
+                <option value="24" selected>최근 24시간</option>
+                <option value="48">최근 48시간</option>
+            </select>
         </div>
-        <p id="integ_min_status" class="text-xs text-slate-700 mt-2" aria-live="polite"></p>
-        <p class="text-[10px] text-slate-500 mt-2">요구량은 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값입니다. 최소 가동률은 요구량 ÷ 사용 그룹의 팬 정격 풍량 합계 × 100을 1%p 단위로 올림하여 계산합니다(최대 100%). 풍량은 제원에 비례한 추정값입니다.</p>
+        <div class="relative h-56 w-full"><canvas id="batch-temp-chart" role="img" aria-label="선택 배치 실내 온도, 1그룹 설정온도, 외기 온도 그래프"></canvas></div>
+        <p id="batch-temp-status" class="text-[10px] text-slate-500 mt-2" aria-live="polite"></p>
+        <p class="text-[10px] text-slate-400 mt-1">설정온도는 현재 1그룹 권장값이며 과거 제어 기록이 아닙니다.</p>
     </div>
-    <p class="text-[10px] text-slate-400 mt-2 text-right" id="integ_vent_msg">* 해당 배치의 현재 일령 및 체중을 기준으로 산출되었습니다.</p>
 </div>
 <button id="integ_save_vent" type="button" disabled class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-black py-2.5 rounded-lg disabled:opacity-40">현재 권장값을 참고용으로 고정 저장</button>`;
 
@@ -603,6 +598,7 @@
                 try {
                     const renderer = window.modalRenderers[type]; if (!renderer) return;
                     const {title, html, hideSave} = renderer(target);
+                    window.BatchTemperatureChart.destroy();
                     document.getElementById('modal-title').innerHTML = title;
                     document.getElementById('modal-content').innerHTML = html;
                     document.getElementById('save-btn').style.display = hideSave ? 'none' : 'flex';
@@ -613,7 +609,7 @@
                 } catch (error) { utils.showToast("오류가 발생했습니다: " + error.message); }
             };
 
-            window.closeModal = function() { document.getElementById('modal-overlay').classList.add('hidden'); };
+            window.closeModal = function() { window.BatchTemperatureChart.destroy(); document.getElementById('modal-overlay').classList.add('hidden'); };
             
             window.toggleSection = (id) => {
                 const container = document.getElementById(id), chevron = document.getElementById(id.replace('-container', '-chevron'));
