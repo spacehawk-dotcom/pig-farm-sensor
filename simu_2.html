@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>돼지 유효환경온도(EET) 계산기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        /* Custom range slider styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: #d1d5db;
+            border-radius: 3px;
+        }
+        input[type=range]:focus {
+            outline: none;
+        }
+        
+        /* Smooth transitions */
+        .transition-all-fast {
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-800 p-4 md:p-8 flex items-center justify-center">
+
+    <div class="max-w-5xl w-full mx-auto bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row">
+        
+        <!-- 왼쪽 패널: 입력 폼 -->
+        <div class="w-full md:w-1/2 p-6 md:p-8 bg-white border-r border-gray-100">
+            <div class="mb-8 flex items-center gap-3">
+                <div class="bg-blue-100 text-blue-600 p-3 rounded-lg">
+                    <i class="fa-solid fa-piggy-bank text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-900">유효환경온도(EET) 시뮬레이터</h1>
+                    <p class="text-sm text-gray-500 mt-1">컨트롤러 온도와 실제 체감온도의 차이를 확인하세요.</p>
+                </div>
+            </div>
+
+            <div class="space-y-6 flex-1">
+                <!-- 컨트롤러 온도 입력 -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-semibold text-gray-700">컨트롤러 현재 온도 (℃)</label>
+                        <span id="temp-val" class="text-sm font-bold text-blue-600">24.0℃</span>
+                    </div>
+                    <input type="range" id="temp-slider" min="0" max="40" step="0.5" value="24" class="w-full">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>0℃</span><span>40℃</span>
+                    </div>
+                </div>
+
+                <!-- 돼지 체중 입력 -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-semibold text-gray-700">돼지 평균 체중 (kg)</label>
+                        <span id="weight-val" class="text-sm font-bold text-blue-600">30kg</span>
+                    </div>
+                    <input type="range" id="weight-slider" min="5" max="120" step="1" value="30" class="w-full">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>자돈(5kg)</span><span>비육돈(120kg)</span>
+                    </div>
+                </div>
+
+                <!-- 돼지 체표면 풍속 입력 -->
+                <div>
+                    <div class="flex justify-between items-center mb-1">
+                        <label class="text-sm font-semibold text-gray-700 flex items-center gap-1">
+                            체표면 위치 풍속 (m/s)
+                            <button id="wind-help-btn" class="text-gray-400 hover:text-blue-500 transition-colors focus:outline-none" title="측정 방법 보기">
+                                <i class="fa-solid fa-circle-info"></i>
+                            </button>
+                        </label>
+                        <span id="wind-val" class="text-sm font-bold text-blue-600">0.3m/s</span>
+                    </div>
+                    <input type="range" id="wind-slider" min="0" max="1.5" step="0.05" value="0.3" class="w-full">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>무풍(0m/s)</span><span>강풍(1.5m/s)</span>
+                    </div>
+                </div>
+
+                <!-- 돈사 상대습도 입력 -->
+                <div>
+                    <div class="flex justify-between mb-1">
+                        <label class="text-sm font-semibold text-gray-700">돈사 내부 상대습도 (%)</label>
+                        <span id="humidity-val" class="text-sm font-bold text-blue-600">65%</span>
+                    </div>
+                    <input type="range" id="humidity-slider" min="20" max="100" step="5" value="65" class="w-full">
+                    <div class="flex justify-between text-xs text-gray-400 mt-1">
+                        <span>건조(20%)</span><span>적정(60%)</span><span>고습(100%)</span>
+                    </div>
+                </div>
+
+                <!-- 바닥 상태 선택 -->
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-2">바닥 상태</label>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="floor" value="dry_solid" class="peer hidden">
+                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">마른 평사 (0℃)</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="floor" value="dry_slat" class="peer hidden" checked>
+                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">마른 슬랏 (-1.5℃)</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="floor" value="wet_solid" class="peer hidden">
+                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">젖은 평사 (-3.0℃)</div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="floor" value="wet_slat" class="peer hidden">
+                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">젖은 슬랏 (-4.5℃)</div>
+                        </label>
+                        <label class="cursor-pointer col-span-2">
+                            <input type="radio" name="floor" value="bedding" class="peer hidden">
+                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-red-50 peer-checked:border-red-500 peer-checked:text-red-700 transition-all">톱밥/볏짚 깔짚 (+2.0℃)</div>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full md:w-1/2 p-6 md:p-8 bg-gray-50 flex flex-col justify-center relative overflow-hidden transition-all-fast" id="result-panel">
+            <!-- Background Decoration -->
+            <div class="absolute -top-20 -right-20 w-64 h-64 rounded-full opacity-10 bg-current"></div>
+            
+            <div class="relative z-10 text-center mb-8">
+                <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">돼지가 느끼는 체감온도</h2>
+                <div class="flex items-end justify-center gap-2">
+                    <span id="final-eet" class="text-6xl md:text-7xl font-extrabold tracking-tighter">--</span>
+                    <span class="text-3xl font-bold mb-2">℃</span>
+                </div>
+                <div class="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm shadow-sm" id="status-badge">
+                    <i id="status-icon" class="fa-solid fa-face-smile"></i>
+                    <span id="status-text">계산 중...</span>
+                </div>
+            </div>
+
+            <!-- 상세 분석 내역 -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4">
+                <h3 class="text-sm font-bold text-gray-800 border-b pb-2">온도 변화 요인 분석</h3>
+                
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500"><i class="fa-solid fa-temperature-half w-5 text-center"></i> 센서 온도</span>
+                    <span class="font-bold text-gray-800" id="detail-base">24.0℃</span>
+                </div>
+                
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500"><i class="fa-solid fa-wind w-5 text-center"></i> 풍냉 효과 (유속)</span>
+                    <span class="font-bold text-blue-600" id="detail-wind">-0.0℃</span>
+                </div>
+
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500"><i class="fa-solid fa-droplet w-5 text-center"></i> 습도 영향 (고온/저온)</span>
+                    <span class="font-bold text-gray-500" id="detail-humidity">0.0℃</span>
+                </div>
+                
+                <div class="flex justify-between items-center text-sm">
+                    <span class="text-gray-500"><i class="fa-solid fa-layer-group w-5 text-center"></i> 바닥 열손실</span>
+                    <span class="font-bold text-blue-600" id="detail-floor">-1.5℃</span>
+                </div>
+
+                <div class="border-t border-dashed pt-3 flex justify-between items-center">
+                    <span class="text-sm font-bold text-gray-800">총 온도 편차</span>
+                    <span class="font-bold text-lg" id="detail-total-diff">-1.5℃</span>
+                </div>
+            </div>
+
+            <div class="mt-6 text-xs text-gray-400 text-center leading-relaxed">
+                * 체중이 가벼울수록(자돈) 풍속과 바닥 냉기에 의한 체감온도 저하가 큽니다.<br>
+                * 권장 적정 온도는 <span id="target-temp-display" class="font-bold text-gray-500">--</span> 수준입니다.
+            </div>
+        </div>
+    </div>
+
+    <!-- 풍속 측정 가이드 모달 -->
+    <div id="wind-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 opacity-0 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg m-4 transform scale-95 transition-transform duration-300" id="wind-modal-content">
+            <div class="flex justify-between items-start mb-4">
+                <h3 class="text-lg font-bold text-gray-900"><i class="fa-solid fa-wind text-blue-500 mr-2"></i>체표면 풍속 측정 및 입력 가이드</h3>
+                <button id="wind-modal-close" class="text-gray-400 hover:text-gray-700">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-4 text-sm text-gray-600">
+                <p>온도 센서는 보통 높은 곳에 있지만, 유효온도 계산을 위한 풍속은 <strong>반드시 돼지가 엎드려 있는 높이(체표면)에서 측정</strong>해야 합니다.</p>
+                
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <h4 class="font-bold text-gray-800 mb-1">1. 측정 도구</h4>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><strong>휴대용 열선 풍속계:</strong> 0.1m/s 단위의 미세한 샛바람이나 낙하풍을 측정할 때 가장 정확합니다. (프로펠러형은 미세 풍속 측정에 부적합)</li>
+                        <li><strong>스모크(연기) 발생기:</strong> 바람의 흐름, 떨어지는 위치, 사각지대를 눈으로 직접 확인할 때 매우 유용합니다.</li>
+                    </ul>
+                </div>
+
+                <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                    <h4 class="font-bold text-gray-800 mb-1">2. 측정 위치 (높이)</h4>
+                    <ul class="list-disc pl-5 space-y-1">
+                        <li><strong>자돈/이유자돈:</strong> 바닥에서 20~30cm 높이 (입식 초기엔 더 낮게)</li>
+                        <li><strong>육성/비육돈:</strong> 바닥에서 40~60cm 높이</li>
+                    </ul>
+                </div>
+
+                <div class="bg-blue-50 p-3 rounded-lg border border-blue-100 text-blue-800">
+                    <h4 class="font-bold mb-1"><i class="fa-solid fa-lightbulb mr-1"></i> 시뮬레이터 입력 팁</h4>
+                    <p>매번 돈사 안에서 잴 수는 없습니다. 환기 컨트롤러의 <strong>환기팬 가동률(%)별로 바닥 풍속을 한 번씩 실측하여 "기준표"를 메모</strong>해 두세요.<br>
+                    <em>(예: 휀 30% = 0.1m/s, 휀 50% = 0.3m/s, 휀 100% = 0.6m/s 등)</em><br>
+                    이후 시뮬레이터에는 당시 컨트롤러의 팬 가동률에 해당하는 풍속 값을 입력하시면 됩니다.</p>
+                </div>
+            </div>
+            
+            <div class="mt-6 text-right">
+                <button id="wind-modal-ok" class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
+            const inputs = {
+                temp: document.getElementById('temp-slider'),
+                weight: document.getElementById('weight-slider'),
+                wind: document.getElementById('wind-slider'),
+                humidity: document.getElementById('humidity-slider')
+            };
+            const values = {
+                temp: document.getElementById('temp-val'),
+                weight: document.getElementById('weight-val'),
+                wind: document.getElementById('wind-val'),
+                humidity: document.getElementById('humidity-val')
+            };
+            const floorRadios = document.querySelectorAll('input[name="floor"]');
+            
+            // Output Elements
+            const uiEET = document.getElementById('final-eet');
+            const uiBase = document.getElementById('detail-base');
+            const uiWind = document.getElementById('detail-wind');
+            const uiHumidity = document.getElementById('detail-humidity');
+            const uiFloor = document.getElementById('detail-floor');
+            const uiDiff = document.getElementById('detail-total-diff');
+            
+            const resultPanel = document.getElementById('result-panel');
+            const statusBadge = document.getElementById('status-badge');
+            const statusIcon = document.getElementById('status-icon');
+            const statusText = document.getElementById('status-text');
+            const targetTempDisplay = document.getElementById('target-temp-display');
+
+            // 체감온도 계산 핵심 로직
+            function calculateEETDetails(currentTemp, weight, windSpeed, humidity, floorCondition) {
+                let windChill = 0;
+                let humidityEffect = 0;
+                let floorEffect = 0;
+
+                // 1. 풍냉효과
+                if (windSpeed > 0.15) {
+                    let weightFactor = (150 - weight) / 100;
+                    weightFactor = Math.max(0.3, Math.min(weightFactor, 1.5));
+                    let speedFactor = (windSpeed - 0.15) * 10;
+                    windChill = -(weightFactor * speedFactor * 1.5);
+                }
+
+                // 2. 습도 효과 보정
+                // - 고온(22℃ 이상) + 고습(50% 초과): 헐떡임(호흡)에 의한 체열 발산 지연으로 더 더게 느낌 (+)
+                // - 저온(18℃ 이하) + 고습(60% 초과): 습기 찬 공기와 피부 수분 증발로 체온 손실 가속 (-)
+                if (currentTemp >= 22 && humidity > 50) {
+                    humidityEffect = (currentTemp - 20) * ((humidity - 50) / 100) * 0.7;
+                } else if (currentTemp <= 18 && humidity > 60) {
+                    humidityEffect = -(20 - currentTemp) * ((humidity - 60) / 100) * 0.5;
+                } else if (humidity < 40) {
+                    humidityEffect = (humidity - 50) * 0.02;
+                }
+
+                // 3. 바닥효과
+                const floorEffects = {
+                    'dry_solid': 0,
+                    'dry_slat': -1.5,
+                    'wet_solid': -3.0,
+                    'wet_slat': -4.5,
+                    'bedding': 2.0
+                };
+                floorEffect = floorEffects[floorCondition] || 0;
+
+                // 4. 최종 체감온도
+                let eet = currentTemp + windChill + humidityEffect + floorEffect;
+
+                return {
+                    eet: Math.round(eet * 10) / 10,
+                    windChill: Math.round(windChill * 10) / 10,
+                    humidityEffect: Math.round(humidityEffect * 10) / 10,
+                    floorEffect: floorEffect
+                };
+            }
+
+            // 돼지 체중에 따른 대략적인 권장 적정 온도 산출 (가이드라인 용도)
+            function getTargetTemp(weight) {
+                let target = 34 - (weight * 0.18);
+                return Math.max(16, Math.min(target, 32));
+            }
+
+            // UI 업데이트 로직
+            function updateUI() {
+                const temp = parseFloat(inputs.temp.value);
+                const weight = parseFloat(inputs.weight.value);
+                const wind = parseFloat(inputs.wind.value);
+                const humidity = parseFloat(inputs.humidity.value);
+                let floor = 'dry_solid';
+                floorRadios.forEach(radio => {
+                    if (radio.checked) floor = radio.value;
+                });
+
+                // 라벨 업데이트
+                values.temp.innerText = temp.toFixed(1) + '℃';
+                values.weight.innerText = weight + 'kg';
+                values.wind.innerText = wind.toFixed(2) + 'm/s';
+                values.humidity.innerText = humidity + '%';
+
+                // 계산 실행
+                const result = calculateEETDetails(temp, weight, wind, humidity, floor);
+                const totalDiff = result.eet - temp;
+                const targetTemp = getTargetTemp(weight);
+
+                // 결과 텍스트 업데이트
+                uiEET.innerText = result.eet.toFixed(1);
+                uiBase.innerText = temp.toFixed(1) + '℃';
+                
+                // 편차가 +인지 -인지에 따라 색상 클래스 적용을 위한 헬퍼 함수
+                const formatDiff = (val, el) => {
+                    if(val > 0) {
+                        el.innerText = '+' + val.toFixed(1) + '℃';
+                        el.className = "font-bold text-red-600";
+                    } else if (val < 0) {
+                        el.innerText = val.toFixed(1) + '℃';
+                        el.className = "font-bold text-blue-600";
+                    } else {
+                        el.innerText = '0.0℃';
+                        el.className = "font-bold text-gray-500";
+                    }
+                };
+
+                formatDiff(result.windChill, uiWind);
+                formatDiff(result.humidityEffect, uiHumidity);
+                formatDiff(result.floorEffect, uiFloor);
+                formatDiff(totalDiff, uiDiff);
+                targetTempDisplay.innerText = `약 ${Math.round(targetTemp-1)}℃ ~ ${Math.round(targetTemp+1)}℃`;
+
+                // 상태별 시각적 피드백 (쾌적/추움/더움) 판별
+                const tempDiffFromTarget = result.eet - targetTemp;
+
+                resultPanel.className = "w-full md:w-1/2 p-6 md:p-8 flex flex-col justify-center relative overflow-hidden transition-all duration-500";
+                
+                if (tempDiffFromTarget < -2.5) {
+                    // 추움
+                    resultPanel.classList.add("bg-blue-50", "text-blue-900");
+                    statusBadge.className = "mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm shadow-sm bg-blue-100 text-blue-700";
+                    statusIcon.className = "fa-solid fa-snowflake";
+                    statusText.innerText = "돼지가 추위를 느낍니다 (냉해 주의)";
+                } else if (tempDiffFromTarget > 2.5) {
+                    // 더움
+                    resultPanel.classList.add("bg-red-50", "text-red-900");
+                    statusBadge.className = "mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm shadow-sm bg-red-100 text-red-700";
+                    statusIcon.className = "fa-solid fa-fire";
+                    statusText.innerText = "돼지가 더위를 느낍니다 (열사 주의)";
+                } else {
+                    // 쾌적
+                    resultPanel.classList.add("bg-green-50", "text-green-900");
+                    statusBadge.className = "mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm shadow-sm bg-green-100 text-green-700";
+                    statusIcon.className = "fa-solid fa-check-circle";
+                    statusText.innerText = "현재 체중에 딱 맞는 쾌적한 온도입니다";
+                }
+            }
+
+            // 이벤트 리스너 등록
+            inputs.temp.addEventListener('input', updateUI);
+            inputs.weight.addEventListener('input', updateUI);
+            inputs.wind.addEventListener('input', updateUI);
+            inputs.humidity.addEventListener('input', updateUI);
+            floorRadios.forEach(radio => radio.addEventListener('change', updateUI));
+
+            const windHelpBtn = document.getElementById('wind-help-btn');
+            const windModal = document.getElementById('wind-modal');
+            const windModalContent = document.getElementById('wind-modal-content');
+            const windModalClose = document.getElementById('wind-modal-close');
+            const windModalOk = document.getElementById('wind-modal-ok');
+
+            const openModal = () => {
+                windModal.classList.remove('hidden');
+                windModal.classList.add('flex');
+                // DOM 렌더링 후 애니메이션 클래스 적용
+                setTimeout(() => {
+                    windModal.classList.remove('opacity-0');
+                    windModalContent.classList.remove('scale-95');
+                }, 10);
+            };
+
+            const closeModal = () => {
+                windModal.classList.add('opacity-0');
+                windModalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    windModal.classList.add('hidden');
+                    windModal.classList.remove('flex');
+                }, 300);
+            };
+
+            windHelpBtn.addEventListener('click', openModal);
+            windModalClose.addEventListener('click', closeModal);
+            windModalOk.addEventListener('click', closeModal);
+            windModal.addEventListener('click', (e) => {
+                if (e.target === windModal) closeModal();
+            });
+
+            // 초기 계산 실행
+            updateUI();
+        });
+    </script>
+</body>
+</html>

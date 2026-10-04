@@ -22,7 +22,7 @@
 <body class="p-4 sm:p-8">
     <div class="max-w-7xl mx-auto">
         <nav aria-label="시뮬레이션 앱 메뉴" class="mb-4">
-            <a href="temp.html" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">← 환기량 앱</a>
+            <a class='inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100' href='/temp'>← 환기량 앱</a>
             <a href="#controller-journal-area" class="inline-flex items-center rounded-lg bg-indigo-600 text-white px-3 py-2 text-sm font-bold">📝 실제 설정 기록 · 데이터 기반 추천</a>
         </nav>
         <!-- 헤더 및 상태 -->
@@ -51,267 +51,6 @@
         </section>
 
 
-<section id="thermal" class="mb-6 scroll-mt-4"><p class="text-sm text-slate-600 mb-4">수동 시나리오 · 초기 슬라이더 값은 예시값이며 선택 배치의 실측값이 아닙니다. 제공 코드의 풍속·습도·바닥 보정계수 및 비교 기준 온도는 농장 검증 전 가정입니다. 결과는 실제 체감온도 측정값이나 자동 환기 제어 기준이 아닙니다.</p>
-
-    <div class="max-w-5xl w-full mx-auto bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col md:flex-row">
-
-        <!-- 왼쪽 패널: 입력 폼 -->
-        <div class="w-full md:w-1/2 p-6 md:p-8 bg-white border-r border-gray-100">
-            <div class="mb-8 flex items-center gap-3">
-                <div class="bg-blue-100 text-blue-600 p-3 rounded-lg">
-                    <i class="fa-solid fa-piggy-bank text-xl"></i>
-                </div>
-                <div>
-                    <h2 class="text-2xl font-bold text-gray-900">유효환경온도(EET) 시뮬레이터</h2>
-                    <p class="text-sm text-gray-500 mt-1">입력 조건에 따른 체감온도 추정값을 비교하세요.</p>
-                </div>
-            </div>
-
-            <div class="space-y-6 flex-1">
-                <!-- 컨트롤러 온도 입력 -->
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="text-sm font-semibold text-gray-700">컨트롤러 현재 온도 (℃)</label>
-                        <span id="temp-val" class="text-sm font-bold text-blue-600">24.0℃</span>
-                    </div>
-                    <input type="range" id="temp-slider" aria-label="컨트롤러 현재 온도 (℃)" min="0" max="40" step="0.5" value="24" class="w-full">
-                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                        <span>0℃</span><span>40℃</span>
-                    </div>
-                </div>
-
-                <!-- 돼지 체중 입력 -->
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="text-sm font-semibold text-gray-700">돼지 평균 체중 (kg)</label>
-                        <span id="weight-val" class="text-sm font-bold text-blue-600">30kg</span>
-                    </div>
-                    <input type="range" id="weight-slider" aria-label="돼지 평균 체중 (kg)" min="5" max="120" step="1" value="30" class="w-full">
-                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                        <span>자돈(5kg)</span><span>비육돈(120kg)</span>
-                    </div>
-                </div>
-
-                <!-- 돼지 체표면 풍속 입력 -->
-                <div>
-                    <div class="flex justify-between items-center mb-1">
-                        <label class="text-sm font-semibold text-gray-700 flex items-center gap-1">
-                            체표면 위치 풍속 (m/s)
-                            <button id="wind-help-btn" type="button" aria-label="풍속 측정 방법 보기" class="text-gray-400 hover:text-blue-500 transition-colors focus:outline-none" title="측정 방법 보기">
-                                <i class="fa-solid fa-circle-info"></i>
-                            </button>
-                        </label>
-                        <span id="wind-val" class="text-sm font-bold text-blue-600">0.3m/s</span>
-                    </div>
-                    <input type="range" id="wind-slider" aria-label="체표면 위치 풍속 (m/s)" min="0" max="1.5" step="0.05" value="0.3" class="w-full">
-                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                        <span>무풍(0m/s)</span><span>강풍(1.5m/s)</span>
-                    </div>
-                </div>
-
-                <!-- 돈사 상대습도 입력 -->
-                <div>
-                    <div class="flex justify-between mb-1">
-                        <label class="text-sm font-semibold text-gray-700">돈사 내부 상대습도 (%)</label>
-                        <span id="humidity-val" class="text-sm font-bold text-blue-600">65%</span>
-                    </div>
-                    <input type="range" id="humidity-slider" aria-label="돈사 내부 상대습도 (%)" min="20" max="100" step="5" value="65" class="w-full">
-                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                        <span>건조(20%)</span><span>적정(60%)</span><span>고습(100%)</span>
-                    </div>
-                </div>
-
-                <!-- 바닥 상태 선택 -->
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">바닥 상태</label>
-                    <div class="grid grid-cols-2 gap-3 text-sm">
-                        <label class="cursor-pointer">
-                            <input type="radio" name="floor" value="dry_solid" class="peer sr-only">
-                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">마른 평사 (0℃)</div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="floor" value="dry_slat" class="peer sr-only" checked>
-                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">마른 콘슬랏 (-1.5℃)</div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="floor" value="wet_solid" class="peer sr-only">
-                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">젖은 평사 (-3.0℃)</div>
-                        </label>
-                        <label class="cursor-pointer">
-                            <input type="radio" name="floor" value="wet_slat" class="peer sr-only">
-                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-blue-50 peer-checked:border-blue-500 peer-checked:text-blue-700 transition-all">젖은 콘슬랏 (-4.5℃)</div>
-                        </label>
-                        <label class="cursor-pointer col-span-2">
-                            <input type="radio" name="floor" value="bedding" class="peer sr-only">
-                            <div class="border border-gray-200 rounded-lg p-3 text-center peer-checked:bg-red-50 peer-checked:border-red-500 peer-checked:text-red-700 transition-all">톱밥/볏짚 깔짚 (+2.0℃)</div>
-                        </label>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="w-full md:w-1/2 p-6 md:p-8 bg-gray-50 flex flex-col justify-center relative overflow-hidden transition-all-fast" id="result-panel">
-            <!-- Background Decoration -->
-            <div class="absolute -top-20 -right-20 w-64 h-64 rounded-full opacity-10 bg-current"></div>
-
-            <div class="relative z-10 text-center mb-8">
-                <h2 class="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">제공 계산식 기준 추정 체감온도</h2>
-                <div class="flex items-end justify-center gap-2">
-                    <span id="final-eet" class="text-6xl md:text-7xl font-extrabold tracking-tighter">--</span>
-                    <span class="text-3xl font-bold mb-2">℃</span>
-                </div>
-                <div class="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full font-semibold text-sm shadow-sm" id="status-badge">
-                    <i id="status-icon" class="fa-solid fa-face-smile"></i>
-                    <span id="status-text">계산 중...</span>
-                </div>
-            </div>
-
-            <!-- 상세 분석 내역 -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4">
-                <h3 class="text-sm font-bold text-gray-800 border-b pb-2">온도 변화 요인 분석</h3>
-
-                <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-500"><i class="fa-solid fa-temperature-half w-5 text-center"></i> 센서 온도</span>
-                    <span class="font-bold text-gray-800" id="detail-base">24.0℃</span>
-                </div>
-
-                <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-500"><i class="fa-solid fa-wind w-5 text-center"></i> 풍냉 효과 (유속)</span>
-                    <span class="font-bold text-blue-600" id="detail-wind">-0.0℃</span>
-                </div>
-
-                <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-500"><i class="fa-solid fa-droplet w-5 text-center"></i> 습도 영향 (고온/저온)</span>
-                    <span class="font-bold text-gray-500" id="detail-humidity">0.0℃</span>
-                </div>
-
-                <div class="flex justify-between items-center text-sm">
-                    <span class="text-gray-500"><i class="fa-solid fa-layer-group w-5 text-center"></i> 바닥 열손실</span>
-                    <span class="font-bold text-blue-600" id="detail-floor">-1.5℃</span>
-                </div>
-
-                <div class="border-t border-dashed pt-3 flex justify-between items-center">
-                    <span class="text-sm font-bold text-gray-800">총 온도 편차</span>
-                    <span class="font-bold text-lg" id="detail-total-diff">-1.5℃</span>
-                </div>
-            </div>
-
-            <div class="mt-6 text-xs text-gray-400 text-center leading-relaxed">
-                * 체중이 가벼울수록(자돈) 풍속과 바닥 냉기에 의한 체감온도 저하가 큽니다.<br>
-                * 계산식의 비교 기준 온도는 <span id="target-temp-display" class="font-bold text-gray-500">--</span> 수준입니다.
-            </div>
-        </div>
-    </div>
-
-    <!-- 풍속 측정 가이드 모달 -->
-    <div id="wind-modal" role="dialog" aria-modal="true" aria-label="풍속 측정 안내" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 opacity-0 transition-opacity duration-300">
-        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg m-4 transform scale-95 transition-transform duration-300" id="wind-modal-content">
-            <div class="flex justify-between items-start mb-4">
-                <h3 class="text-lg font-bold text-gray-900"><i class="fa-solid fa-wind text-blue-500 mr-2"></i>체표면 풍속 측정 및 입력 가이드</h3>
-                <button id="wind-modal-close" type="button" aria-label="풍속 안내 닫기" class="text-gray-400 hover:text-gray-700">
-                    <i class="fa-solid fa-xmark text-xl"></i>
-                </button>
-            </div>
-
-            <div class="space-y-4 text-sm text-gray-600">
-                <p>온도 센서는 보통 높은 곳에 있지만, 유효온도 계산을 위한 풍속은 <strong>반드시 돼지가 엎드려 있는 높이(체표면)에서 측정</strong>해야 합니다.</p>
-
-                <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                    <h4 class="font-bold text-gray-800 mb-1">1. 측정 도구</h4>
-                    <ul class="list-disc pl-5 space-y-1">
-                        <li><strong>휴대용 열선 풍속계:</strong> 저풍속 구간의 측정 정확도와 교정 상태를 확인하고 사용하세요.</li>
-                        <li><strong>스모크(연기) 발생기:</strong> 바람의 흐름, 떨어지는 위치, 사각지대를 눈으로 직접 확인할 때 매우 유용합니다.</li>
-                    </ul>
-                </div>
-
-                <div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                    <h4 class="font-bold text-gray-800 mb-1">2. 측정 위치 (높이)</h4>
-                    <ul class="list-disc pl-5 space-y-1">
-                        <li><strong>자돈/이유자돈:</strong> 바닥에서 20~30cm 높이 (입식 초기엔 더 낮게)</li>
-                        <li><strong>육성/비육돈:</strong> 실제 누운 돼지 몸통 높이에서 측정하고, 서 있는 높이(약 40~60cm)도 별도로 확인</li>
-                    </ul>
-                </div>
-
-                <div class="bg-blue-50 p-3 rounded-lg border border-blue-100 text-blue-800">
-                    <h4 class="font-bold mb-1"><i class="fa-solid fa-lightbulb mr-1"></i> 시뮬레이터 입력 팁</h4>
-                    <p>매번 돈사 안에서 잴 수는 없습니다. 환기 컨트롤러의 <strong>환기팬 가동률(%)별로 바닥 풍속을 한 번씩 실측하여 "기준표"를 메모</strong>해 두세요.<br>
-                    <em>(예: 휀 30% = 0.1m/s, 휀 50% = 0.3m/s, 휀 100% = 0.6m/s 등)</em><br>
-                    예시 수치는 농장 실측값이 아닙니다. 윈치 개방 높이·팬 조합·측정 위치 등 조건이 같을 때만 실측 기준표를 참고하세요. 단면 환산 풍속을 대신 입력하지 마세요.</p>
-                </div>
-            </div>
-
-            <div class="mt-6 text-right">
-                <button id="wind-modal-ok" class="bg-blue-600 text-white px-5 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors">확인</button>
-            </div>
-        </div>
-    </div>
-
-    </section>
-        <!-- 4단계 상세 설정 패널 (가로 확장) -->
-        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6">
-            <div class="flex flex-wrap gap-3 justify-between items-center mb-4 border-b pb-2">
-                <h2 class="font-bold text-slate-700 flex items-center gap-2">
-                    <span>⚙️</span> 그룹별 상세 설정 (사육현황 연동 · 가상 시나리오 입력)
-                </h2>
-                <button id="loadGroupSettings" class="px-3 py-2 border border-blue-200 rounded-lg text-sm text-blue-800">사육현황 설정 다시 불러오기</button>
-                <button id="btnRun" class="px-5 py-2 bg-slate-800 text-white rounded-lg text-sm font-bold hover:bg-slate-700 transition shadow flex items-center gap-2">
-                    <span>🚀</span> 시뮬레이션 및 분석 실행
-                </button>
-            </div>
-
-            <p class="text-xs text-slate-600 mb-3">각 그룹의 기준온도 대비 1℃마다 출력 증가 · 편차만큼 상승하면 최대 출력 · 사육현황 온도 차이 +0 / +2 / +5℃</p>
-            <div class="flex flex-wrap gap-3 mb-3 text-xs items-center"><label><input id="linkOffsets" type="checkbox" checked> 1그룹 온도 변경 시 사육현황 간격 연동</label><button id="resetOffsets" class="border rounded px-2 py-1">사육현황 간격 적용</button></div>
-            <p id="groupSource" aria-live="polite" class="text-sm text-blue-800 mb-3">사육현황 설정을 불러오는 중입니다.</p>
-            <p id="formError" role="alert" class="text-sm text-rose-700 mb-3"></p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <!-- 1그룹 -->
-                <div class="bg-blue-50/60 p-3 rounded-lg border border-blue-200 shadow-sm">
-                    <h3 class="text-xs font-bold text-blue-800 mb-3 flex items-center gap-1"><span class="text-base">🌀</span> 1그룹 (500x2 상시)</h3>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div><label class="text-slate-600">설정 온도(℃)</label><input type="number" id="g1_t" step="1" class="text-blue-700 mt-1"></div>
-                        <div>
-                            <label class="text-slate-600 flex justify-between">편차(P)<span class="text-[9px] text-rose-500 font-bold">1℃ 단계 제어</span></label>
-                            <input type="number" id="g1_p" step="1" class="text-blue-700 mt-1" title="기준온도 대비 1℃ 상승할 때마다 (최대−최소)/편차만큼 출력이 증가합니다.">
-                        </div>
-                        <div><label class="text-slate-600">최소 출력(%)</label><input type="number" id="g1_min" step="1" class="text-blue-700 mt-1"></div>
-                        <div><label class="text-slate-600">최대 출력(%)</label><input type="number" id="g1_max" step="1" class="text-blue-700 mt-1 bg-slate-100"></div>
-                    </div>
-                </div>
-
-                <!-- 2그룹 -->
-                <div class="bg-teal-50/60 p-3 rounded-lg border border-teal-200 shadow-sm">
-                    <h3 class="text-xs font-bold text-teal-800 mb-3 flex items-center gap-1"><span class="text-base">💨</span> 2그룹 (500x3 완충)</h3>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div><label class="text-slate-600">개입 온도(℃)</label><input type="number" id="g2_t" step="1" class="text-teal-700 mt-1"></div>
-                        <div><label class="text-slate-600">편차(P-Band)</label><input type="number" id="g2_p" step="1" class="text-teal-700 mt-1"></div>
-                        <div><label class="text-slate-600">최소 출력(%)</label><input type="number" id="g2_min" step="1" class="text-teal-700 mt-1"></div>
-                        <div><label class="text-slate-600">최대 출력(%)</label><input type="number" id="g2_max" step="1" class="text-teal-700 mt-1 bg-slate-100"></div>
-                    </div>
-                </div>
-
-                <!-- 3그룹 -->
-                <div class="bg-orange-50/60 p-3 rounded-lg border border-orange-200 shadow-sm">
-                    <h3 class="text-xs font-bold text-orange-800 mb-3 flex items-center gap-1"><span class="text-base">🌤️</span> 3그룹 (800x2 1차)</h3>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div><label class="text-slate-600">개입 온도(℃)</label><input type="number" id="g3_t" step="1" class="text-orange-700 mt-1"></div>
-                        <div><label class="text-slate-600">편차(P-Band)</label><input type="number" id="g3_p" step="1" class="text-orange-700 mt-1"></div>
-                        <div><label class="text-slate-600">최소 출력(%)</label><input type="number" id="g3_min" step="1" class="text-orange-700 mt-1"></div>
-                        <div><label class="text-slate-600">최대 출력(%)</label><input type="number" id="g3_max" step="1" class="text-orange-700 mt-1 bg-slate-100"></div>
-                    </div>
-                </div>
-
-                <!-- 4그룹 -->
-                <div class="bg-rose-50/60 p-3 rounded-lg border border-rose-200 shadow-sm">
-                    <h3 class="text-xs font-bold text-rose-800 mb-3 flex items-center gap-1"><span class="text-base">🔥</span> 4그룹 (800x2 극한)</h3>
-                    <div class="grid grid-cols-2 gap-2 text-xs">
-                        <div><label class="text-slate-600">개입 온도(℃)</label><input type="number" id="g4_t" step="1" class="text-rose-700 mt-1"></div>
-                        <div><label class="text-slate-600">편차(P-Band)</label><input type="number" id="g4_p" step="1" class="text-rose-700 mt-1"></div>
-                        <div><label class="text-slate-600">최소 출력(%)</label><input type="number" id="g4_min" step="1" class="text-rose-700 mt-1"></div>
-                        <div><label class="text-slate-600">최대 출력(%)</label><input type="number" id="g4_max" step="1" class="text-rose-700 mt-1"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <section class="bg-white border rounded-xl p-4 mb-6">
             <h2 class="font-bold text-sm text-slate-700 mb-2">제어 동작 확인 · 온도별 계산 출력</h2>
@@ -327,39 +66,19 @@
         </section>
 
         <p id="dataSummary" class="text-xs text-slate-500 mb-3" aria-live="polite">최근 24시간의 온도 기록을 불러오는 중입니다.</p>
-        <!-- 차트 영역 -->
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col gap-4">
-            <!-- [상단] 온도 차트 -->
-            <div class="relative bg-slate-50 p-2 rounded-lg border border-slate-100">
-                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">🌡️ 실내 온도 흐름 및 외기 (최근 24시간)</h3>
-                <div class="h-[220px] w-full"><canvas id="tempChart"></canvas></div>
-            </div>
-
-            <!-- [하단] 환기 차트 -->
-            <div class="relative bg-slate-50 p-2 rounded-lg border border-slate-100">
-                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">💨 설정 기반 계산 출력(%) · 실제 가동 기록 없음</h3>
-                <div class="h-[220px] w-full"><canvas id="ventChart"></canvas></div>
-            </div>
-        </div>
-
-        <section class="bg-white p-4 rounded-xl border mb-6">
-            <h2 class="text-sm font-bold text-slate-600 mb-3">팬 풍량 기준 추정 환기량 (m³/h)</h2>
-            <p class="text-xs text-slate-500 mb-3">최소 요구량과 고온기 최대 요구량은 설계 비교 기준입니다. 고온기 요구량을 모든 시간에 충족해야 한다는 뜻은 아닙니다.</p>
-            <div class="h-[240px]"><canvas id="flowChart"></canvas></div>
-        </section>
         <!-- 분석 및 보완사항 리포트 -->
-        <div class="bg-slate-800 rounded-xl shadow-md overflow-hidden mb-10">
-            <div class="bg-slate-900 px-5 py-3 border-b border-slate-700 flex items-center gap-2">
+        <details id="observation-report" class="bg-slate-800 rounded-xl shadow-md overflow-hidden mb-10">
+            <summary class="bg-slate-900 px-5 py-3 text-white cursor-pointer select-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400">
                 <span class="text-xl">🤖</span>
-                <h2 class="text-sm sm:text-base font-bold text-white tracking-wide">설정 점검 및 온도 관측 리포트</h2>
+                <span class="text-sm sm:text-base font-bold text-white tracking-wide">설정 점검 및 온도 관측 리포트</span>
                 <span class="ml-auto text-[10px] px-2 py-1 bg-blue-500/20 text-blue-300 rounded font-bold border border-blue-500/30">실측 온도 + 계산값</span>
-            </div>
+            </summary>
             <div class="p-5">
                 <ul id="analysis_report" class="space-y-4">
                     <li class="text-slate-300 text-sm flex items-center justify-center h-20">시뮬레이션 실행 버튼을 눌러 결과를 분석하세요.</li>
                 </ul>
             </div>
-        </div>
+        </details>
     </div>
 
     <section class="max-w-7xl mx-auto bg-white rounded-xl border p-5 mb-8 text-xs text-slate-600 leading-relaxed">
@@ -371,8 +90,6 @@
     </section>
     <script src="./simulation-core.js?v=20261003-weight-cap110"></script>
     <script src="./ventilation.js?v=20261004-group-editor"></script>
-    <link rel="stylesheet" href="./eet-simulator.css">
-    <script src="./eet-simulator.js"></script>
     <script src="./ventilation-learning.js?v=20261003"></script>
     <script type="module">
         import { createVentilationJournal } from "./ventilation-journal.js?v=20261004";
@@ -385,10 +102,10 @@
         const V = window.FarmVentilation;
         const $ = id => document.getElementById(id);
         const fmt = n => Math.round(n).toLocaleString('ko-KR');
-        let rawCache = [], unsubscribeHistory, unsubscribeFarm, historyTimer, flowChartInstance;
+        let rawCache = [], unsubscribeHistory, unsubscribeFarm, historyTimer;
         let farmBatches = [], farmLoaded = false, historyFailed = false;
         let historyReceived = false;
-        let groupDirty = false, outdoorState = "loading", outdoorReadings = [], unsubscribeOutdoor, outdoorRequest = 0;
+        let outdoorState = "loading", outdoorReadings = [], unsubscribeOutdoor, outdoorRequest = 0;
         let activeRange = C.presetRange(24), historyRequest = 0;
         const formatTime = time => C.toKoreanInput(time).replace('T', ' ');
         const periodLabel = () => `${formatTime(activeRange.start)} ~ ${formatTime(activeRange.end)} (한국시간)`;
@@ -443,8 +160,6 @@
             }
         });
         let timeSeriesData = [];
-        let tempChartInstance = null;
-        let ventChartInstance = null;
 
         async function init() {
             try {
@@ -518,20 +233,13 @@
         }
 
         function readNumber(id) { const n = C.number($(id).value); return n === null ? NaN : n; }
-        function getSettingsFromUI() {
-            return C.validateSettings(Object.fromEntries([1,2,3,4].map(i => ['g'+i, { t: readNumber('g'+i+'_t'), p: readNumber('g'+i+'_p'), min: readNumber('g'+i+'_min'), max: readNumber('g'+i+'_max') }])));
+        function getSharedSettings() {
+            const inputs=farmLoaded ? farmInputs(selectedFarmBatch()) : null;
+            if(!inputs) throw new Error('선택 배치의 사육 정보를 불러오면 계산 결과를 표시합니다.');
+            const opt=V.calculateOptimalSettings(inputs.age,inputs.weight,inputs.count,null,'육성사',inputs.stockDiffDays,[],selectedFarmBatch()?.ventilationOverrides);
+            return C.validateSettings(Object.fromEntries(['f500_1','f500_2','f800_1','f800_2'].map((key,i)=>['g'+(i+1),{t:opt[key].t,p:opt[key].diff,min:opt[key].min,max:opt[key].max}])));
         }
         function calcVentRates(temp, s) { return C.rates(temp, s); }
-        function timeScale() {
-            const unit = activeRange.end - activeRange.start >= 3 * C.DAY ? 'day' : 'hour';
-            return {
-                min: activeRange.start, max: activeRange.end, type: 'time',
-                time: { unit, displayFormats: {hour:'MM/dd HH:mm',day:'MM/dd'}, tooltipFormat:'MM/dd HH:mm' },
-                grid: { display:false },
-                ticks: {color:'#64748b',maxRotation:0,maxTicksLimit:10,callback:value=>unit==='day'?formatTime(Number(value)).slice(5,10):formatTime(Number(value)).slice(5)}
-            };
-        }
-
         function selectedFarmBatch() {
             const selected = Number($('sensorSelect').value.match(/(\d+)배치/)[1]);
             const matches = farmBatches.filter(b => Number(String(b.name || b.batchName || b.roomName || b.id).match(/\d+/)?.[0]) === selected);
@@ -544,43 +252,18 @@
             const timing = V.calculatePigAge(batch, '육성사');
             return { ...timing, count, weight: V.calculateWeight(timing.age) };
         }
-        function clearGroupSettings() {
-            for (let i=1;i<=4;i++) for (const field of ['t','p','min','max']) $('g'+i+'_'+field).value='';
-        }
         function syncJournal() {
             const inputs = farmLoaded ? farmInputs(selectedFarmBatch()) : null;
             const available = !!inputs;
             $('controller-journal').hidden = !available;
             $('journal-availability').textContent = available
-                ? '선택 배치의 실제 공유 설정을 기록합니다. 위 가상 시나리오 입력값은 실제 기록에 자동 반영하지 않습니다.'
+                ? '선택 배치의 공유 설정을 불러옵니다. 실제 컨트롤러 설정을 확인한 뒤 기록하세요.'
                 : '선택 배치의 사육 정보를 확인할 수 없어 기록 입력을 보류합니다. 배치 선택과 연결 상태를 확인하세요.';
             if (!available) { journal.suspend(); return; }
             const opt = V.calculateOptimalSettings(inputs.age, inputs.weight, inputs.count, null, '육성사', inputs.stockDiffDays, [], selectedFarmBatch()?.ventilationOverrides);
             journal.setBatch({ room: $('sensorSelect').value, count: inputs.count, weight: inputs.weight, age: inputs.age }, opt);
         }
-        function syncGroupSettings() {
-            syncJournal();
-            if (groupDirty) {
-                $('groupSource').textContent = '수동 시나리오 · 수정한 입력을 유지합니다. 최신 사육현황 설정은 다시 불러오기 버튼으로 적용하세요.';
-                return;
-            }
-            const inputs = farmLoaded ? farmInputs(selectedFarmBatch()) : null;
-            if (!inputs || outdoorState !== 'ready') {
-                clearGroupSettings();
-                $('groupSource').textContent = !farmLoaded ? '사육현황 배치 데이터 대기 중 또는 연결 실패 · 직접 입력도 가능합니다.'
-                    : !inputs ? '선택 배치 정보가 없거나 중복·빈 배치입니다. 이전 배치 설정을 지웠습니다.'
-                    : outdoorState === 'error' ? '최근 48시간 외기 기록 연결 실패 · 자동 설정을 보류합니다.' : '최근 48시간 외기 기록을 불러오는 중입니다.';
-                return;
-            }
-            const outdoor = V.recentOutdoorTemperatures(outdoorReadings);
-            const opt = V.calculateOptimalSettings(inputs.age, inputs.weight, inputs.count, null, '육성사', inputs.stockDiffDays, outdoor, selectedFarmBatch()?.ventilationOverrides);
-            ['f500_1','f500_2','f800_1','f800_2'].forEach((key,index) => {
-                const g=opt[key], i=index+1;
-                for (const [field,value] of Object.entries({t:g.t,p:g.diff,min:g.min,max:g.max})) $('g'+i+'_'+field).value=value;
-            });
-            const stock = inputs.stockDiffDays === null ? '입식일 없음' : '입식 '+inputs.stockDiffDays+'일차';
-            $('groupSource').textContent = `${$('sensorSelect').value} · 사육현황 연동 · ${inputs.age}일령 / 계산 체중 ${inputs.weight}kg / ${inputs.count}두 / ${stock} · ${outdoor.length ? '최근 48시간 외기 '+outdoor.length+'건 참고 (온도 보정 없음)' : '최근 48시간 외기 기록 없음 · 외기 보정 미적용'} · 현재 권장 설정이며 실제 팬 기록은 아닙니다.`;
-        }
+        function syncGroupSettings() { syncJournal(); }
         function fetchOutdoor() {
             const request=++outdoorRequest;
             if(unsubscribeOutdoor) unsubscribeOutdoor();
@@ -601,7 +284,6 @@
             });
         }
         function loadSelectedBatch(force = false) {
-            if(force) groupDirty=false;
             syncGroupSettings();runSimulation();
         }
 
@@ -611,67 +293,6 @@
         }
 
         // 차트 업데이트
-        function updateCharts(s, ventDataArray) {
-            const ctxTemp = document.getElementById('tempChart').getContext('2d');
-            const ctxVent = document.getElementById('ventChart').getContext('2d');
-
-            const dataInTemp = [], dataOutTemp = [], dataTargetTemp = [];
-            const dataV1 = [], dataV2 = [], dataV3 = [], dataV4 = [];
-
-            timeSeriesData.forEach((point, i) => {
-                if (i && point.time - timeSeriesData[i-1].time > 1800000) {
-                    for (const series of [dataInTemp,dataOutTemp,dataTargetTemp,dataV1,dataV2,dataV3,dataV4]) series.push({ x: timeSeriesData[i-1].time + 1, y: null });
-                }
-                dataInTemp.push({ x: point.time, y: point.inTemp });
-                dataOutTemp.push({ x: point.time, y: point.outTemp });
-                dataTargetTemp.push({ x: point.time, y: s.g1.t });
-
-                dataV1.push({ x: point.time, y: ventDataArray[i].v1 });
-                dataV2.push({ x: point.time, y: ventDataArray[i].v2 });
-                dataV3.push({ x: point.time, y: ventDataArray[i].v3 });
-                dataV4.push({ x: point.time, y: ventDataArray[i].v4 });
-            });
-
-            const xScaleOptions = timeScale();
-
-            const tooltipOptions = { backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#1e293b', bodyColor: '#334155', borderColor: '#cbd5e1', borderWidth: 1, padding: 10, usePointStyle: true };
-
-            if (tempChartInstance) tempChartInstance.destroy();
-            tempChartInstance = new Chart(ctxTemp, {
-                type: 'line',
-                data: {
-                    datasets: [
-                        { label: '🔥실내 온도', data: dataInTemp, borderColor: '#ef4444', borderWidth: 2, pointRadius: timeSeriesData.length === 1 ? 3 : 0, pointHoverRadius: 5, tension: 0, z: 10 },
-                        { label: '🎯1그룹 설정온도', data: dataTargetTemp, borderColor: '#22c55e', borderWidth: 1.5, borderDash: [5, 5], pointRadius: timeSeriesData.length === 1 ? 3 : 0, tension: 0 },
-                        { label: '❄️외기 온도', data: dataOutTemp, borderColor: '#94a3b8', borderWidth: 1.5, borderDash: [3, 3], pointRadius: timeSeriesData.length === 1 ? 3 : 0, tension: 0 }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    scales: { x: xScaleOptions, y: { type: 'linear', position: 'left', title: { display: false }, ticks: { color: '#ef4444', callback: val => val + '℃' } } },
-                    plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, font: {size: 11} } }, tooltip: { ...tooltipOptions, callbacks: { title:items=>items.length?formatTime(items[0].parsed.x)+' KST':'', label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}℃` } } }
-                }
-            });
-
-            if (ventChartInstance) ventChartInstance.destroy();
-            ventChartInstance = new Chart(ctxVent, {
-                type: 'line',
-                data: {
-                    datasets: [
-                        { label: '1그룹(500x2)', data: dataV1, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 1.5, fill: false, pointRadius: timeSeriesData.length === 1 ? 3 : 0, tension: 0, stepped: 'before' },
-                        { label: '2그룹(500x3)', data: dataV2, borderColor: '#14b8a6', backgroundColor: 'rgba(20, 184, 166, 0.15)', borderWidth: 1.5, fill: false, pointRadius: timeSeriesData.length === 1 ? 3 : 0, tension: 0, stepped: 'before' },
-                        { label: '3그룹(800x2)', data: dataV3, borderColor: '#f97316', backgroundColor: 'rgba(249, 115, 22, 0.2)', borderWidth: 1.5, fill: false, pointRadius: timeSeriesData.length === 1 ? 3 : 0, tension: 0, stepped: 'before' },
-                        { label: '4그룹(800x2)', data: dataV4, borderColor: '#f43f5e', backgroundColor: 'rgba(244, 63, 94, 0.2)', borderWidth: 1.5, fill: false, pointRadius: timeSeriesData.length === 1 ? 3 : 0, tension: 0, stepped: 'before' }
-                    ]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
-                    scales: { x: xScaleOptions, y: { type: 'linear', position: 'left', min: 0, max: 100, ticks: { color: '#475569', stepSize: 25, callback: val => val + '%' } } },
-                    plugins: { legend: { position: 'top', labels: { usePointStyle: true, boxWidth: 8, font: {size: 11} } }, tooltip: { ...tooltipOptions, callbacks: { title:items=>items.length?formatTime(items[0].parsed.x)+' KST':'', label: ctx => `${ctx.dataset.label}: ${Math.round(ctx.parsed.y)}%` } } }
-                }
-            });
-        }
-
         function renderSteps(s) {
             const width=readNumber('sectionWidth'), height=readNumber('sectionHeight');
             const area=width*height;
@@ -686,31 +307,10 @@
                 return `<tr class="border-b border-slate-100"><td class="p-2 font-semibold">${temp}~${(temp+0.9).toFixed(1)}℃</td>${[1,2,3,4].map(i=>`<td>${v['v'+i].toFixed(1)}%</td>`).join('')}<td>${fmt(C.flow(v))}</td><td class="p-2 font-semibold text-blue-800">${validArea ? (C.flow(v)/3600/area).toFixed(3) : "—"}</td></tr>`;
             }).join('');
         }
-        function drawFlow(vent, req) {
-            if (flowChartInstance) flowChartInstance.destroy();
-            const points = [];
-            timeSeriesData.forEach((p,i) => {
-                if (i && p.time-timeSeriesData[i-1].time>1800000) points.push({x:timeSeriesData[i-1].time+1,y:null});
-                points.push({x:p.time,y:C.flow(vent[i])});
-            });
-            const datasets = [{label:'추정 합계 풍량',data:points,borderColor:'#2563eb',pointRadius:timeSeriesData.length === 1 ? 3 : 0,borderWidth:2,stepped:'before'}];
-            if (req) for (const [key,label,color] of [['min','최소 요구량','#16a34a'],['max','고온기 최대 요구량','#f97316']]) datasets.push({label,data:[{x:activeRange.start,y:req[key]},{x:activeRange.end,y:req[key]}],borderColor:color,borderDash:[5,5],pointRadius:0,borderWidth:1.5});
-            flowChartInstance = new Chart($('flowChart'), {
-                type:'line', data:{datasets},
-                options:{
-                    responsive:true, maintainAspectRatio:false, animation:false,
-                    scales:{
-                        x:timeScale(),
-                        y:{beginAtZero:true,ticks:{callback:n=>fmt(n)}}
-                    },
-                    plugins:{legend:{labels:{boxWidth:10,font:{size:11}}},tooltip:{callbacks:{title:items=>items.length?formatTime(items[0].parsed.x)+' KST':''}}}
-                }
-            });
-        }
         function analyzeSimulation(s, vent, req) {
             const reports = [];
             const add = (title,body) => reports.push(`<li class="bg-slate-700 rounded-lg p-4 text-sm text-slate-200"><strong class="block text-white mb-1">${title}</strong>${body}</li>`);
-            add('분석 적용 기간', `${periodLabel()} · 유효 온도 ${fmt(timeSeriesData.length)}건. 현재 입력한 체중·두수와 설정을 전체 기간에 동일하게 대입합니다. 과거 배치의 실제 사육정보와 다르면 직접 수정하세요.`);
+            add('분석 적용 기간', `${periodLabel()} · 유효 온도 ${fmt(timeSeriesData.length)}건. 선택 배치의 현재 체중·두수와 공유 설정을 전체 기간에 동일하게 대입합니다. 과거 실제 운전 조건을 재현한 결과는 아닙니다.`);
             add('1℃ 단위 계단식 제어', `1그룹 기준 ${s.g1.t}℃, 편차 ${s.g1.p}℃: ${s.g1.t}℃에서 ${s.g1.min}%, ${s.g1.t+1}℃에서 ${C.rate(s.g1.t+1,s.g1).toFixed(1)}%, ${s.g1.t+s.g1.p}℃에서 ${s.g1.max}%. 실제 팬 출력과 대조 검증하지 않은 계산값입니다.`);
             const offsets = [2,3,4].map(i=>s['g'+i].t-s.g1.t);
             add('그룹별 기준온도 차이', `${offsets.map(n=>(n>=0?'+':'')+n+'℃').join(' / ')} · 사육현황 간격 +0 / +2 / +5℃. 각 그룹은 자기 기준온도보다 1℃ 상승할 때 첫 출력 증가가 발생합니다.`);
@@ -732,42 +332,17 @@
         function runSimulation() {
             const req = requirement();
             try {
-                const settings = getSettingsFromUI();
-                $('formError').textContent = '';
+                const settings = getSharedSettings();
                 const vent = timeSeriesData.map(pt=>calcVentRates(pt.inTemp,settings));
                 renderSteps(settings);
-                if (typeof Chart === 'undefined') throw new Error('차트 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침하세요.');
-                updateCharts(settings,vent);
-                drawFlow(vent,req);
                 analyzeSimulation(settings,vent,req);
             } catch(e) {
-                $('formError').textContent = e.message;
                 $('stepTable').replaceChildren();
-                $('analysis_report').textContent = '설정값을 확인한 뒤 다시 실행하세요.';
-                for (const chart of [tempChartInstance,ventChartInstance,flowChartInstance]) if(chart) chart.destroy();
-                tempChartInstance=ventChartInstance=flowChartInstance=null;
+                $('analysis_report').textContent = e.message;
             }
         }
-        function applyOffsets() {
-            const base = C.number($('g1_t').value);
-            if (base !== null) [0,2,5].forEach((offset,i)=>$('g'+(i+2)+'_t').value=base+offset);
-        }
-        $('btnRun').addEventListener('click',runSimulation);
-        $('sensorSelect').addEventListener('change',()=>{groupDirty=false;clearGroupSettings(); loadSelectedBatch(false); processData();});
-        $('loadGroupSettings').addEventListener('click',()=>loadSelectedBatch(true));
-        $('resetOffsets').addEventListener('click',()=>{groupDirty=true;applyOffsets();syncGroupSettings();runSimulation();});
-        $('g1_t').addEventListener('input',()=>{if($('linkOffsets').checked) applyOffsets();});
-        for (const input of document.querySelectorAll('input[type="number"]')) {
-            const label = input.parentElement.querySelector('label');
-            if(label && !label.htmlFor) label.htmlFor=input.id;
-            if (/_p$/.test(input.id)) input.min='1';
-            if (/_(min|max)$/.test(input.id)) {input.min='0';input.max='100';}
-            input.addEventListener('input',()=>{
-                if(/^g[1-4]_/.test(input.id)) groupDirty=true;
-                if(groupDirty) syncGroupSettings();
-                runSimulation();
-            });
-        }
+        $('sensorSelect').addEventListener('change',()=>{loadSelectedBatch(false);processData();});
+        for(const id of ['sectionWidth','sectionHeight']) $(id).addEventListener('input',runSimulation);
         $('fanSpec').textContent=`500팬 ${fmt(C.FAN500)}m³/h/대 × 5대 · 800팬 10,574CFM → ${fmt(C.FAN800)}m³/h/대 × 4대 · 전체 정격 합계 ${fmt(C.CAPS.reduce((a,b)=>a+b))}m³/h`;
         window.addEventListener('pagehide',()=>{if(unsubscribeHistory)unsubscribeHistory();if(unsubscribeFarm)unsubscribeFarm();if(unsubscribeOutdoor)unsubscribeOutdoor();clearInterval(historyTimer);});
         runSimulation();
