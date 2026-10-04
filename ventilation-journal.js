@@ -3,7 +3,7 @@ export function createVentilationJournal(host, api) {
     const L = window.VentilationLearning;
     const CACHE = 'sungamfarm-controller-observations-v1';
     const escape = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    let batch = null, defaults = null, cloud = [], local = [], unsubscribe = null, generation = 0, busy = false;
+    let batch = null, defaults = null, cloud = [], local = [], unsubscribe = null, generation = 0, busy = false, formDirty = false, defaultSignature = '';
     let storageError = '';
     try { local = JSON.parse(localStorage.getItem(CACHE) || '[]'); if (!Array.isArray(local)) throw Error(); }
     catch { local = []; storageError = '기기 저장 기록을 읽지 못했습니다. 브라우저 저장소를 확인하세요.'; }
@@ -27,7 +27,7 @@ export function createVentilationJournal(host, api) {
       <label class="block text-sm">입기구·순환·난방 상태 (같은 조건은 같은 이름 사용)<input id="vj-context" maxlength="200" placeholder="예: 입기 3cm / 순환 켬 / 난방 끔" class="block w-full border rounded p-2 mt-1"></label>
       <label class="block text-sm mt-3">메모<input id="vj-note" maxlength="500" class="block w-full border rounded p-2 mt-1" placeholder="설비 변경, 특이사항 등"></label>
       <label class="flex gap-2 text-sm my-3"><input id="vj-confirm" type="checkbox">위 기간 동안 입력한 설정·사육·설비 조건이 유지된 실제 기록임을 확인했습니다.</label>
-      <div class="flex flex-wrap gap-2"><button id="vj-save" class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-bold">실제 기록 누적 저장</button><button id="vj-continue" class="border rounded-lg px-3 py-2 text-sm">최근 기록 이어서 입력</button><button id="vj-defaults" class="border rounded-lg px-3 py-2 text-sm">현재 계산값 입력</button><button id="vj-retry" class="border rounded-lg px-3 py-2 text-sm">미전송 기록 재전송</button><button id="vj-export" class="border rounded-lg px-3 py-2 text-sm">기록 JSON 내보내기</button></div>
+      <div class="flex flex-wrap gap-2"><button id="vj-save" class="bg-blue-600 text-white rounded-lg px-4 py-2 text-sm font-bold">실제 기록 누적 저장</button><button id="vj-continue" class="border rounded-lg px-3 py-2 text-sm">최근 기록 이어서 입력</button><button id="vj-defaults" class="border rounded-lg px-3 py-2 text-sm">현재 공유값 입력</button><button id="vj-retry" class="border rounded-lg px-3 py-2 text-sm">미전송 기록 재전송</button><button id="vj-export" class="border rounded-lg px-3 py-2 text-sm">기록 JSON 내보내기</button></div>
       <p id="vj-status" role="status" class="text-sm text-slate-600 mt-3"></p>
       <details class="mt-3"><summary class="cursor-pointer text-sm font-bold">저장 기록 보기 <span id="vj-total"></span></summary><div id="vj-list" class="text-xs max-h-64 overflow-auto mt-2"></div></details>
       <div class="border-t mt-5 pt-4">
@@ -39,6 +39,8 @@ export function createVentilationJournal(host, api) {
         <details class="mt-3 text-xs text-slate-500"><summary class="cursor-pointer">추천 기준과 한계</summary><p class="mt-2">같은 돈방·설비 상태, 두수·체중 ±20%, 최근 6시간 평균 외기 ±3℃, 같은 6시간대(한국시간)를 비교합니다. 첫 30분을 제외한 6시간 관찰, 5분 구간 데이터 75% 이상, 30분 초과 결측 없음, 같은 설정의 서로 다른 3일 이상이 필요합니다. 목표 범위 유지율 80% 이상·1시간 하강 2℃ 이하인 설정을 유지율 순으로 제안합니다. 이 기준은 앱의 비교 기준이며 축산 표준이나 건강 보증이 아닙니다. 미확인·이상 관찰·중복 관찰 기간은 추천에서 제외합니다. 습도·공기질·입기 유속의 적정성을 보증하지 않으며, %를 실제 풍량으로 환산하지 않습니다.</p></details>
       </div>`;
     const $ = id => host.querySelector('#vj-' + id);
+    const defaultGroups = opt => ['f500_1','f500_2','f800_1','f800_2'].map(k=>opt[k]);
+    ['start','end','count','weight','weight-source','age','flow','observation','context','note',...[1,2,3,4].flatMap(i=>['t','min','max','diff'].map(f=>'g'+i+'-'+f))].forEach(id=>$(id).addEventListener('input',()=>{formDirty=true;}));
     const status = text => { $('status').textContent = text; };
     function records() {
         const map = new Map(local.filter(r => r.room === batch?.room).map(r => [r.id, r]));
@@ -60,7 +62,7 @@ export function createVentilationJournal(host, api) {
         $('list').innerHTML = rows.length ? rows.slice(0, 100).map(r => `<div class="p-2 border-b">${escape(L.kst(r.start).replace('T',' '))} ~ ${escape(L.kst(r.end).replace('T',' '))}<br>${escape(r.groups?.map((g,i)=>`${i+1}그룹 ${g.t}℃ / ${g.min}~${g.max}% / 편차 ${g.diff}℃`).join(' · '))}<br>${escape(r.context)} · ${r.synced ? '클라우드 저장됨' : '이 기기 저장 · 클라우드 미확인'} · ${escape({normal:'이상 관찰 없음',cough:'이상 관찰',unknown:'관찰 미확인'}[r.observation])}</div>`).join('') : '<p>이 배치의 실제 설정 기록이 없습니다.</p>';
     }
     function fillGroups(groups) { groups.forEach((g,i)=>['t','min','max','diff'].forEach(f=>{ $('g'+(i+1)+'-'+f).value=g[f]; })); $('confirm').checked = false; }
-    function useDefaults() { fillGroups(['f500_1','f500_2','f800_1','f800_2'].map(k=>defaults[k])); status('계산값을 입력했습니다. 실제 컨트롤러와 대조·수정한 뒤 확인하여 저장하세요.'); }
+    function useDefaults() { fillGroups(['f500_1','f500_2','f800_1','f800_2'].map(k=>defaults[k])); status('현재 공유 설정을 입력했습니다. 실제 컨트롤러와 대조·수정한 뒤 확인하여 저장하세요.'); }
     function setBusy(value) { busy=value; ['save','retry','continue','defaults','analyze'].forEach(id=>{$(id).disabled=value; $(id).classList.toggle('opacity-50',value);}); }
     async function upload(record) {
         await api.save(record);
@@ -112,14 +114,19 @@ export function createVentilationJournal(host, api) {
         }catch(e){if(token===generation)$('result').textContent='분석 중단: '+e.message+' · 일부 데이터만으로 추천하지 않습니다.';}
         finally{setBusy(false);}
     };
-    return { setBatch(next,opt) {
+    return { suspend() {
+        generation++; batch=null; cloud=[];
+        if(unsubscribe)unsubscribe();
+        unsubscribe=null;
+    }, setBatch(next,opt) {
         defaults=opt;
-        if(batch?.room===next.room){batch=next;return;}
+        const signature=JSON.stringify(defaultGroups(opt));
+        if(batch?.room===next.room){batch=next;if(!formDirty && signature!==defaultSignature)fillGroups(defaultGroups(opt));defaultSignature=signature;return;}
         generation++;batch=next;cloud=[];if(unsubscribe)unsubscribe();
         $('room').textContent=next.room.replace('_',' ');$('start').value=L.kst(Date.now());$('end').value=L.kst(Date.now());
         $('count').value=next.count;$('weight').value=next.weight;$('age').value=next.age;$('weight-source').value='predicted';
         $('context').value='';$('note').value='';$('flow').value='';$('observation').value='unknown';
-        [1,2,3,4].forEach(i=>['t','min','max','diff'].forEach(f=>{$('g'+i+'-'+f).value='';}));$('confirm').checked=false;
+        fillGroups(defaultGroups(opt));formDirty=false;defaultSignature=signature;$('confirm').checked=false;
         $('low').value=opt.f500_1.t;$('high').value=opt.f500_1.t+2;
         $('result').textContent='실제 기록과 현재 설비 조건을 확인한 뒤 분석하세요.';
         status(storageError||'실제 설정을 입력하세요. 클라우드 기록을 확인 중입니다.');showRecords();

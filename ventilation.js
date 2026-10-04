@@ -118,7 +118,7 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             return { age: Math.round(Math.max(1, age)), sourceMsg, diffDays, stockDiffDays };
         }
 
-        function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', stockDiffDays = null, outdoorTempHistory = []) {
+        function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', stockDiffDays = null, outdoorTempHistory = [], overrides = null) {
 
             // 1그룹 (500휀 2대 상시 - 1도 단위)
             let t_500_1_raw = BASE_TEMPERATURE;
@@ -209,20 +209,45 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
                 t_500_2 = 0; t_800_1 = 0; t_800_2 = 0;
             }
 
-            return {
+            return applyOverrides({
                 f500_1: { t: Math.round(t_500_1), min: Math.round(min_500_1), max: 100, diff: diff_500_1 },
                 f500_2: { t: Math.round(t_500_2), min: min_500_2, max: 100, diff: diff_500_2 },
                 f800_1: { t: Math.round(t_800_1), min: 0, max: 100, diff: diff_800_1 },
                 f800_2: { t: Math.round(t_800_2), min: 0, max: Math.round(max_800_2), diff: diff_800_2 },
-                historyMsg, volume: buildingVolume, minVel: min_velocity, maxVel: max_velocity,
+                historyMsg, volume: buildingVolume, crossSectionArea, minVel: min_velocity, maxVel: max_velocity,
                 minRequiredCMH: baseMinVentCMH, minSuppliedCMH: min_cmh, minShortfallCMH, minimumStatus,
                 optMaxVel: optimal_max_vel, inletArea: inletGapArea, inletMaxVel: inletMaxVel, roomType: roomType,
                 caps: { c1: fan_500_1_cap, c2: fan_500_2_cap, c3: fan_800_1_cap, c4: fan_800_2_cap },
-            };
+            }, overrides);
         }
+
+function applyOverrides(calculated, overrides) {
+    const result = { ...calculated };
+    for (const key of ['f500_1','f500_2','f800_1','f800_2']) result[key] = { ...calculated[key] };
+    const changed = [];
+    for (const key of ['f500_1','f500_2','f800_1','f800_2']) {
+        if (calculated.roomType === '이유사' && key !== 'f500_1') continue;
+        for (const field of key === 'f800_2' ? ['t','max','diff'] : ['t','min','diff']) {
+            const value = overrides?.[key]?.[field];
+            if (typeof value !== 'number' || !Number.isInteger(value) || (field === 't' ? value < 5 || value > 40 : field === 'diff' ? value < 1 || value > 20 : value < 0 || value > 100)) continue;
+            result[key][field] = value;
+            changed.push(key + '.' + field);
+        }
+    }
+    result.hasManualOverrides = changed.length > 0;
+    result.manualFields = changed;
+    if (changed.length) {
+        result.minSuppliedCMH = (result.caps.c1 * result.f500_1.min + result.caps.c2 * result.f500_2.min + result.caps.c3 * result.f800_1.min) / 100;
+        result.minShortfallCMH = Math.max(0, result.minRequiredCMH - result.minSuppliedCMH);
+        result.minVel = result.minSuppliedCMH / 3600 / result.crossSectionArea;
+        result.minimumStatus = `저장된 최소 전압 설정 적용: 1그룹 ${result.f500_1.min}%, 2그룹 ${result.f500_2.min}%, 3그룹 ${result.f800_1.min}%. 표시 풍량은 제원 비례 추정이며 실제 풍량이 아닙니다.`;
+        result.historyMsg += '<li><strong>배치별 수정 설정 적용</strong>: 직접 변경한 온도·환기·편차 값은 사육현황과 공유됩니다. 수정하지 않은 항목은 계산값을 사용합니다.</li>';
+    }
+    return result;
+}
 
 function recentOutdoorTemperatures(readings, now = Date.now()) {
     return readings.filter(r => r.time > now - 48 * 60 * 60 * 1000 && r.time <= now && Number.isFinite(r.temp)).map(r => r.temp);
 }
-root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, FAN_AIRFLOW, calculateWeight, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures });
+root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, FAN_AIRFLOW, calculateWeight, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides });
 })(globalThis);

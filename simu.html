@@ -23,6 +23,7 @@
     <div class="max-w-7xl mx-auto">
         <nav aria-label="시뮬레이션 앱 메뉴" class="mb-4">
             <a href="temp.html" class="inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">← 환기량 앱</a>
+            <a href="#controller-journal-area" class="inline-flex items-center rounded-lg bg-indigo-600 text-white px-3 py-2 text-sm font-bold">📝 실제 설정 기록 · 데이터 기반 추천</a>
         </nav>
         <!-- 헤더 및 상태 -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
@@ -44,42 +45,11 @@
         </div>
 
 
-        <section class="bg-white p-5 rounded-xl border border-blue-200 shadow-sm mb-6">
-            <h2 class="font-bold text-slate-700 mb-3">분석 기간 설정</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end text-sm">
-                <label for="periodPreset" class="text-slate-600">빠른 기간 선택
-                    <select id="periodPreset" class="block w-full rounded-lg border border-slate-300 p-2 bg-white mt-1">
-                        <option value="24">최근 24시간</option><option value="72">최근 3일</option><option value="168">최근 7일</option><option value="custom">직접 설정</option>
-                    </select>
-                </label>
-                <label for="periodStart" class="text-slate-600">시작 일시 (한국시간)<input id="periodStart" type="datetime-local" step="60" class="block w-full min-w-0 rounded-lg border border-slate-300 p-2 mt-1"></label>
-                <label for="periodEnd" class="text-slate-600">종료 일시 (한국시간)<input id="periodEnd" type="datetime-local" step="60" class="block w-full min-w-0 rounded-lg border border-slate-300 p-2 mt-1"></label>
-                <button id="applyPeriod" class="rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-bold px-4 py-2.5">기간 적용 및 분석</button>
-            </div>
-            <p class="text-xs text-slate-500 mt-3">최대 31일 · 종료 시각의 기록 포함 · 빠른 선택은 즉시 적용되며 5분마다 갱신됩니다. 직접 입력 후에는 적용 버튼을 누르세요.</p>
-            <p id="periodError" role="alert" class="text-sm text-rose-700 mt-2"></p>
-            <p id="periodDraft" class="text-xs text-amber-700 mt-1"></p>
-            <p id="activePeriod" aria-live="polite" class="text-sm font-semibold text-blue-800 mt-2"></p>
+        <section id="controller-journal-area" class="mb-6 scroll-mt-4">
+            <p id="journal-availability" role="status" class="text-sm text-slate-500 mb-2">배치 정보를 불러오면 실제 설정 기록을 표시합니다.</p>
+            <div id="controller-journal" hidden class="bg-white p-4 sm:p-6 rounded-xl border border-indigo-100 shadow-sm"></div>
         </section>
-        <section class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm mb-6">
-            <p class="text-sm text-slate-700 leading-relaxed">실측 온도에 가상 설정을 대입합니다. <strong>실제 팬 출력 기록은 없으며, 설정 변경 후 온도를 예측하는 모델은 아닙니다.</strong> 계산 풍량은 팬 최대 풍량에 출력 비율을 곱한 추정값입니다.</p>
-            <div class="flex flex-wrap justify-between gap-3 items-center mt-4 mb-3">
-                <h2 class="font-bold text-slate-700">배치 정보 · 환기 요구량</h2>
-                <button id="loadBatch" class="text-sm rounded-lg bg-blue-50 text-blue-800 px-3 py-2 border border-blue-200">선택 배치 정보 불러오기</button>
-            </div>
-            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs text-slate-600">
-                <label for="pigAge">일령 (일)<input id="pigAge" type="number" min="1" step="1" placeholder="입력 또는 불러오기"></label>
-                <label for="pigWeight">평균 체중 (kg)<input id="pigWeight" type="number" min="0.1" step="0.1" placeholder="실측값 우선"></label>
-                <label for="pigCount">사육 두수 (두)<input id="pigCount" type="number" min="1" step="1" placeholder="입력 또는 불러오기"></label>
-                <label for="requirementSource">요구량 기준<select id="requirementSource" class="w-full border border-slate-300 rounded p-1.5 bg-white"><option value="nias">국립축산과학원 수록 표 2</option><option value="mwps">MWPS-8 인용 표 1</option></select></label>
-            </div>
-            <div class="flex flex-wrap gap-3 items-center mt-3 text-xs">
-                <button id="estimateWeight" class="border rounded px-3 py-2 text-blue-800">일령으로 체중 추정</button>
-                <span id="batchStatus" class="text-slate-500">배치 DB 연결 대기 중 · 직접 입력도 가능합니다.</span>
-            </div>
-            <p id="weightSource" class="text-xs text-slate-500 mt-2">실측 체중을 입력하거나 기존 환기량 프로젝트의 성장곡선으로 추정하세요.</p>
-            <p id="requirementSummary" class="mt-3 rounded-lg bg-slate-50 p-3 text-sm text-slate-700" aria-live="polite">체중과 두수를 입력하면 요구량을 계산합니다.</p>
-        </section>
+
 
 <section id="thermal" class="mb-6 scroll-mt-4"><p class="text-sm text-slate-600 mb-4">수동 시나리오 · 초기 슬라이더 값은 예시값이며 선택 배치의 실측값이 아닙니다. 제공 코드의 풍속·습도·바닥 보정계수 및 비교 기준 온도는 농장 검증 전 가정입니다. 결과는 실제 체감온도 측정값이나 자동 환기 제어 기준이 아닙니다.</p>
 
@@ -355,12 +325,13 @@
             <p class="text-xs text-slate-500 mb-3">풍속 = 추정 합계 풍량 ÷ 3,600 ÷ 입력 단면적. 도면의 측벽배기 방향에 따라 길이 28m × 높이 2.2m = 61.6㎡를 기본값으로 사용합니다. 폭 11.5m는 공기 이동 방향의 거리입니다. 높이 2.2m는 기존 앱 가정값이며 실측 높이로 수정하세요. 장애물을 차감하지 않은 전체 단면 기준 참고값입니다. 돼지 위치 실측 풍속이나 ET 입력값이 아닙니다.</p>
             <div class="overflow-x-auto"><table class="w-full text-xs text-right"><thead class="bg-slate-100"><tr><th class="p-2">실내온도</th><th>1그룹</th><th>2그룹</th><th>3그룹</th><th>4그룹</th><th>추정 합계 m³/h</th><th class="p-2 whitespace-nowrap">단면 환산 풍속 m/s</th></tr></thead><tbody id="stepTable"></tbody></table></div>
         </section>
-        <p id="dataSummary" class="text-xs text-slate-500 mb-3" aria-live="polite">선택 기간의 온도 기록을 불러오는 중입니다.</p>
+
+        <p id="dataSummary" class="text-xs text-slate-500 mb-3" aria-live="polite">최근 24시간의 온도 기록을 불러오는 중입니다.</p>
         <!-- 차트 영역 -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col gap-4">
             <!-- [상단] 온도 차트 -->
             <div class="relative bg-slate-50 p-2 rounded-lg border border-slate-100">
-                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">🌡️ 실내 온도 흐름 및 외기 (선택 기간)</h3>
+                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">🌡️ 실내 온도 흐름 및 외기 (최근 24시간)</h3>
                 <div class="h-[220px] w-full"><canvas id="tempChart"></canvas></div>
             </div>
 
@@ -399,51 +370,28 @@
         <p class="mt-2"><a class="text-blue-700 underline" href="https://nias.go.kr/front/soboarddown.do?boardSeqNum=530&amp;cmCode=M090814151125016&amp;fileSeqNum=555" target="_blank" rel="noopener">국립축산과학원 원문 · 표 1·2</a> · <a class="text-blue-700 underline" href="https://extension.sdstate.edu/sites/default/files/2020-09/MC-01013.pdf" target="_blank" rel="noopener">MWPS-32 적용 계산 예시 (SDSU)</a></p>
     </section>
     <script src="./simulation-core.js?v=20261003-weight-cap110"></script>
-    <script src="./ventilation.js?v=20261003-no-outdoor-adjustment"></script>
+    <script src="./ventilation.js?v=20261004-group-editor"></script>
     <link rel="stylesheet" href="./eet-simulator.css">
     <script src="./eet-simulator.js"></script>
+    <script src="./ventilation-learning.js?v=20261003"></script>
     <script type="module">
+        import { createVentilationJournal } from "./ventilation-journal.js?v=20261004";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getDatabase, ref, query, orderByKey, startAt, endAt, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
+        import { getDatabase, ref, query, orderByKey, startAt, endAt, onValue, get } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, serverTimestamp, query as firestoreQuery, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         const C = window.VentCore;
         const V = window.FarmVentilation;
         const $ = id => document.getElementById(id);
         const fmt = n => Math.round(n).toLocaleString('ko-KR');
         let rawCache = [], unsubscribeHistory, unsubscribeFarm, historyTimer, flowChartInstance;
-        let farmBatches = [], farmLoaded = false, farmDirty = false, historyFailed = false;
+        let farmBatches = [], farmLoaded = false, historyFailed = false;
         let historyReceived = false;
         let groupDirty = false, outdoorState = "loading", outdoorReadings = [], unsubscribeOutdoor, outdoorRequest = 0;
-        let activeRange = C.presetRange(24), activePreset = '24', periodDirty = false, historyRequest = 0;
+        let activeRange = C.presetRange(24), historyRequest = 0;
         const formatTime = time => C.toKoreanInput(time).replace('T', ' ');
         const periodLabel = () => `${formatTime(activeRange.start)} ~ ${formatTime(activeRange.end)} (한국시간)`;
-        function syncPeriodInputs() {
-            $('periodStart').value = C.toKoreanInput(activeRange.start);
-            $('periodEnd').value = C.toKoreanInput(activeRange.end);
-            $('periodEnd').max = C.toKoreanInput(Date.now());
-            $('periodStart').max = $('periodEnd').max;
-            $('activePeriod').textContent = `적용 기간: ${periodLabel()}`;
-        }
-        function applyPeriod() {
-            try {
-                const preset = $('periodPreset').value;
-                const nextRange = preset === 'custom'
-                    ? C.validateRange(C.parseKoreanInput($('periodStart').value), C.parseKoreanInput($('periodEnd').value))
-                    : C.presetRange(Number(preset));
-                activeRange = nextRange;
-                activePreset = preset;
-                periodDirty = false;
-                $('periodError').textContent = '';
-                $('periodDraft').textContent = '';
-                syncPeriodInputs();
-                fetchData();
-            } catch(error) {
-                $('periodError').textContent = error.message;
-                $('periodDraft').textContent = '기간을 적용하지 않았습니다. 아래 결과는 표시된 적용 기간 기준입니다.';
-            }
-        }
         const firebaseConfig = {
             apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
             authDomain: "sungamfarm.firebaseapp.com",
@@ -454,7 +402,46 @@
             appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
         };
 
-        let app, rtdb, auth;
+        let app, rtdb, auth, db;
+        const journal = createVentilationJournal(document.getElementById('controller-journal'), {
+            async save(record) {
+                if (!db) throw Error('Firebase 연결을 확인하세요.');
+                const { synced, ...data } = record;
+                await setDoc(doc(db, 'farms/sungamfarm/ventilation_records', record.id), { ...data, savedAt: serverTimestamp() });
+            },
+            subscribe(room, success, failure) {
+                return onSnapshot(firestoreQuery(collection(db, 'farms/sungamfarm/ventilation_records'), where('room', '==', room)), { includeMetadataChanges: true }, snapshot => {
+                    const records = [];
+                    snapshot.forEach(item => {
+                        if (item.metadata.hasPendingWrites) return;
+                        const row = { ...item.data(), id: item.id };
+                        try { window.VentilationLearning.validate(row); records.push(row); } catch { /* Ignore unsupported or invalid records. */ }
+                    });
+                    success(records, snapshot.metadata.fromCache);
+                }, failure);
+            },
+            async loadSamples(room, records, now, progress, cancelled) {
+                const { DAY, HOUR } = window.VentilationLearning;
+                const days = new Set();
+                const dayStart = t => Math.floor((t + 9 * HOUR) / DAY) * DAY - 9 * HOUR;
+                const addDays = (start, end) => { for (let day = dayStart(start); day <= end; day += DAY) days.add(day); };
+                addDays(now - 6 * HOUR, now);
+                records.forEach(r => { if (r.end > r.start && r.end >= now - 365 * DAY) addDays(Math.max(r.start, now - 365 * DAY), Math.min(r.end, now)); });
+                const samples = [];
+                let done = 0;
+                // Bounded daily reads avoid loading a year of every room's history in one response.
+                for (const start of [...days].sort((a,b)=>a-b)) {
+                    if (cancelled()) throw Error('배치가 변경되었습니다.');
+                    progress(`온도 기록 확인 중: ${++done}/${days.size}일`);
+                    const snapshot = await get(query(ref(rtdb, 'history_logs'), orderByKey(), startAt(String(start)), endAt(String(Math.min(start + DAY - 1, now)))));
+                    snapshot.forEach(child => {
+                        const data = child.val();
+                        samples.push({ time: Number(child.key), inside: data?.[room]?.temp, outside: data?.['외부온도']?.temp });
+                    });
+                }
+                return samples;
+            }
+        });
         let timeSeriesData = [];
         let tempChartInstance = null;
         let ventChartInstance = null;
@@ -465,28 +452,24 @@
                 auth = getAuth(app);
                 await signInAnonymously(auth);
                 rtdb = getDatabase(app);
+                db = getFirestore(app);
                 fetchData();
                 fetchOutdoor();
                 historyTimer = setInterval(() => {
                     fetchOutdoor();
-                    if (activePreset !== 'custom' && !periodDirty) {
-                        activeRange = C.presetRange(Number(activePreset));
-                        syncPeriodInputs();
-                        fetchData();
-                    }
+                    activeRange = C.presetRange(24);
+                    fetchData();
                 }, 300000);
                 unsubscribeFarm = onSnapshot(collection(getFirestore(app), 'farms/sungamfarm/grower'), snapshot => {
                     farmBatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     farmLoaded = true;
-                    if (!farmDirty) loadSelectedBatch(false);
-                    else syncGroupSettings();
-                }, () => { farmLoaded=false; syncGroupSettings(); runSimulation(); $('batchStatus').textContent = '배치 정보 연결 실패 · 일령·체중·두수를 직접 입력하세요.'; });
+                    loadSelectedBatch(false);
+                }, () => { farmLoaded=false; syncGroupSettings(); runSimulation(); });
             } catch(e) {
                 console.error(e);
                 farmLoaded=false; outdoorState='error'; syncGroupSettings();
                 $('conn-status').textContent = 'DB 연결 실패';
                 $('dataSummary').textContent = '온도 기록을 불러오지 못했습니다. 설정표와 요구량은 직접 입력하여 확인할 수 있습니다.';
-                $('batchStatus').textContent = '배치 정보 연결 실패 · 직접 입력 가능합니다.';
             }
         }
 
@@ -530,7 +513,7 @@
                 const median = intervals.length ? intervals[Math.floor(intervals.length/2)] / 60000 : null;
                 const last = timeSeriesData.at(-1).time;
                 $('dataSummary').textContent = `분석 기간 ${periodLabel()} · 실제 기록 ${formatTime(timeSeriesData[0].time)} ~ ${formatTime(last)} · 유효 ${timeSeriesData.length}건 · 중앙 수집 간격 ${median === null ? '계산 불가' : median.toFixed(1) + '분'} · 선택 종료 시각과 마지막 기록 차이 ${Math.max(0, Math.floor((activeRange.end-last)/60000))}분. 30분 초과 공백은 선을 연결하지 않습니다.`;
-            } else $('dataSummary').textContent = historyFailed ? '온도 기록 읽기에 실패했습니다. 연결 상태와 읽기 권한을 확인하세요.' : historyReceived ? `선택 배치의 ${periodLabel()} 유효 기록이 없습니다. 다른 기간을 선택하세요.` : `${periodLabel()} 온도 기록을 불러오는 중입니다.`;
+            } else $('dataSummary').textContent = historyFailed ? '온도 기록 읽기에 실패했습니다. 연결 상태와 읽기 권한을 확인하세요.' : historyReceived ? `선택 배치의 ${periodLabel()} 유효 기록이 없습니다. 최근 24시간 센서 수집 상태를 확인하세요.` : `${periodLabel()} 온도 기록을 불러오는 중입니다.`;
             runSimulation();
         }
 
@@ -564,8 +547,20 @@
         function clearGroupSettings() {
             for (let i=1;i<=4;i++) for (const field of ['t','p','min','max']) $('g'+i+'_'+field).value='';
         }
+        function syncJournal() {
+            const inputs = farmLoaded ? farmInputs(selectedFarmBatch()) : null;
+            const available = !!inputs;
+            $('controller-journal').hidden = !available;
+            $('journal-availability').textContent = available
+                ? '선택 배치의 실제 공유 설정을 기록합니다. 위 가상 시나리오 입력값은 실제 기록에 자동 반영하지 않습니다.'
+                : '선택 배치의 사육 정보를 확인할 수 없어 기록 입력을 보류합니다. 배치 선택과 연결 상태를 확인하세요.';
+            if (!available) { journal.suspend(); return; }
+            const opt = V.calculateOptimalSettings(inputs.age, inputs.weight, inputs.count, null, '육성사', inputs.stockDiffDays, [], selectedFarmBatch()?.ventilationOverrides);
+            journal.setBatch({ room: $('sensorSelect').value, count: inputs.count, weight: inputs.weight, age: inputs.age }, opt);
+        }
         function syncGroupSettings() {
-            if (groupDirty || farmDirty) {
+            syncJournal();
+            if (groupDirty) {
                 $('groupSource').textContent = '수동 시나리오 · 수정한 입력을 유지합니다. 최신 사육현황 설정은 다시 불러오기 버튼으로 적용하세요.';
                 return;
             }
@@ -578,7 +573,7 @@
                 return;
             }
             const outdoor = V.recentOutdoorTemperatures(outdoorReadings);
-            const opt = V.calculateOptimalSettings(inputs.age, inputs.weight, inputs.count, null, '육성사', inputs.stockDiffDays, outdoor);
+            const opt = V.calculateOptimalSettings(inputs.age, inputs.weight, inputs.count, null, '육성사', inputs.stockDiffDays, outdoor, selectedFarmBatch()?.ventilationOverrides);
             ['f500_1','f500_2','f800_1','f800_2'].forEach((key,index) => {
                 const g=opt[key], i=index+1;
                 for (const [field,value] of Object.entries({t:g.t,p:g.diff,min:g.min,max:g.max})) $('g'+i+'_'+field).value=value;
@@ -606,27 +601,13 @@
             });
         }
         function loadSelectedBatch(force = false) {
-            if(force) {farmDirty=false;groupDirty=false;}
-            if (!farmLoaded) { syncGroupSettings(); $('batchStatus').textContent = '배치 DB가 아직 준비되지 않았습니다. 직접 입력 가능합니다.'; return; }
-            const inputs=farmInputs(selectedFarmBatch());
-            for (const id of ['pigAge','pigWeight','pigCount']) $(id).value='';
-            if(inputs) {
-                $('pigAge').value=inputs.age; $('pigWeight').value=inputs.weight; $('pigCount').value=inputs.count;
-                $('weightSource').textContent='사육현황 환기 설정과 동일한 일령별 성장곡선 계산 체중 · 실측 체중이 아닙니다.';
-                $('batchStatus').textContent=inputs.sourceMsg+' · 현재 사육현황 정보 · 시험 입력은 DB에 저장하지 않습니다.';
-            } else {
-                $('weightSource').textContent='연결된 체중 정보 없음';
-                $('batchStatus').textContent='배치 정보가 없거나 중복·빈 배치입니다. 직접 입력하세요.';
-            }
+            if(force) groupDirty=false;
             syncGroupSettings();runSimulation();
         }
 
         function requirement() {
-            const weight = readNumber('pigWeight'), count = readNumber('pigCount');
-            const req = C.requirements(weight, count, $('requirementSource').value);
-            if (req) $('requirementSummary').textContent = `체중 ${weight}kg · ${fmt(count)}두 · 적용 구간 ${req.range} → 최소 ${fmt(req.min)} / 고온기 최대 ${fmt(req.max)} m³/h (두당 ${req.perMin.toFixed(1)} / ${req.perMax.toFixed(1)} × 두수)`;
-            else $('requirementSummary').textContent = !Number.isFinite(weight) || !Number.isInteger(count) || count < 1 ? '양수 체중과 1 이상 정수 두수를 입력하세요. 요구량 계산을 보류합니다.' : '입력 체중이 선택 표의 범위 밖입니다. 요구량을 외삽하지 않습니다. 국립축산과학원 표 2: 5.5~100kg / MWPS 인용 표 1: 5.4~99.8kg.';
-            return req;
+            const inputs = farmLoaded ? farmInputs(selectedFarmBatch()) : null;
+            return inputs ? C.requirements(inputs.weight, inputs.count, 'nias') : null;
         }
 
         // 차트 업데이트
@@ -771,23 +752,8 @@
             const base = C.number($('g1_t').value);
             if (base !== null) [0,2,5].forEach((offset,i)=>$('g'+(i+2)+'_t').value=base+offset);
         }
-        $('btnRun').addEventListener('click',()=>{if(periodDirty)applyPeriod();else runSimulation();});
-        $('applyPeriod').addEventListener('click',applyPeriod);
-        $('periodPreset').addEventListener('change',()=>{
-            if($('periodPreset').value!=='custom') applyPeriod();
-            else {periodDirty=true;$('periodDraft').textContent='시작·종료 일시를 입력하고 기간 적용 및 분석을 누르세요.';}
-        });
-        for (const id of ['periodStart','periodEnd']) {
-            $(id).addEventListener('input',()=>{
-                periodDirty=true;
-                $('periodPreset').value='custom';
-                $('periodError').textContent='';
-                $('periodDraft').textContent='변경한 기간은 아직 적용되지 않았습니다. 기간 적용 및 분석을 누르세요.';
-            });
-            $(id).addEventListener('keydown',event=>{if(event.key==='Enter')applyPeriod();});
-        }
-        $('sensorSelect').addEventListener('change',()=>{farmDirty=false;groupDirty=false;clearGroupSettings(); for(const id of ['pigAge','pigWeight','pigCount']) $(id).value=''; loadSelectedBatch(false); processData();});
-        $('loadBatch').addEventListener('click',()=>loadSelectedBatch(true));
+        $('btnRun').addEventListener('click',runSimulation);
+        $('sensorSelect').addEventListener('change',()=>{groupDirty=false;clearGroupSettings(); loadSelectedBatch(false); processData();});
         $('loadGroupSettings').addEventListener('click',()=>loadSelectedBatch(true));
         $('resetOffsets').addEventListener('click',()=>{groupDirty=true;applyOffsets();syncGroupSettings();runSimulation();});
         $('g1_t').addEventListener('input',()=>{if($('linkOffsets').checked) applyOffsets();});
@@ -797,26 +763,13 @@
             if (/_p$/.test(input.id)) input.min='1';
             if (/_(min|max)$/.test(input.id)) {input.min='0';input.max='100';}
             input.addEventListener('input',()=>{
-                if(['pigAge','pigWeight','pigCount'].includes(input.id)) farmDirty=true;
                 if(/^g[1-4]_/.test(input.id)) groupDirty=true;
-                if(groupDirty || farmDirty) syncGroupSettings();
-                if(input.id==='pigWeight') $('weightSource').textContent='수동 입력 체중';
-                if(input.id==='pigAge') $('weightSource').textContent='일령 변경됨 · 체중을 갱신하려면 일령으로 체중 추정을 누르세요.';
+                if(groupDirty) syncGroupSettings();
                 runSimulation();
             });
         }
-        $('requirementSource').addEventListener('change',runSimulation);
-        $('estimateWeight').addEventListener('click',()=>{
-            const weight=C.estimatedWeight(readNumber('pigAge'));
-            farmDirty=true;syncGroupSettings();
-            if(weight===null) {$('weightSource').textContent='일령은 0보다 큰 숫자로 입력하세요.';return;}
-            $('pigWeight').value=weight;
-            $('weightSource').textContent='일령별 성장곡선 추정값 · 상한 110kg(180일 이후도 110kg) · 실제 측정 체중이 아닙니다.';
-            runSimulation();
-        });
         $('fanSpec').textContent=`500팬 ${fmt(C.FAN500)}m³/h/대 × 5대 · 800팬 10,574CFM → ${fmt(C.FAN800)}m³/h/대 × 4대 · 전체 정격 합계 ${fmt(C.CAPS.reduce((a,b)=>a+b))}m³/h`;
         window.addEventListener('pagehide',()=>{if(unsubscribeHistory)unsubscribeHistory();if(unsubscribeFarm)unsubscribeFarm();if(unsubscribeOutdoor)unsubscribeOutdoor();clearInterval(historyTimer);});
-        syncPeriodInputs();
         runSimulation();
         init();
     </script>

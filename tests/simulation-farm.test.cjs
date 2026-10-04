@@ -10,10 +10,14 @@ elements.sensorSelect.value='육성_5배치';
 const today=new Date(), entered=new Date(today.getFullYear(),today.getMonth(),today.getDate()-6);
 const stock=`${entered.getFullYear()}-${entered.getMonth()+1}-${entered.getDate()}`;
 const batch={id:5,pigs:307,avgAge:76,growerInDate:stock};
+const journalCalls=[];
 const ctx=vm.createContext({ C,V,Date,console,$:id=>elements[id],farmBatches:[batch],farmLoaded:true,
+    journal:{setBatch:(batch,settings)=>journalCalls.push({batch,settings}),suspend:()=>journalCalls.push(null)},
     farmDirty:false,groupDirty:false,outdoorState:'ready',outdoorReadings:[{time:Date.now()-1000,temp:30},{time:Date.now()-2000,temp:20}],runSimulation:()=>{} });
 vm.runInContext(html.slice(html.indexOf('        function selectedFarmBatch()'),html.indexOf('        function requirement()')),ctx);
 ctx.loadSelectedBatch();
+assert.equal(journalCalls.at(-1).batch.room,'육성_5배치');
+assert.equal(journalCalls.at(-1).batch.count,307);
 const expected=V.calculateOptimalSettings(76,V.calculateWeight(76),307,null,'육성사',6,[30,20]);
 ['f500_1','f500_2','f800_1','f800_2'].forEach((key,i)=>{
     for(const [field,value] of Object.entries({t:expected[key].t,p:expected[key].diff,min:expected[key].min,max:expected[key].max})) assert.equal(elements[`g${i+1}_${field}`].value,value);
@@ -24,12 +28,14 @@ assert.equal(elements.pigWeight.value,V.calculateWeight(76));
 ctx.groupDirty=true; elements.g1_t.value=27;
 ctx.outdoorReadings=[]; ctx.syncGroupSettings();
 assert.equal(elements.g1_t.value,27,'manual edits survive background updates');
+assert.equal(journalCalls.at(-1).settings.f500_1.t,25,'actual journal defaults must not inherit virtual scenario edits');
 ctx.loadSelectedBatch(true);
 assert.equal(elements.g1_t.value,25,'reload replaces manual scenario with current farm settings');
 ctx.outdoorState='error';ctx.syncGroupSettings();
 assert.equal(elements.g1_t.value,'','failed outdoor load must not show unverified defaults');
 ctx.outdoorState='ready';ctx.farmBatches=[{id:5,pigs:0,status:'empty'}];ctx.loadSelectedBatch(true);
 assert.equal(elements.g1_t.value,'');assert.equal(elements.pigWeight.value,'');
+assert.equal(journalCalls.at(-1),null,'empty batch suspends the previous room journal');
 ctx.farmBatches=[batch,{...batch}];ctx.loadSelectedBatch(true);
 assert.equal(elements.g1_t.value,'','ambiguous matching must clear previous batch settings');
 ctx.farmBatches=[{id:5,pigs:101,avgAge:335}];ctx.loadSelectedBatch(true);

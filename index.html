@@ -42,7 +42,7 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-        <script src="ventilation.js?v=20261003-no-outdoor-adjustment"></script>
+        <script src="ventilation.js?v=20261004-group-editor"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -286,17 +286,18 @@
 
     // 최신 알고리즘이 모두 통합된 핵심 산출 함수
     const ventilationSource = window.FarmVentilation;
-    function getStandaloneVentSettings(age, weight, count, roomType = '육성사', stockDiffDays = null, manualBaseTemp = null, outdoorTempHistory = []) {
+    function getStandaloneVentSettings(age, weight, count, roomType = '육성사', stockDiffDays = null, overrides = null, outdoorTempHistory = []) {
         const opt = ventilationSource.calculateOptimalSettings(age, weight, count, null,
-            roomType, stockDiffDays, outdoorTempHistory, manualBaseTemp);
+            roomType, stockDiffDays, outdoorTempHistory, overrides);
         const message = document.createElement('div');
         message.innerHTML = opt.historyMsg;
         return {
             t1: opt.f500_1.t, min1: opt.f500_1.min, diff1: opt.f500_1.diff,
             t2: opt.f500_2.t, min2: opt.f500_2.min, diff2: opt.f500_2.diff,
-            t3: opt.f800_1.t, diff3: opt.f800_1.diff,
+            t3: opt.f800_1.t, min3: opt.f800_1.min, diff3: opt.f800_1.diff,
             t4: opt.f800_2.t, max4: opt.f800_2.max, diff4: opt.f800_2.diff,
             roomType: opt.roomType,
+            hasManualOverrides: opt.hasManualOverrides,
             minRequiredCMH: opt.minRequiredCMH, minSuppliedCMH: opt.minSuppliedCMH,
             minShortfallCMH: opt.minShortfallCMH, minimumStatus: opt.minimumStatus,
             msg: '* 환기량 앱 연동 · ' + message.textContent
@@ -341,7 +342,7 @@
         if (!Number.isFinite(age) || age < 0 || !Number.isFinite(count) || count <= 0) return null;
         if (ventilationHistoryStatus !== 'ready' && outdoorTempHistory === ventilationOutdoorHistory) return null;
         return getStandaloneVentSettings(age, ventilationSource.calculateWeight(age), count,
-            batchData.type || '육성사', batchData.stockDiffDays ?? null, null,
+            batchData.type || '육성사', batchData.stockDiffDays ?? null, batchData.ventilationOverrides,
             outdoorTempHistory === ventilationOutdoorHistory ? ventilationSource.recentOutdoorTemperatures(outdoorTempHistory) : outdoorTempHistory);
     }
 
@@ -352,7 +353,7 @@
         const opt = getVentilationOptions(getVentilationBatchData(batch, 'grower'));
         if (!opt) return '<span class="text-slate-400">' + (ventilationHistoryStatus === 'error' ? '외기 기록 연결 실패 · 자동 설정 확인 불가' : '환기 설정 불러오는 중…') + '</span>';
         return '<div class="flex justify-between mb-1"><span>환기 설정 온도</span><span>' +
-            '자동 계산 연동' +
+            (opt.hasManualOverrides ? '수정값 연동' : '자동 계산 연동') +
             '</span></div><div class="grid grid-cols-4 gap-1">' +
             [opt.t1, opt.t2, opt.t3, opt.t4].map((t, i) => '<span class="bg-white rounded p-1 text-center">' + (i + 1) + '그룹 <b>' + t + '℃</b></span>').join('') + '</div>';
     }
@@ -396,6 +397,7 @@
         const panel = document.getElementById('vent_integration_panel');
         if (!panel) return;
         const opt = getVentilationOptions(batchData, outdoorTempHistory);
+        document.getElementById('integ_source').textContent = opt?.hasManualOverrides ? '수정값 연동' : '계산값 연동';
         window.BatchTemperatureChart.render(batchData, opt, ventilationSensorHistory, ventilationHistoryStatus);
         const saveBtn = document.getElementById('integ_save_vent');
         if (saveBtn) {
@@ -406,7 +408,7 @@
                 encodeURIComponent(JSON.stringify({
                     f500_1: { t: opt.t1, min: opt.min1, max: 100, diff: opt.diff1 },
                     f500_2: { t: opt.t2, min: opt.min2, max: 100, diff: opt.diff2 },
-                    f800_1: { t: opt.t3, min: 0, max: 100, diff: opt.diff3 },
+                    f800_1: { t: opt.t3, min: opt.min3 ?? 0, max: 100, diff: opt.diff3 },
                     f800_2: { t: opt.t4, min: 0, max: opt.max4, diff: opt.diff4 },
                     roomType: opt.roomType
                 }))
@@ -449,9 +451,9 @@
 <div class="mt-6 mb-4">
     <div class="flex justify-between items-center mb-3">
         <h3 class="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2">
-            <span class="text-blue-500">🌀</span> 4단계 환기 실시간 권장 설정
+            <span class="text-blue-500">🌀</span> 4단계 환기 현재 적용 설정
         </h3>
-        <span class="text-[10px] sm:text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">환기량 앱 연동</span>
+        <span id="integ_source" class="text-[10px] sm:text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">환기량 앱 연동</span>
     </div>
     
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3" id="vent_integration_panel">
@@ -459,7 +461,7 @@
         <div class="bg-blue-50/70 p-3 rounded-lg border border-blue-100 shadow-sm relative">
             <div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-1.5">1그룹 (500휀 2대)</div>
             <div class="flex justify-between items-end mb-1">
-                <span class="text-[10px] text-slate-500">자동 설정온도</span>
+                <span class="text-[10px] text-slate-500">설정온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-blue-700" id="integ_t_1">--</span><span class="text-[10px] text-blue-600 mb-0.5">℃</span></div>
             </div>
             <div class="flex justify-between items-end">
@@ -519,10 +521,10 @@
         </div>
         <div class="relative h-56 w-full"><canvas id="batch-temp-chart" role="img" aria-label="선택 배치 실내 온도, 1그룹 설정온도, 외기 온도 그래프"></canvas></div>
         <p id="batch-temp-status" class="text-[10px] text-slate-500 mt-2" aria-live="polite"></p>
-        <p class="text-[10px] text-slate-400 mt-1">설정온도는 현재 1그룹 권장값이며 과거 제어 기록이 아닙니다.</p>
+        <p class="text-[10px] text-slate-400 mt-1">설정온도는 현재 1그룹 적용값이며 과거 제어 기록이 아닙니다.</p>
     </div>
 </div>
-<button id="integ_save_vent" type="button" disabled class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-black py-2.5 rounded-lg disabled:opacity-40">현재 권장값을 참고용으로 고정 저장</button>`;
+<button id="integ_save_vent" type="button" disabled class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-black py-2.5 rounded-lg disabled:opacity-40">현재 적용값을 참고용으로 고정 저장</button>`;
 
             let state = {
                 stocks: { boar: 5, piglet: 0, grower: 0, sow: 0, replacement: 0, gilt_batch: 0 },
