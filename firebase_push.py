@@ -8,6 +8,7 @@ import re
 import socket
 import ssl
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -15,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
+REQUEST_DEADLINE = None
 KST = timezone(timedelta(hours=9))
 FARM_ZONES = {f"이유_{n}배치" for n in range(1, 6)} | {
     f"육성_{n}배치" for n in range(1, 8)
@@ -100,8 +102,9 @@ def request_json(stage, url, *, headers=None, data=None, method="GET"):
     ).encode("utf-8")
     request = urllib.request.Request(url, data=body, headers=request_headers, method=method)
     try:
-        # Three requests per run, no retry loop: stay within shell_command's 60s limit.
-        with urllib.request.urlopen(request, timeout=10) as response:
+        remaining = 10 if REQUEST_DEADLINE is None else REQUEST_DEADLINE - time.monotonic()
+        if remaining <= 0: raise PushError('[실행 시간] 50초 작업 제한입니다. 다음 자동 실행에서 다시 확인합니다.')
+        with urllib.request.urlopen(request, timeout=min(10, remaining)) as response:
             raw = response.read().decode("utf-8")
         return json.loads(raw) if raw.strip() else None
     except urllib.error.HTTPError as exc:
@@ -109,6 +112,8 @@ def request_json(stage, url, *, headers=None, data=None, method="GET"):
         hints = {
             "HA 조회": "HA 주소와 장기 액세스 토큰을 확인하세요.",
             "Firebase 로그인": "이메일/비밀번호 제공업체, 전용 사용자, API 키를 확인하세요.",
+            "회차 조회": "Firestore grower·회차 컬렉션 읽기 권한과 프로젝트 ID를 확인하세요.",
+            "회차 저장": "Firestore 회차·온도 쓰기 권한을 확인하세요. HTTP 409/412는 동시 변경으로, 다음 자동 실행에서 재확인합니다.",
             "Firebase 저장": "DB URL 및 sensor_logs와 history_logs 양쪽의 쓰기 규칙/사용자 UID를 확인하세요.",
         }
         detail = firebase_auth_error(exc) if stage == "Firebase 로그인" else ""
@@ -254,9 +259,12 @@ def push_snapshot(config, snapshot, now):
     updates[f"history_logs/{int(now.timestamp() * 1000)}"] = snapshot
     url = base + "/.json?" + urllib.parse.urlencode({"auth": token, "print": "silent"})
     request_json("Firebase 저장", url, method="PATCH", data=updates)
+    return token
 
 
 def main(argv=None):
+    global REQUEST_DEADLINE
+    REQUEST_DEADLINE = time.monotonic() + 50
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path(__file__).with_name("firebase_push.config.json"))
     modes = parser.add_mutually_exclusive_group()
@@ -298,8 +306,21 @@ def main(argv=None):
         if args.dry_run:
             print(json.dumps(snapshot, ensure_ascii=False, indent=2, allow_nan=False))
             return 0
-        push_snapshot(config, snapshot, now)
+        token = push_snapshot(config, snapshot, now)
         print(f"Firebase 전송 성공: {len(snapshot)}개 구역 (sensor_logs + history_logs)")
+        if config.get("cycle_archive"):
+            try:
+                from firebase_cycle_archive import sync
+            except ImportError:
+                raise PushError("[회차 설정] 온습도 전송은 성공했습니다. /config/firebase_cycle_archive.py 파일도 복사하세요.") from None
+            try:
+                result = sync(config, snapshot, now, token, request_json, PushError)
+            except PushError as exc:
+                raise PushError("온습도 기본 전송 성공 / 회차 보관 실패: " + str(exc)) from None
+            if result is not None:
+                print(f"회차 기록 성공: 사육 중 {result['active']}개 / 0두 종료 {result['closed']}개 / 온도 {result['samples']}개")
+                if result['warnings']:
+                    raise PushError("[회차 확인 필요] " + " / ".join(result['warnings']))
         return 0
     except PushError as exc:
         print(str(exc), file=sys.stderr)

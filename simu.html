@@ -49,6 +49,7 @@
             <p id="journal-availability" role="status" class="text-sm text-slate-500 mb-2">배치 정보를 불러오면 실제 설정 기록을 표시합니다.</p>
             <div id="controller-journal" hidden class="bg-white p-4 sm:p-6 rounded-xl border border-indigo-100 shadow-sm"></div>
         </section>
+        <section id="cycle-archive" class="bg-white border rounded-xl p-5 mb-6"></section>
 
 
 
@@ -91,8 +92,10 @@
     <script src="./simulation-core.js?v=20261003-weight-cap110"></script>
     <script src="./ventilation.js?v=20261004-group-editor"></script>
     <script src="./ventilation-learning.js?v=20261003"></script>
+    <script src="./firebase-functions/cycle-core.js"></script>
     <script type="module">
-        import { createVentilationJournal } from "./ventilation-journal.js?v=20261004";
+        import { createCycleArchive } from "./ventilation-cycle-archive.js";
+        import { createVentilationJournal } from "./ventilation-journal.js?v=20261004-cycles";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getDatabase, ref, query, orderByKey, startAt, endAt, onValue, get } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -120,7 +123,9 @@
         };
 
         let app, rtdb, auth, db;
+        const cycleArchive=createCycleArchive($('cycle-archive'),()=>({db,rtdb}));
         const journal = createVentilationJournal(document.getElementById('controller-journal'), {
+            prepare: record => cycleArchive.attach(record),
             async save(record) {
                 if (!db) throw Error('Firebase 연결을 확인하세요.');
                 const { synced, ...data } = record;
@@ -253,6 +258,7 @@
             return { ...timing, count, weight: V.calculateWeight(timing.age) };
         }
         function syncJournal() {
+            if(db)cycleArchive.setRoom($('sensorSelect').value,selectedFarmBatch());
             const inputs = farmLoaded ? farmInputs(selectedFarmBatch()) : null;
             const available = !!inputs;
             $('controller-journal').hidden = !available;
@@ -261,7 +267,7 @@
                 : '선택 배치의 사육 정보를 확인할 수 없어 기록 입력을 보류합니다. 배치 선택과 연결 상태를 확인하세요.';
             if (!available) { journal.suspend(); return; }
             const opt = V.calculateOptimalSettings(inputs.age, inputs.weight, inputs.count, null, '육성사', inputs.stockDiffDays, [], selectedFarmBatch()?.ventilationOverrides);
-            journal.setBatch({ room: $('sensorSelect').value, count: inputs.count, weight: inputs.weight, age: inputs.age }, opt);
+            journal.setBatch({ cycleStart:window.VentilationCycles.start(selectedFarmBatch()), room: $('sensorSelect').value, count: inputs.count, weight: inputs.weight, age: inputs.age }, opt);
         }
         function syncGroupSettings() { syncJournal(); }
         function fetchOutdoor() {

@@ -74,7 +74,7 @@ export function createVentilationJournal(host, api) {
         const token=generation;
         try {
             if(!$('confirm').checked) throw Error('실제 적용 기간과 설정을 확인한 뒤 확인란을 선택하세요.');
-            const record={schemaVersion:1,id:crypto.randomUUID(),room:batch.room,source:'manual_actual',createdAt:Date.now(),
+            let record={schemaVersion:1,id:crypto.randomUUID(),room:batch.room,source:'manual_actual',createdAt:Date.now(),
                 start:Date.parse($('start').value+':00+09:00'),end:Date.parse($('end').value+':00+09:00'),
                 groups:[1,2,3,4].map(i=>Object.fromEntries(['t','min','max','diff'].map(f=>[f,L.num($('g'+i+'-'+f).value)]))),
                 count:L.num($('count').value),weight:L.num($('weight').value),age:L.num($('age').value),weightSource:$('weight-source').value,
@@ -82,6 +82,7 @@ export function createVentilationJournal(host, api) {
             L.validate(record);
             if(record.measuredFlow!==null && (!Number.isFinite(record.measuredFlow)||record.measuredFlow<0)) throw Error('실측 배기량은 0 이상으로 입력하세요.');
             if(records().some(r=>Math.max(r.start,record.start)<Math.min(r.end,record.end))) throw Error('기존 관찰 기간과 겹칩니다. 시작·종료를 확인하세요.');
+            if(api.prepare) { setBusy(true); record=await api.prepare(record); if(token!==generation)throw Error('배치가 변경되었습니다. 다시 확인하여 저장하세요.'); }
             local.push(record);
             try { persist(); } catch { local.pop(); throw Error('기기 저장소에 기록을 보관하지 못했습니다. 저장 공간·브라우저 설정을 확인하세요.'); }
             setBusy(true); status('이 기기에 저장했습니다. 클라우드 전송 중…'); showRecords();
@@ -94,7 +95,7 @@ export function createVentilationJournal(host, api) {
     };
     $('retry').onclick=async()=>{if(busy)return;setBusy(true);try{const pending=local.filter(r=>r.room===batch.room&&!r.synced);for(const r of pending)await Promise.race([upload(r),new Promise((_,reject)=>setTimeout(()=>reject(Error('응답 시간 초과')),12000))]);status(`재전송 완료: ${pending.length}건`);}catch(e){status('클라우드 전송 실패: '+e.message+' · 기기 기록은 유지됩니다.');}finally{setBusy(false);showRecords();}};
     $('defaults').onclick=useDefaults;
-    $('continue').onclick=()=>{const last=records()[0];if(!last){status('먼저 실제 설정을 한 번 기록하세요.');return;}fillGroups(last.groups);$('start').value=L.kst(last.end);$('end').value=L.kst(Date.now());$('context').value=last.context;$('observation').value='unknown';status('지난 확인 시각부터 입력했습니다. 기간 중 설정·두수·체중·설비 변화가 있었다면 나누어 기록하세요.');};
+    $('continue').onclick=()=>{const last=records().find(r=>batch.cycleStart==null||r.start>=batch.cycleStart);if(!last){status('먼저 실제 설정을 한 번 기록하세요.');return;}fillGroups(last.groups);$('start').value=L.kst(last.end);$('end').value=L.kst(Date.now());$('context').value=last.context;$('observation').value='unknown';status('지난 확인 시각부터 입력했습니다. 기간 중 설정·두수·체중·설비 변화가 있었다면 나누어 기록하세요.');};
     $('export').onclick=()=>{const blob=new Blob([JSON.stringify({schemaVersion:1,exportedAt:Date.now(),room:batch.room,records:records()},null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`controller-${batch.room}-${L.kst(Date.now()).slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
     ['context','low','high'].forEach(id=>$(id).addEventListener('input',()=>{$('result').textContent='조건이 변경되었습니다. 분석 버튼을 눌러 결과를 갱신하세요.';}));
     $('analyze').onclick=async()=>{
@@ -121,7 +122,7 @@ export function createVentilationJournal(host, api) {
     }, setBatch(next,opt) {
         defaults=opt;
         const signature=JSON.stringify(defaultGroups(opt));
-        if(batch?.room===next.room){batch=next;if(!formDirty && signature!==defaultSignature)fillGroups(defaultGroups(opt));defaultSignature=signature;return;}
+        if(batch?.room===next.room && batch?.cycleStart===next.cycleStart){batch=next;if(!formDirty && signature!==defaultSignature)fillGroups(defaultGroups(opt));defaultSignature=signature;return;}
         generation++;batch=next;cloud=[];if(unsubscribe)unsubscribe();
         $('room').textContent=next.room.replace('_',' ');$('start').value=L.kst(Date.now());$('end').value=L.kst(Date.now());
         $('count').value=next.count;$('weight').value=next.weight;$('age').value=next.age;$('weight-source').value='predicted';
