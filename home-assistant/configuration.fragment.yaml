@@ -1,5 +1,0 @@
-# configuration.yaml의 기존 shell_command 아래에 병합하세요.
-shell_command:
-  firebase_push: "python3 /config/firebase_push.py --config /config/firebase_push.config.json"
-  firebase_push_check: "python3 /config/firebase_push.py --config /config/firebase_push.config.json --dry-run"
-  firebase_push_list: "python3 /config/firebase_push.py --config /config/firebase_push.config.json --list-sensors"
