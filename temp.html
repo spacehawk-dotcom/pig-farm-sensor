@@ -190,6 +190,28 @@
 <label class="flex justify-between items-center gap-1 bg-white rounded border border-slate-200 px-2 py-1.5 mb-1 text-xs text-slate-600">편차<span class="flex items-center gap-1"><input id="ui_p_4" aria-label="4그룹 편차" type="number" min="1" max="20" step="1" required class="w-14 border rounded px-1 py-0.5 text-right text-sm font-bold text-slate-800">℃</span></label>
 </div>
 </div></div><div class="flex flex-wrap items-center gap-3"><button id="save-group-settings" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg px-6 py-2 disabled:opacity-50">입력</button><p id="group-save-status" role="status" class="text-sm text-slate-600">수정 후 입력 버튼을 누르면 선택 배치의 현재 적용 설정에 저장됩니다.</p></div>
+<section id="history-charts"><p id="history-chart-status" class="text-xs text-slate-500 mb-3" role="status"></p>        <!-- 차트 영역 -->
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col gap-4">
+            <!-- [상단] 온도 차트 -->
+            <div class="relative bg-slate-50 p-2 rounded-lg border border-slate-100">
+                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">🌡️ 실내 온도 흐름 및 외기 (최근 24시간)</h3>
+                <div class="h-[220px] w-full"><canvas id="tempChart"></canvas></div>
+            </div>
+
+            <!-- [하단] 환기 차트 -->
+            <div class="relative bg-slate-50 p-2 rounded-lg border border-slate-100">
+                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">💨 설정 기반 계산 출력(%) · 실제 가동 기록 없음</h3>
+                <div class="h-[220px] w-full"><canvas id="ventChart"></canvas></div>
+            </div>
+        </div>
+
+        <section class="bg-white p-4 rounded-xl border mb-6">
+            <h2 class="text-sm font-bold text-slate-600 mb-3">팬 풍량 기준 추정 환기량 (m³/h)</h2>
+            <p class="text-xs text-slate-500 mb-3">최소 요구량과 고온기 최대 요구량은 설계 비교 기준입니다. 고온기 요구량을 모든 시간에 충족해야 한다는 뜻은 아닙니다.</p>
+            <div class="h-[240px]"><canvas id="flowChart"></canvas></div>
+        </section>
+</section>
+
                 <details id="minimum-ventilation-details" class="bg-blue-50/50 p-3 sm:p-4 rounded-xl border border-blue-100 shadow-sm mt-2">
                     <summary class="text-xs sm:text-sm font-bold text-blue-800 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">배치별 최소 환기량 확인</summary>
                     <div class="grid grid-cols-2 gap-3 text-xs sm:text-sm mt-3">
@@ -240,27 +262,7 @@
                         <li><strong class="text-slate-700">유속 및 체적 계산:</strong> 돈사 체적은 폭 × 높이 × 길이, 예상 유속은 환기량 ÷ 3,600 ÷ 단면적으로 계산합니다. 육성사는 기존 일령·체중별 기준 유속(0.5~2.2m/s)과 비교해 초과 여부를 표시하며, 4그룹의 최대 가동률은 기존 체중 기반 제한식을 적용합니다.</li>
                     </ul>
                 </details>
-<section id="history-charts"><p id="history-chart-status" class="text-xs text-slate-500 mb-3" role="status"></p>        <!-- 차트 영역 -->
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col gap-4">
-            <!-- [상단] 온도 차트 -->
-            <div class="relative bg-slate-50 p-2 rounded-lg border border-slate-100">
-                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">🌡️ 실내 온도 흐름 및 외기 (최근 24시간)</h3>
-                <div class="h-[220px] w-full"><canvas id="tempChart"></canvas></div>
-            </div>
 
-            <!-- [하단] 환기 차트 -->
-            <div class="relative bg-slate-50 p-2 rounded-lg border border-slate-100">
-                <h3 class="text-xs font-bold text-slate-500 mb-2 pl-2">💨 설정 기반 계산 출력(%) · 실제 가동 기록 없음</h3>
-                <div class="h-[220px] w-full"><canvas id="ventChart"></canvas></div>
-            </div>
-        </div>
-
-        <section class="bg-white p-4 rounded-xl border mb-6">
-            <h2 class="text-sm font-bold text-slate-600 mb-3">팬 풍량 기준 추정 환기량 (m³/h)</h2>
-            <p class="text-xs text-slate-500 mb-3">최소 요구량과 고온기 최대 요구량은 설계 비교 기준입니다. 고온기 요구량을 모든 시간에 충족해야 한다는 뜻은 아닙니다.</p>
-            <div class="h-[240px]"><canvas id="flowChart"></canvas></div>
-        </section>
-</section>
             </div>
 
             <!-- Empty State -->
