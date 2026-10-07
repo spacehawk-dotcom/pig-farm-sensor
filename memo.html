@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -97,32 +96,30 @@
                         const { getFirestore, collection, onSnapshot } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
                         // 2. 설정 확인 및 앱 초기화
-                        let firebaseConfig = {};
-                        if (typeof __firebase_config !== 'undefined') {
-                            firebaseConfig = JSON.parse(__firebase_config);
-                        } else {
-                            throw new Error("Firebase 설정이 없습니다.");
-                        }
+                        const firebaseConfig = {
+                            apiKey: "AIzaSyBlptGu2gTAQKVy_yDomKkNEd_el6c1PL0",
+                            authDomain: "sungamfarm.firebaseapp.com",
+                            projectId: "sungamfarm",
+                            storageBucket: "sungamfarm.firebasestorage.app",
+                            messagingSenderId: "811107235779",
+                            appId: "1:811107235779:web:ea65a74d09c37ba2136f76"
+                        };
 
                         const app = initializeApp(firebaseConfig);
                         const firestoreDb = getFirestore(app);
                         const auth = getAuth(app);
                         setDb(firestoreDb);
 
-                        // 3. 인증 처리 (Rule 3)
-                        if (typeof __initial_auth_token !== 'undefined') {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
+                        // 3. 인증 처리
+                        await signInAnonymously(auth);
 
                         // 4. 인증 상태 감지 및 데이터 로드 시작
                         unsubscribeAuth = onAuthStateChanged(auth, (user) => {
                             if (user) {
                                 setCurrentUserId(user.uid);
                                 
-                                // Rule 1 & Rule 2: 올바른 경로, 복잡한 쿼리 없이 모든 데이터 가져오기
-                                const memosRef = collection(firestoreDb, 'artifacts', appId, 'users', user.uid, 'farmMemos');
+                                // 성암농장 전용 공용 경로로 수정
+                                const memosRef = collection(firestoreDb, 'farms', 'sungamfarm', 'farmMemos');
                                 
                                 unsubscribeMemos = onSnapshot(memosRef, (snapshot) => {
                                     const fetchedMemos = [];
@@ -187,7 +184,8 @@
                     // 동적 임포트로 쓰기 함수 가져오기
                     const { collection, addDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
                     
-                    const memosRef = collection(db, 'artifacts', appId, 'users', currentUserId, 'farmMemos');
+                    // 성암농장 전용 공용 경로로 수정
+                    const memosRef = collection(db, 'farms', 'sungamfarm', 'farmMemos');
                     
                     await addDoc(memosRef, {
                         title: title.trim(),
@@ -213,7 +211,8 @@
                 
                 try {
                     const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
-                    const docRef = doc(db, 'artifacts', appId, 'users', currentUserId, 'farmMemos', id);
+                    // 성암농장 전용 공용 경로로 수정
+                    const docRef = doc(db, 'farms', 'sungamfarm', 'farmMemos', id);
                     
                     await deleteDoc(docRef);
                     showToast("기록이 삭제되었습니다.");
