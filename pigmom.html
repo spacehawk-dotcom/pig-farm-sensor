@@ -123,6 +123,40 @@
       </div>
     );
 
+    function ManagerMedicationCount({ week, value, onSave }) {
+      const [draft, setDraft] = useState(value == null ? '' : String(value));
+      const [status, setStatus] = useState('');
+      const [saving, setSaving] = useState(false);
+      const dirty = useRef(false);
+      useEffect(() => {
+        if (!dirty.current) setDraft(value == null ? '' : String(value));
+      }, [value]);
+      const save = async () => {
+        if (!dirty.current || saving) return;
+        const count = draft.trim() === '' ? null : Number(draft);
+        if (count !== null && (!Number.isSafeInteger(count) || count < 0)) {
+          setStatus('0 이상의 정수 입력'); return;
+        }
+        setSaving(true); setStatus('저장 중…');
+        try {
+          await onSave(week, count);
+          dirty.current = false;
+          setStatus(count === null ? '지시 해제됨' : '저장됨');
+        } catch (error) {
+          console.error('관리자 지시 두수 저장 실패:', error);
+          setStatus('저장 실패 · 다시 입력');
+        } finally { setSaving(false); }
+      };
+      return <div className="flex flex-col items-end shrink-0 pl-2 border-l border-indigo-50">
+        <label className="text-[11px] font-bold text-indigo-800 mb-1" htmlFor={'manager-count-'+week}>지시사항</label>
+        <div className="flex items-baseline bg-white px-2 py-1 rounded-lg border border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-200">
+          <input id={'manager-count-'+week} aria-label={week+' 관리자 요구 두수'} title="관리자 요구 두수 · 입력 후 다른 곳을 누르거나 Enter를 누르면 공유 저장됩니다. 빈칸으로 저장하면 지시가 해제됩니다." type="number" min="0" step="1" inputMode="numeric" placeholder="—" disabled={saving} value={draft} onChange={e=>{dirty.current=true;setDraft(e.target.value);setStatus('미저장');}} onBlur={e=>{if(e.currentTarget.validity.badInput){setStatus('0 이상의 정수 입력');return;}save();}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}}} className="w-10 text-right text-[15px] font-black text-indigo-700 outline-none bg-transparent disabled:opacity-50" />
+          <span className="text-[11px] font-bold text-indigo-500 ml-1">두</span>
+        </div>
+        {status && <span role="status" className="text-[9px] text-slate-500 mt-1 max-w-[110px] text-right">{status}</span>}
+      </div>;
+    }
+
     function App() {
       const [user, setUser] = useState(null);
       const [sows, setSows] = useState([]);
@@ -841,6 +875,12 @@
         });
       };
 
+      const handleSaveManagerMedicationCount = async (week, count) => {
+        if (!user) throw new Error('로그인이 필요합니다.');
+        if (count !== null && (!Number.isSafeInteger(count) || count < 0)) throw new Error('올바른 두수가 아닙니다.');
+        await db.collection(SETTINGS_PATH).doc('main').set({ [`medManagerCount_${week}`]: count }, { merge: true });
+      };
+
       const handleSaveMedicationOverride = (week, val) => {
         const field = `medOverride_${week}`;
         const updateData = val === '' ? { [field]: null } : { [field]: Number(val) };
@@ -1436,13 +1476,14 @@
                             </div>
 
                             {/* 계산식 & 수동 입력 박스 */}
-                            <div className="bg-white rounded-xl border border-indigo-100 p-3 flex flex-row items-center justify-between shadow-sm gap-2">
-                                <div className="flex flex-col w-full min-w-0">
+                            <div className="bg-white rounded-xl border border-indigo-100 p-3 flex flex-row flex-wrap items-center justify-between shadow-sm gap-2">
+                                <div className="flex flex-col flex-1 min-w-[135px]">
                                     <span className="text-[13px] font-black text-indigo-700 truncate">자동 산출: {medInfo.autoCount}두</span>
                                     <span className="text-[10px] font-bold text-indigo-400 tracking-tighter mt-0.5 truncate w-full">
                                         13 - (이유{medInfo.nursingCount} + 예정{medInfo.expectedCount} - 6산{medInfo.cullCount})
                                     </span>
                                 </div>
+                                <ManagerMedicationCount week={medInfo.medWeekMonday} value={(farmSettings || {})[`medManagerCount_${medInfo.medWeekMonday}`]} onSave={handleSaveManagerMedicationCount} />
                                 <div className="flex flex-col items-end shrink-0 pl-2 border-l border-indigo-50">
                                     <span className="text-[9px] font-bold text-slate-400 mb-1">투여 두수 수정</span>
                                     <div className="flex items-baseline bg-slate-50 px-2 py-1 rounded-lg border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors">
