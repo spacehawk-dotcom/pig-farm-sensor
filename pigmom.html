@@ -147,10 +147,10 @@
           setStatus('저장 실패 · 다시 입력');
         } finally { setSaving(false); }
       };
-      return <div className="flex flex-col items-end shrink-0 pl-2 border-l border-indigo-50">
-        <label className="text-[11px] font-bold text-indigo-800 mb-1" htmlFor={'manager-count-'+week}>지시사항</label>
+      return <div className="flex flex-col items-end shrink-0 pl-1 sm:pl-2 border-l border-indigo-50">
+        <label className="text-[11px] font-bold text-indigo-800 mb-1 whitespace-nowrap" htmlFor={'manager-count-'+week}>지시사항</label>
         <div className="flex items-baseline bg-white px-2 py-1 rounded-lg border border-indigo-300 focus-within:ring-2 focus-within:ring-indigo-200">
-          <input id={'manager-count-'+week} aria-label={week+' 관리자 요구 두수'} title="관리자 요구 두수 · 입력 후 다른 곳을 누르거나 Enter를 누르면 공유 저장됩니다. 빈칸으로 저장하면 지시가 해제됩니다." type="number" min="0" step="1" inputMode="numeric" placeholder="—" disabled={saving} value={draft} onChange={e=>{dirty.current=true;setDraft(e.target.value);setStatus('미저장');}} onBlur={e=>{if(e.currentTarget.validity.badInput){setStatus('0 이상의 정수 입력');return;}save();}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}}} className="w-10 text-right text-[15px] font-black text-indigo-700 outline-none bg-transparent disabled:opacity-50" />
+          <input id={'manager-count-'+week} aria-label={week+' 관리자 요구 두수'} title="관리자 요구 두수 · 입력 후 다른 곳을 누르거나 Enter를 누르면 공유 저장됩니다. 빈칸으로 저장하면 지시가 해제됩니다." type="number" min="0" step="1" inputMode="numeric" placeholder="—" disabled={saving} value={draft} onChange={e=>{dirty.current=true;setDraft(e.target.value);setStatus('미저장');}} onBlur={e=>{if(e.currentTarget.validity.badInput){setStatus('0 이상의 정수 입력');return;}save();}} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur();}}} className="w-8 sm:w-10 text-right text-[15px] font-black text-indigo-700 outline-none bg-transparent disabled:opacity-50" />
           <span className="text-[11px] font-bold text-indigo-500 ml-1">두</span>
         </div>
         {status && <span role="status" className="text-[9px] text-slate-500 mt-1 max-w-[110px] text-right">{status}</span>}
@@ -1476,16 +1476,16 @@
                             </div>
 
                             {/* 계산식 & 수동 입력 박스 */}
-                            <div className="bg-white rounded-xl border border-indigo-100 p-3 flex flex-row flex-wrap items-center justify-between shadow-sm gap-2">
-                                <div className="flex flex-col flex-1 min-w-[135px]">
-                                    <span className="text-[13px] font-black text-indigo-700 truncate">자동 산출: {medInfo.autoCount}두</span>
+                            <div className="bg-white rounded-xl border border-indigo-100 p-2 sm:p-3 flex flex-row flex-nowrap items-center justify-between shadow-sm gap-1.5 sm:gap-2">
+                                <div className="flex flex-col flex-1 min-w-0">
+                                    <span className="text-[11px] sm:text-[13px] font-black text-indigo-700 whitespace-nowrap">자동 산출: {medInfo.autoCount}두</span>
                                     <span className="text-[10px] font-bold text-indigo-400 tracking-tighter mt-0.5 truncate w-full">
                                         13 - (이유{medInfo.nursingCount} + 예정{medInfo.expectedCount} - 6산{medInfo.cullCount})
                                     </span>
                                 </div>
                                 <ManagerMedicationCount week={medInfo.medWeekMonday} value={(farmSettings || {})[`medManagerCount_${medInfo.medWeekMonday}`]} onSave={handleSaveManagerMedicationCount} />
-                                <div className="flex flex-col items-end shrink-0 pl-2 border-l border-indigo-50">
-                                    <span className="text-[9px] font-bold text-slate-400 mb-1">투여 두수 수정</span>
+                                <div className="flex flex-col items-end shrink-0 pl-1 sm:pl-2 border-l border-indigo-50">
+                                    <span className="text-[9px] font-bold text-slate-400 mb-1 whitespace-nowrap">투여 두수 수정</span>
                                     <div className="flex items-baseline bg-slate-50 px-2 py-1 rounded-lg border border-indigo-200 shadow-inner focus-within:border-indigo-400 transition-colors">
                                         <input
                                            type="number"
