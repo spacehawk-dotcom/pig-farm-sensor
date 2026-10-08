@@ -35,10 +35,19 @@
     <!-- 메인 컨텐츠 영역 -->
     <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         
-        <div class="mb-4">
-            <h2 class="text-lg font-bold text-gray-700">바로가기 메뉴</h2>
-            <p class="text-sm text-gray-500">원하시는 항목을 선택해주세요.</p>
-        </div>
+        <!-- 농장 일지 상단 버튼 -->
+        <a href="memo" class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-4 mb-5 active:scale-[0.98] hover:shadow-md hover:border-green-300 transition-all duration-200 group w-full">
+            <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-500 group-hover:text-white transition-colors duration-300 flex-shrink-0">
+                <i class="fas fa-pen-to-square text-xl"></i>
+            </div>
+            <div class="flex-1 text-left">
+                <h2 class="font-bold text-gray-800 text-base sm:text-lg">농장 일지</h2>
+                <p class="text-xs sm:text-sm text-gray-500 mt-0.5">오늘의 작업 내용과 특이사항을 기록하세요.</p>
+            </div>
+            <div class="text-gray-300 group-hover:text-green-500 pr-2">
+                <i class="fas fa-chevron-right"></i>
+            </div>
+        </a>
 
         <!-- 앱 그리드 (모바일 2열, 태블릿 3열, 데스크탑 4열) -->
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5">
@@ -124,7 +133,7 @@
             </a>
 
             <!-- 9. 환기 시뮬레이션 -->
-            <a href="https://sungamfarm.netlify.app/simu" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-teal-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+            <a href="simu.html" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-teal-300 transition-all duration-200 flex flex-col items-center gap-3 group">
                 <div class="w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 group-hover:bg-teal-500 group-hover:text-white transition-colors duration-300">
                     <i class="fas fa-wind text-2xl"></i>
                 </div>
@@ -134,7 +143,7 @@
             </a>
 
             <!-- 10. 유효환경온도(EET) -->
-            <a href="https://sungamfarm.netlify.app/simu_2" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-orange-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+            <a href="simu_2.html" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-orange-300 transition-all duration-200 flex flex-col items-center gap-3 group">
                 <div class="w-14 h-14 rounded-full bg-orange-50 flex items-center justify-center text-orange-500 group-hover:bg-orange-500 group-hover:text-white transition-colors duration-300">
                     <i class="fas fa-temperature-half text-2xl"></i>
                 </div>
