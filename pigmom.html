@@ -145,7 +145,7 @@
 
       // UI 상태 관리
       const [searchQuery, setSearchQuery] = useState('');
-      const [selectedSowId, setSelectedSowId] = useState(null);
+      const [selectedSowId, setSelectedSowId] = useState(() => new URLSearchParams(window.location.search).get('sowId'));
       const [showAddSow, setShowAddSow] = useState(false);
       const [showAddRecord, setShowAddRecord] = useState(false);
       const [showSowListModal, setShowSowListModal] = useState(false);
@@ -503,7 +503,7 @@
         
         const history = s.history.filter(Boolean);
         const totalLitters = history.length;
-        const totalBorn = history.reduce((sum, r) => sum + Number(r.totalBorn || r.born || 0), 0);
+        const totalBorn = history.reduce((sum, r) => sum + Number(r.total ?? r.totalBorn ?? r.born ?? 0), 0);
         const totalWeaned = history.reduce((sum, r) => sum + Number(r.move || 0), 0);
         
         return {
@@ -1170,7 +1170,7 @@
                         <div key={idx} className="flex items-center gap-1.5 px-3 py-3 text-[13px] font-bold text-slate-800 text-center hover:bg-slate-50 transition">
                           <span className="w-8 bg-slate-100 py-1 rounded text-slate-600 text-[11px]">{r.parity || 0}산</span>
                           <span className="flex-1 text-[12px]">{r.date || r.expDate || '-'}</span>
-                          <span className="w-10 text-emerald-600">{r.totalBorn || r.born || 0}</span>
+                          <span className="w-10 text-emerald-600">{r.total ?? r.totalBorn ?? r.born ?? '-'}</span>
                           <span className="w-10 text-amber-600">{r.born || 0}</span>
                           <span className="w-10 text-slate-500">{r.weaned || 0}</span>
                           <span className="w-10 text-blue-600">{r.move || 0}</span>
