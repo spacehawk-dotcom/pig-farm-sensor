@@ -6,18 +6,27 @@
     const mean = a => a.reduce((s, v) => s + v, 0) / a.length;
     const kst = t => new Date(t + 9 * HOUR).toISOString().slice(0, 16);
     function validate(record, now = Date.now()) {
-        if (!record.room || !Array.isArray(record.groups) || record.groups.length !== 4) throw Error('배치와 4개 그룹을 확인하세요.');
-        if (![record.start, record.end].every(Number.isFinite) || record.start > record.end || record.end > now || record.start < now - 366 * DAY || record.end - record.start > 7 * DAY)
-            throw Error('관찰 기간은 최근 1년 이내, 최대 7일이며 종료는 현재 시각 이하여야 합니다.');
-        for (const [i, g] of record.groups.entries()) {
-            if (![g.t, g.min, g.max, g.diff].every(Number.isFinite) || g.t < 5 || g.t > 40 || g.diff <= 0 || g.diff > 15 || g.min < 0 || g.max > 100 || g.min > g.max)
-                throw Error(`${i + 1}그룹: 온도 5~40℃, 편차 0 초과~15℃, 0 ≤ 최소 ≤ 최대 ≤ 100%를 입력하세요.`);
-        }
-        if (!Number.isInteger(record.count) || record.count <= 0 || !Number.isFinite(record.weight) || record.weight <= 0 || record.weight > 500 || !Number.isFinite(record.age) || record.age < 0)
-            throw Error('두수·평균 체중·일령을 확인하세요.');
-        if (!record.context?.trim() || record.context.length > 200) throw Error('입기구·순환·난방 상태를 200자 이내로 입력하세요.');
-        if (!['normal', 'cough', 'unknown'].includes(record.observation)) throw Error('관찰 상태를 선택하세요.');
+        if (record.source !== 'app_saved' || !record.room || !Array.isArray(record.groups) || record.groups.length !== 4) throw Error('자동 저장 설정이 필요합니다.');
+        if (![record.start,record.end].every(Number.isFinite) || record.start >= record.end || record.end > now || record.start < now-365*DAY) throw Error('분석 기간을 확인하세요.');
+        if (!record.groups.every(g=>g && [g.t,g.min,g.max,g.diff].every(Number.isFinite) && g.t>=5 && g.t<=40 && g.min>=0 && g.max<=100 && g.min<=g.max && g.diff>0 && g.diff<=20)) throw Error('그룹 설정을 확인하세요.');
+        if (!Number.isInteger(record.count) || record.count<=0 || !Number.isFinite(record.weight) || record.weight<=0 || !Number.isFinite(record.age) || record.age<0) throw Error('사육 정보를 확인하세요.');
         return record;
+    }
+    function automaticIntervals(records, cycles, now, snapshots) {
+        const selected=cycles.filter(c=>Number.isFinite(c.start) && c.start<=now && (c.end==null || Number.isFinite(c.end)&&c.end>=c.start)).sort((a,b)=>a.start-b.start);
+        const rows=[];
+        for(let i=0;i<selected.length;i++) {
+            const c=selected[i];
+            const next=selected.slice(i+1).find(n=>n.room===c.room && n.start>c.start);
+            const end=Math.min(c.end??now,next?.start??now,now);
+            const scoped=records.filter(r=>snapshots.valid(r) && r.start<end);
+            for(const r of snapshots.intervals(scoped,{...c,end},now)) {
+                const start=Math.max(r.start,now-365*DAY);
+                if(r.end>start) rows.push({...r,savedStart:r.start,start});
+            }
+        }
+        // Duplicate cycle documents cannot give a saved setting extra votes.
+        return [...new Map(rows.map(r=>[r.id || `${r.room}:${r.savedStart}`,r])).values()];
     }
     function bins(samples) {
         const map = new Map();
@@ -33,7 +42,7 @@
     function signature(r) { return JSON.stringify(r.groups.map(g => [g.t, g.min, g.max, g.diff])); }
     function recommend(records, samples, current) {
         const { now = Date.now(), low, high, room, weight, count, context } = current;
-        if (![low, high, weight, count].every(Number.isFinite) || low >= high || weight <= 0 || count <= 0 || !context?.trim()) throw Error('목표 온도 범위와 현재 사육·설비 조건을 입력하세요.');
+        if (![low, high, weight, count].every(Number.isFinite) || low >= high || weight <= 0 || count <= 0) throw Error('목표 온도 범위와 현재 사육 조건을 입력하세요.');
         const all = bins(samples);
         const recent = all.filter(p => p.time >= now - 6 * HOUR && p.time <= now);
         if (recent.length < 54 || !recent.length || now - recent.at(-1).time > 30 * 60000)
@@ -43,9 +52,10 @@
         const groups = new Map();
         let evaluated = 0;
         for (const r of valid) {
-            if (r.observation !== 'normal' || r.context.trim() !== context.trim() || Math.abs(r.weight / weight - 1) > .2 || Math.abs(r.count / count - 1) > .2) continue;
+            const knownContext=v=>typeof v==='string' && v.trim()!=='설비 상태 미입력'?v.trim():'';
+            if ((knownContext(context) && knownContext(r.context)!==knownContext(context)) || Math.abs(r.weight / weight - 1) > .2 || Math.abs(r.count / count - 1) > .2) continue;
             // First 30 minutes after the declared start are excluded. Each window is a full six hours.
-            for (let start = r.start + HOUR / 2; start + 6 * HOUR <= r.end; start += 6 * HOUR) {
+            for (let start = Math.max(r.start, (r.savedStart ?? r.start) + HOUR / 2); start + 6 * HOUR <= r.end; start += 6 * HOUR) {
                 const end = start + 6 * HOUR;
                 // Conflicting or duplicate observation intervals cannot count as independent evidence.
                 if (valid.some(other => other !== r && other.start < end && other.end > start)) continue;
@@ -77,7 +87,7 @@
         return { candidates: candidates.slice(0, 3), evaluated, weather,
             reason: candidates.length ? '' : '추천 보류: 같은 조건·같은 설정의 서로 다른 3일 이상 기록, 목표 범위 유지율 80% 이상, 1시간 하강 2℃ 이하를 충족한 사례가 없습니다.' };
     }
-    const api = { HOUR, DAY, BIN, num, kst, validate, bins, recommend };
+    const api = { HOUR, DAY, BIN, num, kst, validate, automaticIntervals, bins, recommend };
     if (typeof module !== 'undefined' && module.exports) module.exports = api;
     else root.VentilationLearning = api;
 })(globalThis);

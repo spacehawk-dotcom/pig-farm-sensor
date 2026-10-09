@@ -189,7 +189,18 @@
 <label class="flex justify-between items-center gap-1 bg-white rounded border border-slate-200 px-2 py-1.5 mb-1 text-xs text-slate-600">최대 환기<span class="flex items-center gap-1"><input id="ui_max_4" aria-label="4그룹 최대 환기" type="number" min="0" max="100" step="1" required class="w-14 border rounded px-1 py-0.5 text-right text-sm font-bold text-slate-800">%</span></label>
 <label class="flex justify-between items-center gap-1 bg-white rounded border border-slate-200 px-2 py-1.5 mb-1 text-xs text-slate-600">편차<span class="flex items-center gap-1"><input id="ui_p_4" aria-label="4그룹 편차" type="number" min="1" max="20" step="1" required class="w-14 border rounded px-1 py-0.5 text-right text-sm font-bold text-slate-800">℃</span></label>
 </div>
-</div></div><div class="flex flex-wrap items-center gap-3"><button id="save-group-settings" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg px-6 py-2 disabled:opacity-50">입력</button><p id="group-save-status" role="status" class="text-sm text-slate-600">수정 후 입력 버튼을 누르면 선택 배치의 현재 적용 설정에 저장됩니다.</p></div>
+</div></div><label class="block text-sm text-slate-700">입기구·순환·난방 상태<input id="setting-context" maxlength="200" placeholder="예: 입기 3cm / 순환 켬 / 난방 끔" class="block w-full border rounded-lg p-2 mt-1"></label>
+<div class="flex flex-wrap items-center gap-3"><button id="save-group-settings" class="bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg px-6 py-2 disabled:opacity-50">입력</button><p id="group-save-status" role="status" class="text-sm text-slate-600">입력 버튼을 누르면 설정·설비 상태와 배치 정보가 시뮬레이터 기록에 함께 누적 저장됩니다.</p></div>
+                <details id="minimum-ventilation-details" class="bg-blue-50/50 p-3 sm:p-4 rounded-xl border border-blue-100 shadow-sm mt-2">
+                    <summary class="text-xs sm:text-sm font-bold text-blue-800 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">배치별 최소 환기량 확인</summary>
+                    <div class="grid grid-cols-2 gap-3 text-xs sm:text-sm mt-3">
+                        <p>최소 환기 요구량<br><strong id="res_min_required">--</strong> m³/h</p>
+                        <p>적용 최소 예상 풍량<br><strong id="res_min_supplied">--</strong> m³/h</p>
+                    </div>
+                    <p id="res_min_status" class="text-xs text-slate-700 mt-3"></p>
+                    <p class="text-xs text-slate-500 mt-2">요구량 = 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값. 최소 가동률은 요구량 ÷ 사용 그룹의 팬 정격 풍량 합계 × 100을 1%p 단위로 올림하여 계산합니다(최대 100%). 풍량은 제원에 비례한 추정값입니다.</p>
+                </details>
+
 <section id="history-charts"><p id="history-chart-status" class="text-xs text-slate-500 mb-3" role="status"></p>        <!-- 차트 영역 -->
         <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-col gap-4">
             <!-- [상단] 온도 차트 -->
@@ -212,15 +223,7 @@
         </section>
 </section>
 
-                <details id="minimum-ventilation-details" class="bg-blue-50/50 p-3 sm:p-4 rounded-xl border border-blue-100 shadow-sm mt-2">
-                    <summary class="text-xs sm:text-sm font-bold text-blue-800 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">배치별 최소 환기량 확인</summary>
-                    <div class="grid grid-cols-2 gap-3 text-xs sm:text-sm mt-3">
-                        <p>최소 환기 요구량<br><strong id="res_min_required">--</strong> m³/h</p>
-                        <p>적용 최소 예상 풍량<br><strong id="res_min_supplied">--</strong> m³/h</p>
-                    </div>
-                    <p id="res_min_status" class="text-xs text-slate-700 mt-3"></p>
-                    <p class="text-xs text-slate-500 mt-2">요구량 = 체중(kg) × 두수 × 0.5와 돈사 체적(m³) × 1.5 중 큰 값. 최소 가동률은 요구량 ÷ 사용 그룹의 팬 정격 풍량 합계 × 100을 1%p 단위로 올림하여 계산합니다(최대 100%). 풍량은 제원에 비례한 추정값입니다.</p>
-                </details>
+
 
                 <details id="relay-explanation" class="bg-white border border-blue-100 rounded-xl p-4 sm:p-5 shadow-sm mt-2">
                     <summary class="text-xs sm:text-sm font-bold text-blue-800 cursor-pointer select-none rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
@@ -292,10 +295,11 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="simulation-core.js?v=20261003-weight-cap110"></script>
     <script src="ventilation.js?v=20261004-group-editor"></script>
+    <script src="ventilation-setting-record.js?v=20261009"></script>
     <script type="module">
         import { createHistoryCharts } from "./ventilation-history-charts.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, doc, updateDoc, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getDatabase, ref, query, limitToLast, orderByKey, startAt, endAt, onValue } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
@@ -326,6 +330,7 @@
         let dailySensorHistoryMap = {};
         let currentSelectedBatchId = null;
         let editorDirty = false;
+        let contextDirty = false;
         let editorSaving = false;
         const historyCharts=createHistoryCharts();
         let chartRaw=[],chartRange=null,chartUnsubscribe=null,chartContext=null,chartRequest=0,chartFailed=false;
@@ -683,7 +688,7 @@
         }
 
         document.getElementById('batch-select').addEventListener('change', (e) => {
-            if (currentSelectedBatchId !== e.target.value) { editorDirty = false; document.getElementById('group-save-status').textContent = '수정 후 입력 버튼을 누르면 저장됩니다.'; }
+            if (currentSelectedBatchId !== e.target.value) { editorDirty = false; contextDirty = false; document.getElementById('group-save-status').textContent = '수정 후 입력 버튼을 누르면 저장됩니다.'; }
             currentSelectedBatchId = e.target.value;
             const batch = fetchedBatches[currentSelectedBatchId];
             if (!batch) return;
@@ -708,6 +713,7 @@
             editorDirty=true;
             document.getElementById('group-save-status').textContent='수정 중 · 입력 버튼을 눌러야 저장됩니다.';
         });
+        document.getElementById('setting-context').addEventListener('input', () => { contextDirty=true; });
         document.getElementById('save-group-settings').addEventListener('click', async () => {
             if(editorSaving || !currentSelectedBatchId)return;
             const key=currentSelectedBatchId, batch=fetchedBatches[key];
@@ -722,20 +728,32 @@
                     updates[`ventilationOverrides.${group}.${field}`]=value;
                 }
             }
+            const contextValue = contextDirty ? document.getElementById('setting-context').value.trim() : null;
+            const recordRef=doc(collection(db,'farms/sungamfarm/ventilation_records'));
+            const savedTime=Date.now();
             editorSaving=true;
-            document.querySelectorAll('#group-settings-editor input').forEach(input=>input.disabled=true);
+            document.querySelectorAll('#group-settings-editor input, #setting-context').forEach(input=>input.disabled=true);
             const button=document.getElementById('save-group-settings');button.disabled=true;
             status.textContent=`${batch.name} 저장 중…`;
             try {
-                await updateDoc(doc(db,`farms/sungamfarm/${batch.type==='이유사'?'weaning':'grower'}`,batch.id),{...updates,ventilationOverridesUpdatedAt:serverTimestamp()});
+                const batchRef=doc(db,`farms/sungamfarm/${batch.type==='이유사'?'weaning':'grower'}`,batch.id);
+                await runTransaction(db, async tx => {
+                    const snapshot=await tx.get(batchRef);
+                    if(!snapshot.exists())throw Error('배치가 삭제되었습니다.');
+                    const data=snapshot.data();
+                    const context=contextValue === null ? data.ventilationContext || '' : contextValue;
+                    const record=window.VentilationSettingRecord.build({id:recordRef.id,batchId:batch.id,type:batch.type,data,updates,context,now:savedTime,outdoor:getRecentOutdoorTemperatures()},window.FarmVentilation);
+                    tx.update(batchRef,{...updates,ventilationContext:context,ventilationOverridesUpdatedAt:serverTimestamp()});
+                    tx.set(recordRef,{...record,savedAt:serverTimestamp()});
+                });
                 if(currentSelectedBatchId===key) {
-                    editorDirty=false;
+                    editorDirty=false; contextDirty=false;
                     document.getElementById('btn_analyze').click();
-                    status.textContent=`${batch.name} 저장 완료 · 상단 적용 설정과 사육현황에 반영했습니다.`;
+                    status.textContent=`${batch.name} 설정 및 기록 저장 완료 · 시뮬레이터에 자동 누적됩니다.`;
                 }
                 renderAllBatchesSummary();
             } catch(error) { status.textContent=`${batch.name} 저장 실패: ${error.message} · 다시 입력 버튼을 눌러주세요.`; }
-            finally {editorSaving=false;button.disabled=false;document.querySelectorAll('#group-settings-editor input').forEach(input=>input.disabled=false);}
+            finally {editorSaving=false;button.disabled=false;document.querySelectorAll('#group-settings-editor input, #setting-context').forEach(input=>input.disabled=false);}
         });
 
         function getVentRate(temp, opt) {
@@ -779,6 +797,7 @@
             document.getElementById('base_temp_input').value = opt.f500_1.t;
             document.getElementById('temp-source-hint').textContent = `기본 ${BASE_TEMPERATURE}℃ → 현재 ${opt.f500_1.t}℃ (${opt.hasManualOverrides ? "수정값 반영" : "자동 계산"})`;
             document.getElementById('result-batch-name').textContent = `${prefix} ${batchNum}배치`;
+            if (!contextDirty) document.getElementById('setting-context').value=batch.sourceData.ventilationContext || '';
             if (!editorDirty) {
                 ['f500_1','f500_2','f800_1','f800_2'].forEach((group,index) => {
                     const n=index+1;

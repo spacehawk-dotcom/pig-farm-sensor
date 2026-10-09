@@ -20,13 +20,14 @@ export function createCycleArchive(host,connections){
    $('result').replaceChildren();if(chart){chart.destroy();chart=null;}
   }catch(e){if(stamp===token)$('status').textContent='회차 조회 실패: '+e.message;}
  }
- async function view(){const c=cycles[Number($('select').value)];if(!c)return;const stamp=++token;const {db,rtdb}=connections();$('result').replaceChildren();if(chart){chart.destroy();chart=null;}
+ async function view(){const c=cycles[Number($('select').value)];if(!c)return;const stamp=++token,viewedAt=Date.now();const {db,rtdb}=connections();$('result').replaceChildren();if(chart){chart.destroy();chart=null;}
   try{
    const snap=await getDocs(query(collection(db,base+'/ventilation_records'),where('room','==',c.room)));
-   const records=snap.docs.map(d=>({...d.data(),id:d.id})).filter(r=>C.inCycle(r,c)&&Array.isArray(r.groups)&&r.groups.length===4&&r.groups.every(g=>g&&['t','min','max','diff'].every(k=>Number.isFinite(g[k])))).sort((a,b)=>a.start-b.start);
+   const savedRecords=snap.docs.map(d=>({...d.data(),id:d.id})).filter(r=>C.inCycle(r,c)&&Array.isArray(r.groups)&&r.groups.length===4&&r.groups.every(g=>g&&['t','min','max','diff'].every(k=>Number.isFinite(g[k])))).sort((a,b)=>a.start-b.start);
+   const records=window.VentilationSettingRecord.intervals(savedRecords,c,viewedAt);
    const days=await getDocs(collection(db,base+'/ventilation_cycles/'+c.id+'/temperature_days'));
    const points=new Map();days.forEach(d=>Object.values(d.data().samples||{}).forEach(p=>points.set(p.time,p)));
-   const end=Math.min(c.end??Date.now(),Date.now());let missing=0;
+   const end=Math.min(c.end??viewedAt,viewedAt);let missing=0;
    // Read day by day; older sensor records are not assumed to exist.
    for(let t=Math.floor((c.start+32400000)/C.DAY)*C.DAY-32400000;t<=end;t+=C.DAY){
     if(stamp!==token)return;$('status').textContent=`${date(c.start).slice(0,10)} 회차 온도 조회 중 · ${date(t).slice(0,10)}`;
@@ -40,11 +41,23 @@ export function createCycleArchive(host,connections){
    }
    if(stamp!==token)return;
    const samples=[...points.values()].filter(p=>p.time>=c.start&&p.time<=end).sort((a,b)=>a.time-b.time);
-   $('status').textContent=`${c.room.replace('_',' ')} · ${date(c.start)} ~ ${date(c.end)} · 실제 설정 ${records.length}건 · 온도 ${samples.length}건${missing?' · 미수집/보관되지 않은 날짜 '+missing+'일':''}${c.pending?' · 회차 등록 전':''}`;
-   $('result').innerHTML='<div class="h-64 mb-3"><canvas id="cycle-chart"></canvas></div><div class="overflow-auto max-h-96"><table class="w-full text-xs text-left"><thead><tr><th>실제 설정 관찰 기간</th><th>1~4그룹 온도 / 전압 / 편차</th><th>실내 온도 변화</th></tr></thead><tbody>'+records.map(r=>{const st=C.stats(samples,r);return `<tr class="border-t"><td class="p-2">${escape(date(r.start))}<br>${escape(date(r.end))}</td><td class="p-2">${r.groups.map((g,i)=>`${i+1}: ${g.t}℃ / ${g.min}~${g.max}% / ${g.diff}℃`).map(escape).join('<br>')}</td><td class="p-2">${st?`${st.min.toFixed(1)}~${st.max.toFixed(1)}℃<br>처음→끝 ${st.change.toFixed(1)}℃ · ${st.count}건${st.gaps?' · 30분 초과 결측':''}`:'온도 기록 없음'}</td></tr>`;}).join('')+'</tbody></table></div>';
+   $('status').textContent=`${c.room.replace('_',' ')} · ${date(c.start)} ~ ${date(end)} · 저장 설정 ${records.length}건 · 온도 ${samples.length}건${missing?' · 미수집/보관되지 않은 날짜 '+missing+'일':''}${c.pending?' · 회차 등록 전':''}`;
+   const automatic=records.filter(r=>r.source==='app_saved');
+   $('result').innerHTML='<p class="text-xs text-slate-500 mb-3">자동 설정은 저장 시각부터 다음 설정 저장 직전까지, 마지막 설정은 조회 시각(종료 회차는 회차 종료)까지 온도를 비교합니다. 세로 점선과 날짜는 앱에 설정을 저장한 시점입니다.</p><div class="h-64 mb-3"><canvas id="cycle-chart"></canvas></div><p class="text-xs text-indigo-700 mb-3">설정 저장일 (한국시간): '+(automatic.length?automatic.map(r=>escape(date(r.start))).join(' · '):'이 회차의 자동 저장 기록 없음')+'</p><div class="overflow-auto max-h-96"><table class="w-full text-xs text-left"><thead><tr><th>설정 저장 시점 / 관찰 기간</th><th>1~4그룹 온도 / 전압 / 편차</th><th>두수 / 일령 / 평균체중</th><th>실내 온도 변화</th></tr></thead><tbody>'+records.map(r=>{const st=C.stats(r.endExclusive?samples.filter(p=>p.time<r.end):samples,r);return `<tr class="border-t"><td class="p-2">${r.source==='app_saved'?'앱 설정 자동 저장':'수동 확인 기록'}<br>${escape(date(r.start))}<br>${escape(date(r.end))}<br><span class="text-slate-500">${escape(r.endBasis)}${r.endExclusive?' 직전까지':'까지'}</span></td><td class="p-2">${r.groups.map((g,i)=>`${i+1}: ${g.t}℃ / ${g.min}~${g.max}% / ${g.diff}℃`).map(escape).join('<br>')}</td><td class="p-2 whitespace-nowrap">${Number.isFinite(r.count)?escape(r.count)+'두':'기록 없음'}<br>${Number.isFinite(r.age)?escape(r.age)+'일령':'기록 없음'}<br>${Number.isFinite(r.weight)?r.weight.toFixed(1)+'kg':'기록 없음'}${r.weightSource==='predicted'?' <span class="text-slate-500">(예측)</span>':' '}</td><td class="p-2">${st?`${st.min.toFixed(1)}~${st.max.toFixed(1)}℃<br>처음→끝 ${st.change.toFixed(1)}℃ · ${st.count}건${st.gaps?' · 30분 초과 결측':''}`:(r.start===r.end?'비교 시간 없음 · 같은 시각에 설정 저장':'해당 비교 구간의 실내 센서 기록 없음')}</td></tr>`;}).join('')+'</tbody></table></div>';
    if(typeof Chart==='undefined')throw Error('그래프 라이브러리 로드 실패');
    const series=key=>samples.flatMap((p,i)=>i&&p.time-samples[i-1].time>1800000?[{x:samples[i-1].time+1,y:null},{x:p.time,y:p[key]}]:[{x:p.time,y:p[key]}]);
-   chart=new Chart($('chart'),{type:'line',data:{datasets:[{label:'실내 온도',data:series('inside'),borderColor:'#ef4444',pointRadius:0,borderWidth:1.5},{label:'외기 온도',data:series('outside'),borderColor:'#94a3b8',pointRadius:0,borderWidth:1.5},...Array.from({length:4},(_,i)=>({label:`실제 확인 ${i+1}그룹 설정온도`,data:records.flatMap(r=>[{x:r.start,y:r.groups[i].t},{x:r.end,y:r.groups[i].t},{x:r.end+1,y:null}]),borderColor:['#22c55e','#14b8a6','#f97316','#a855f7'][i],pointRadius:0,borderDash:[4,4],spanGaps:false}))]},options:{responsive:true,maintainAspectRatio:false,parsing:false,scales:{x:{type:'linear',min:c.start,max:end,ticks:{maxTicksLimit:6,callback:n=>date(n).slice(5,16)}},y:{title:{display:true,text:'℃'}}},plugins:{tooltip:{callbacks:{title:items=>items.length?date(items[0].parsed.x):''}}}}});
+   const settingMarkers={id:'settingSavedDates',afterDatasetsDraw(chart){
+    const {ctx,chartArea,scales}=chart;if(!chartArea)return;
+    ctx.save();ctx.font='10px sans-serif';
+    let lastLabel=-Infinity;
+    for(const r of automatic){const x=scales.x.getPixelForValue(r.start);if(x<chartArea.left||x>chartArea.right)continue;
+     ctx.strokeStyle='#6366f1';ctx.lineWidth=1;ctx.setLineDash([3,3]);ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();
+     const labelX=Math.min(x+3,chartArea.right-35);
+     if(labelX-lastLabel>=38){ctx.setLineDash([]);ctx.fillStyle='#4338ca';ctx.fillText(date(r.start).slice(5,10).replace('-','/'),labelX,chartArea.top-6);lastLabel=labelX;}
+    }
+    ctx.restore();
+   }};
+   chart=new Chart($('chart'),{type:'line',plugins:[settingMarkers],data:{datasets:[{label:'실내 온도',data:series('inside'),borderColor:'#ef4444',pointRadius:0,borderWidth:1.5},{label:'외기 온도',data:series('outside'),borderColor:'#94a3b8',pointRadius:0,borderWidth:1.5},{label:'설정 저장 시점 (날짜 확인)',data:automatic.map(r=>({x:r.start,y:r.groups[0].t})),showLine:false,pointStyle:'triangle',pointRadius:5,pointHoverRadius:7,backgroundColor:'#4f46e5',borderColor:'#4f46e5'},...Array.from({length:4},(_,i)=>({label:`저장된 ${i+1}그룹 설정온도`,data:records.flatMap(r=>[{x:r.start,y:r.groups[i].t},{x:r.end,y:r.groups[i].t},{x:r.end,y:null}]),borderColor:['#22c55e','#14b8a6','#f97316','#a855f7'][i],pointRadius:0,borderDash:[4,4],spanGaps:false}))]},options:{responsive:true,maintainAspectRatio:false,parsing:false,layout:{padding:{top:20}},scales:{x:{type:'linear',min:c.start,max:end,ticks:{maxTicksLimit:6,callback:n=>date(n).slice(5,16)}},y:{title:{display:true,text:'℃'}}},plugins:{tooltip:{callbacks:{title:items=>items.length?date(items[0].parsed.x):''}}}}});
   }catch(e){if(stamp===token)$('status').textContent='회차 기록 조회 실패: '+e.message;}
  }
  $('refresh').onclick=refresh;$('view').onclick=view;$('select').onchange=()=>{token++;$('result').replaceChildren();if(chart){chart.destroy();chart=null;}};

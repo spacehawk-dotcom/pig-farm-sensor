@@ -23,7 +23,6 @@
     <div class="max-w-7xl mx-auto">
         <nav aria-label="시뮬레이션 앱 메뉴" class="mb-4">
             <a class='inline-flex items-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100' href='/temp'>← 환기량 앱</a>
-            <a href="#controller-journal-area" class="inline-flex items-center rounded-lg bg-indigo-600 text-white px-3 py-2 text-sm font-bold">📝 실제 설정 기록 · 데이터 기반 추천</a>
         </nav>
         <!-- 헤더 및 상태 -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
@@ -56,6 +55,7 @@
         <section class="bg-white border rounded-xl p-4 mb-6">
             <h2 class="font-bold text-sm text-slate-700 mb-2">제어 동작 확인 · 온도별 계산 출력</h2>
             <p id="fanSpec" class="text-xs text-slate-500 mb-3"></p>
+            <div hidden>
 <p class="text-xs text-slate-500 mt-2">도면 확인: 28m × 11.5m · 500팬 5대 / 800팬 4대 · 윈치 길이 26m, 최대 개방 0.4m · 유도판 끝 틈 0.2m(연속일 때 5.2㎡). 윈치 개방 높이는 가변이며 돈사 단면적과 구분합니다.</p>
             <div class="flex flex-wrap items-end gap-3 my-3 text-xs text-slate-600">
                 <label for="sectionWidth">기류에 수직인 돈사 길이 (m)<input id="sectionWidth" type="number" min="0.01" step="0.1" value="28"></label>
@@ -63,6 +63,7 @@
                 <p id="sectionSummary" aria-live="polite" class="text-blue-800"></p>
             </div>
             <p class="text-xs text-slate-500 mb-3">풍속 = 추정 합계 풍량 ÷ 3,600 ÷ 입력 단면적. 도면의 측벽배기 방향에 따라 길이 28m × 높이 2.2m = 61.6㎡를 기본값으로 사용합니다. 폭 11.5m는 공기 이동 방향의 거리입니다. 높이 2.2m는 기존 앱 가정값이며 실측 높이로 수정하세요. 장애물을 차감하지 않은 전체 단면 기준 참고값입니다. 돼지 위치 실측 풍속이나 ET 입력값이 아닙니다.</p>
+            </div>
             <div class="overflow-x-auto"><table class="w-full text-xs text-right"><thead class="bg-slate-100"><tr><th class="p-2">실내온도</th><th>1그룹</th><th>2그룹</th><th>3그룹</th><th>4그룹</th><th>추정 합계 m³/h</th><th class="p-2 whitespace-nowrap">단면 환산 풍속 m/s</th></tr></thead><tbody id="stepTable"></tbody></table></div>
         </section>
 
@@ -91,16 +92,17 @@
     </section>
     <script src="./simulation-core.js?v=20261003-weight-cap110"></script>
     <script src="./ventilation.js?v=20261004-group-editor"></script>
-    <script src="./ventilation-learning.js?v=20261003"></script>
+    <script src="./ventilation-learning.js?v=20261009-auto"></script>
     <script src="./firebase-functions/cycle-core.js"></script>
+    <script src="ventilation-setting-record.js?v=20261009-intervals"></script>
     <script type="module">
-        import { createCycleArchive } from "./ventilation-cycle-archive.js";
-        import { createVentilationJournal } from "./ventilation-journal.js?v=20261004-cycles";
+        import { createCycleArchive } from "./ventilation-cycle-archive.js?v=20261009-stock-columns";
+        import { createVentilationJournal } from "./ventilation-journal.js?v=20261009-hide-history";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getDatabase, ref, query, orderByKey, startAt, endAt, onValue, get } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        import { getFirestore, collection, onSnapshot, doc, setDoc, serverTimestamp, query as firestoreQuery, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, getDocs, collection, onSnapshot, query as firestoreQuery, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         const C = window.VentCore;
         const V = window.FarmVentilation;
         const $ = id => document.getElementById(id);
@@ -125,11 +127,9 @@
         let app, rtdb, auth, db;
         const cycleArchive=createCycleArchive($('cycle-archive'),()=>({db,rtdb}));
         const journal = createVentilationJournal(document.getElementById('controller-journal'), {
-            prepare: record => cycleArchive.attach(record),
-            async save(record) {
-                if (!db) throw Error('Firebase 연결을 확인하세요.');
-                const { synced, ...data } = record;
-                await setDoc(doc(db, 'farms/sungamfarm/ventilation_records', record.id), { ...data, savedAt: serverTimestamp() });
+            async loadCycles(room) {
+                const snap=await getDocs(firestoreQuery(collection(db,'farms/sungamfarm/ventilation_cycles'),where('room','==',room)));
+                return snap.docs.map(d=>({...d.data(),id:d.id}));
             },
             subscribe(room, success, failure) {
                 return onSnapshot(firestoreQuery(collection(db, 'farms/sungamfarm/ventilation_records'), where('room', '==', room)), { includeMetadataChanges: true }, snapshot => {
@@ -137,12 +137,12 @@
                     snapshot.forEach(item => {
                         if (item.metadata.hasPendingWrites) return;
                         const row = { ...item.data(), id: item.id };
-                        try { window.VentilationLearning.validate(row); records.push(row); } catch { /* Ignore unsupported or invalid records. */ }
+                        try { if(!window.VentilationSettingRecord.valid(row))return; records.push(row); } catch { /* Ignore unsupported or invalid records. */ }
                     });
                     success(records, snapshot.metadata.fromCache);
                 }, failure);
             },
-            async loadSamples(room, records, now, progress, cancelled) {
+            async loadSamples(room, records, now, progress, cancelled, cycles = []) {
                 const { DAY, HOUR } = window.VentilationLearning;
                 const days = new Set();
                 const dayStart = t => Math.floor((t + 9 * HOUR) / DAY) * DAY - 9 * HOUR;
@@ -161,7 +161,15 @@
                         samples.push({ time: Number(child.key), inside: data?.[room]?.temp, outside: data?.['외부온도']?.temp });
                     });
                 }
-                return samples;
+                // Include retained cycle temperatures when raw history has expired.
+                const merged = new Map();
+                for (const cycle of cycles.filter(c=>c.id && records.some(r=>r.start<(c.end??now)&&r.end>c.start))) {
+                    if(cancelled()) throw Error('배치가 변경되었습니다.');
+                    const archived=await getDocs(collection(db, 'farms/sungamfarm/ventilation_cycles/'+cycle.id+'/temperature_days'));
+                    archived.forEach(d=>Object.values(d.data().samples||{}).forEach(p=>{if(p.time>=now-365*DAY && p.time<=now)merged.set(p.time,p);}));
+                }
+                samples.forEach(p=>{if(p.inside!=null && p.outside!=null)merged.set(p.time,p);});
+                return [...merged.values()];
             }
         });
         let timeSeriesData = [];
@@ -181,7 +189,7 @@
                     fetchData();
                 }, 300000);
                 unsubscribeFarm = onSnapshot(collection(getFirestore(app), 'farms/sungamfarm/grower'), snapshot => {
-                    farmBatches = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                    farmBatches = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
                     farmLoaded = true;
                     loadSelectedBatch(false);
                 }, () => { farmLoaded=false; syncGroupSettings(); runSimulation(); });
@@ -263,11 +271,11 @@
             const available = !!inputs;
             $('controller-journal').hidden = !available;
             $('journal-availability').textContent = available
-                ? '선택 배치의 공유 설정을 불러옵니다. 실제 컨트롤러 설정을 확인한 뒤 기록하세요.'
+                ? '온도설정 앱에서 저장하면 설정과 배치 정보가 자동 기록됩니다. 설비 상태는 온도설정 앱에 저장된 값을 사용합니다.'
                 : '선택 배치의 사육 정보를 확인할 수 없어 기록 입력을 보류합니다. 배치 선택과 연결 상태를 확인하세요.';
             if (!available) { journal.suspend(); return; }
             const opt = V.calculateOptimalSettings(inputs.age, inputs.weight, inputs.count, null, '육성사', inputs.stockDiffDays, [], selectedFarmBatch()?.ventilationOverrides);
-            journal.setBatch({ cycleStart:window.VentilationCycles.start(selectedFarmBatch()), room: $('sensorSelect').value, count: inputs.count, weight: inputs.weight, age: inputs.age }, opt);
+            journal.setBatch({ batchId:selectedFarmBatch().id, context:selectedFarmBatch().ventilationContext || '', cycleStart:window.VentilationCycles.start(selectedFarmBatch()), room: $('sensorSelect').value, count: inputs.count, weight: inputs.weight, age: inputs.age }, opt);
         }
         function syncGroupSettings() { syncJournal(); }
         function fetchOutdoor() {
