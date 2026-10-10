@@ -127,7 +127,7 @@
                             <span>☁️</span> 4단계 분할 제어 현재 적용 설정
                         </h3>
                     </div>
-                    <p class="text-[11px] sm:text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3 leading-relaxed"><strong>육성사 입식 온도 보정</strong> · 입식 당일은 0일차<br>입식 당일~3일차: 기준온도 +2℃ → 4~6일차: 기준온도 +1℃ → 7일차부터: 기준온도 적용<br><span class="text-slate-500">외기 온도에 따른 추가 보정은 없습니다.</span></p>
+                    <p class="text-[11px] sm:text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3 leading-relaxed"><strong>육성사 입식 온도 보정</strong> · 입식 당일은 0일차<br>입식 당일~3일차: 기준온도 +2℃ → 4~6일차: 기준온도 +1℃ → 7일차부터: 기준온도 적용<br><span id="outdoor-daily-range" class="text-slate-500" role="status">외부온도 일교차 (오늘·한국시간): 기록을 불러오는 중입니다.</span></p>
                     
                     <div class="overflow-x-auto rounded-lg border border-slate-200 shadow-sm relative">
                         <table class="w-full text-center border-collapse min-w-[800px]">
@@ -456,6 +456,14 @@
             return count ? { min, max, count, diff: max - min } : null;
         }
 
+        function renderOutdoorDailyRange() {
+            const el=document.getElementById('outdoor-daily-range');
+            const stats=getDailyTemperatureStats(dailySensorHistoryMap['외부온도'] || []);
+            el.textContent=stats && stats.count>=2
+                ? `외부온도 일교차 (오늘·한국시간): ${stats.diff.toFixed(1)}℃ · 최저 ${stats.min.toFixed(1)}℃ / 최고 ${stats.max.toFixed(1)}℃`
+                : '외부온도 일교차 (오늘·한국시간): 측정 기록이 부족합니다.';
+        }
+
         function startDailyTemperatureSync() {
             let activeDay = null, unsubscribe = null, rolloverTimer = null;
             const syncDay = () => {
@@ -465,6 +473,7 @@
                 if (unsubscribe) unsubscribe();
                 clearTimeout(rolloverTimer);
                 dailySensorHistoryMap = {};
+                renderOutdoorDailyRange();
                 renderAllBatchesSummary();
                 // 로그 키는 기록 시각의 Unix 밀리초 값. 건수 제한 없이 오늘 기록을 조회한다.
                 const dailyRef = query(ref(rtdb, 'history_logs'), orderByKey(), startAt(String(start)), endAt(String(end - 1)));
@@ -482,7 +491,11 @@
                             dailySensorHistoryMap[sensorKey].push({ time, temp });
                         }
                     });
+                    renderOutdoorDailyRange();
                     renderAllBatchesSummary();
+                }, () => {
+                    dailySensorHistoryMap = {};
+                    document.getElementById('outdoor-daily-range').textContent='외부온도 일교차 (오늘·한국시간): 기록을 불러오지 못했습니다.';
                 });
                 rolloverTimer = setTimeout(syncDay, Math.max(1, end - Date.now() + 50));
             };
@@ -602,6 +615,10 @@
                     } else {
                         tempWarningHtml = `<br><span title="${details}" class="text-[9px] sm:text-[10px] text-slate-400 mt-1 inline-block">오늘 일교차 ${diff}℃ (안정)</span>`;
                     }
+                }
+
+                if (dailyStats) {
+                    tempWarningHtml += `<br><span class="text-[9px] sm:text-[10px] text-slate-500 inline-block mt-0.5">최저 ${dailyStats.min.toFixed(1)}℃ / 최고 ${dailyStats.max.toFixed(1)}℃</span>`;
                 }
 
                 const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, outTempHist, batch.sourceData.ventilationOverrides);
