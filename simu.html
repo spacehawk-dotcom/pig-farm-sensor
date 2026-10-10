@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>환기 타임머신 · 1℃ 단계 제어</title>
+    <title>환기 분석</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/date-fns"></script>
@@ -27,7 +27,7 @@
         <!-- 헤더 및 상태 -->
         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
             <h1 class="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2">
-                <span>⏱️</span> 환기 타임머신 · 1℃ 단계 제어
+                <span>⏱️</span> 환기 분석
             </h1>
             <div class="flex gap-2 items-center">
                 <select id="sensorSelect" aria-label="육성사 배치 선택" class="border border-slate-300 rounded-lg p-1.5 text-sm font-bold focus:outline-none focus:border-blue-500 shadow-sm bg-white">
@@ -96,7 +96,7 @@
     <script src="./firebase-functions/cycle-core.js"></script>
     <script src="ventilation-setting-record.js?v=20261009-intervals"></script>
     <script type="module">
-        import { createCycleArchive } from "./ventilation-cycle-archive.js?v=20261009-stock-columns";
+        import { createCycleArchive } from "./ventilation-cycle-archive.js?v=20261010-all-record-markers";
         import { createVentilationJournal } from "./ventilation-journal.js?v=20261009-hide-history";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getDatabase, ref, query, orderByKey, startAt, endAt, onValue, get } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
