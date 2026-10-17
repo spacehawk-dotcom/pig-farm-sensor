@@ -12,7 +12,7 @@ function createHandler({env, request, withLock, sleep=ms=>new Promise(r=>setTime
   return async event=>{
     if(event.httpMethod!=='POST')return reply(405,{error:'POST 요청만 지원합니다.'});
     const password=env.WINCH_CONTROL_PASSWORD || '';
-    if(password.length<16)return reply(503,{error:'서버의 윈치 제어 비밀번호 설정이 필요합니다.'});
+    if(password.length<10||!/[A-Za-z]/.test(password)||!/[0-9]/.test(password))return reply(503,{error:'서버의 윈치 제어 비밀번호는 영문과 숫자를 포함한 10자 이상이어야 합니다.'});
     const supplied=event.headers?.['x-winch-password'] || '';
     if(typeof supplied!=='string'||!crypto.timingSafeEqual(digest(supplied),digest(password)))return reply(401,{error:'제어 비밀번호를 확인하세요.'});
     let action;

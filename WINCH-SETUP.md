@@ -14,7 +14,7 @@ Tuya switch_3 = 올림, switch_2 = 내림. HA 엔티티 이름의 숫자로 바�
 ## Netlify 환경변수 (Functions 범위)
 
 - TUYA_ACCESS_ID / TUYA_ACCESS_SECRET: 기존 EU 프로젝트의 인증정보 유지.
-- WINCH_CONTROL_PASSWORD: 직원 제어용으로 별도 생성한 무작위 비밀번호(16자 이상).
+- WINCH_CONTROL_PASSWORD: 직원 제어용으로 별도 생성한 무작위 비밀번호(영문과 숫자 모두 포함, 10자 이상).
 - WINCH_FIREBASE_SERVICE_ACCOUNT: sungamfarm Firebase 서비스 계정 JSON 전체. 서버의 Firestore 잠금에만 사용하며 브라우저·저장소·채팅에 넣지 않습니다.
 - WINCH_SAFETY_CONFIRMED: 처음에는 false. 아래 현장 확인 완료 후에만 true.
 
