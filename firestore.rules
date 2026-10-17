@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Preserve the existing app permissions, excluding server-only control locks.
+    // Firebase Admin SDK uses IAM and does not rely on these client rules.
+    match /{collection}/{document=**} {
+      allow read, write: if collection != 'winch_server_locks';
+    }
+  }
+}
