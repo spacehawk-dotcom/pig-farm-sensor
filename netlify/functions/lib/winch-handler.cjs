@@ -1,5 +1,5 @@
 const crypto=require('node:crypto');
-const {createHandler}=require('./lib/winch-control');
+const {createHandler}=require('./winch-control');
 const env=process.env;
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 
