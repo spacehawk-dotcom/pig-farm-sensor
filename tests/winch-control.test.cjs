@@ -10,7 +10,7 @@ function fixture(overrides={}){
     if(method==='GET')return {online:true,status:Object.entries(values).map(([code,value])=>({code,value}))};
     body.commands.forEach(c=>values[c.code]=c.value);return true;
   }});
-  const send=(action,password=env.WINCH_CONTROL_PASSWORD)=>handler({httpMethod:'POST',headers:{'x-winch-password':password},body:JSON.stringify({action})});
+  const send=(action,password=env.WINCH_CONTROL_PASSWORD,batchId)=>handler({httpMethod:'POST',headers:{'x-winch-password':password},body:JSON.stringify({action,batchId})});
   return {calls,send,env};
 }
 test('unauthorized requests never contact device',async()=>{const f=fixture();assert.equal((await f.send('up','wrong')).statusCode,401);assert.equal(f.calls.length,0);});
@@ -32,3 +32,40 @@ test('up/down use confirmed Tuya channels after OFF and status check',async()=>{
 test('changed safety or moving relay blocks movement',async()=>{for(const value of [{switch_interlock:'different'},{switch_inching:''},{switch_2:true}]){const f=fixture(value);assert.equal((await f.send('up')).statusCode,409);assert(!f.calls.some(c=>c.method==='POST'));}});
 test('disabled commissioning blocks movement but permits stop',async()=>{const f=fixture();f.env.WINCH_SAFETY_CONFIRMED='false';assert.equal((await f.send('down')).statusCode,409);assert.equal((await f.send('stop')).statusCode,200);assert(f.calls.filter(c=>c.method==='POST').every(c=>c.body.commands.every(x=>x.value===false)));});
 test('invalid action never contacts device',async()=>{const f=fixture();assert.equal((await f.send('all_on')).statusCode,400);assert.equal(f.calls.length,0);});
+
+test('one authenticated status request returns registered batches without commands',async()=>{
+  const f=fixture();
+  assert.equal((await f.send('status_all','wrong')).statusCode,401);
+  assert.equal(f.calls.length,0);
+  const response=await f.send('status_all');
+  assert.equal(response.statusCode,200);
+  const {batches}=JSON.parse(response.body);
+  assert.deepEqual(Object.keys(batches),['2']);
+  assert.equal(batches['2'].upSeconds,5);
+  assert.equal(batches['2'].downSeconds,6);
+  assert.equal(batches['2'].enabled,true);
+  assert(f.calls.every(c=>c.method==='GET'));
+  assert(!response.body.includes('bfb4be1d3b42f4b899zcv2'));
+});
+
+test('unregistered or malformed batch IDs never reach any device',async()=>{
+  for(const id of ['1','3','4','5','6','7','8','2/../1','02','__proto__',null,{},['2']]){
+    for(const action of ['up','down','stop','status']){
+      const f=fixture();
+      assert.equal((await f.send(action,f.env.WINCH_CONTROL_PASSWORD,id)).statusCode,404);
+      assert.equal(f.calls.length,0);
+    }
+  }
+});
+
+test('explicit batch routes commands and shared lock to batch 2',async()=>{
+  let lockedBatch;
+  const handler=createHandler({env:{WINCH_CONTROL_PASSWORD:'Abcde12345'},
+    withLock:async(action,run,id)=>{lockedBatch=id;return run();},
+    request:async(method,path,body)=>{
+      assert.equal(path,'/v1.0/devices/bfb4be1d3b42f4b899zcv2/commands');
+      assert(body.commands.every(c=>c.value===false));return true;
+    }});
+  const result=await handler({httpMethod:'POST',headers:{'x-winch-password':'Abcde12345'},body:JSON.stringify({action:'stop',batchId:'2'})});
+  assert.equal(result.statusCode,200);assert.equal(lockedBatch,'2');
+});

@@ -22,8 +22,8 @@ function database(){
 }
 
 // A shared transaction lock serializes commands across Netlify instances.
-async function withLock(action,run){
-  const db=database(),ref=db.doc('winch_server_locks/grower_2'),owner=crypto.randomUUID();
+async function withLock(action,run,batchId){
+  const db=database(),ref=db.doc(`winch_server_locks/grower_${batchId}`),owner=crypto.randomUUID();
   let acquired=false;
   for(let i=0;i<(action==='stop'?13:1);i++){
     acquired=await db.runTransaction(async tx=>{
@@ -42,9 +42,10 @@ async function withLock(action,run){
 }
 
 exports.handler=async event=>{
-  let token;
+  let tokenPromise;
   return createHandler({env,withLock,request:async(method,path,body)=>{
-    if(!token)token=(await tuya('GET','/v1.0/token?grant_type=1')).access_token;
+    tokenPromise ||= tuya('GET','/v1.0/token?grant_type=1').then(result=>result.access_token);
+    const token=await tokenPromise;
     return tuya(method,path,body,token);
   }})(event);
 };
