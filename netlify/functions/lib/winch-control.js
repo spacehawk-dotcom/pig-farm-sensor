@@ -6,12 +6,47 @@ const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAACAwAHBQAIBgAC
 // Each new batch must use its own commissioning environment variable.
 const WINCHES = Object.freeze({
   '2': {deviceId:DEVICE,upChannel:'switch_3',downChannel:'switch_2',upSeconds:5,downSeconds:6,
-    safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED'}
+    safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED',sensorId:'bf58ee06fc0c104896tv51'}
 });
 const digest = value => crypto.createHash('sha256').update(value).digest();
 const fail = (message, status=409) => Object.assign(new Error(message),{status});
 
-function createHandler({env, request, withLock, sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
+function createDeviceControl({env,request,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
+  const getState=async id=>{
+    const config=WINCHES[id];
+    const detail=await request('GET',`/v1.0/devices/${config.deviceId}`);
+    const values=Object.fromEntries((detail.status||[]).map(s=>[s.code,s.value]));
+    return {batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,
+      online:detail.online===true,up:values[config.upChannel],down:values[config.downChannel],
+      safetyMatches:Object.entries(config.safety).every(([key,value])=>values[key]===value),
+      enabled:env[config.enabledEnv]==='true',checkedAt:Date.now()};
+  };
+  const ensureReady=state=>{
+    if(!state.enabled)throw fail('관리자의 현장 확인 후 서버에서 제어를 활성화해야 합니다.');
+    if(!state.online)throw fail('장치가 오프라인입니다.');
+    if(!state.safetyMatches)throw fail('장치의 상호잠금·자동 꺼짐 설정이 확인된 값과 다릅니다. Smart Life 설정을 확인하세요.');
+    if(state.up!==false||state.down!==false)throw fail('동작 중이거나 상태가 불확실합니다. 정지 후 상태를 확인하세요.');
+  };
+  // Caller must hold the shared per-batch lock, for both manual and automatic commands.
+  const move=async(action,id)=>{
+    const config=WINCHES[id],path=`/v1.0/devices/${config.deviceId}`;
+    if(action!=='stop')ensureReady(await getState(id));
+    const send=async commands=>{
+      if(await request('POST',path+'/commands',{commands})!==true)throw fail('Tuya가 명령을 수락하지 않았습니다.',502);
+    };
+    await send([{code:config.downChannel,value:false},{code:config.upChannel,value:false}]);
+    if(action!=='stop'){
+      await sleep(600);
+      ensureReady(await getState(id));
+      await send([{code:action==='up'?config.upChannel:config.downChannel,value:true}]);
+    }
+    return {accepted:true,action,batchId:id,message:action==='stop'?'정지 명령 전달됨 · 실제 상태 확인 중':'동작 명령 전달됨 · 실제 상태 확인 중'};
+  };
+  return {getState,ensureReady,move};
+}
+
+function createHandler({env, request, withLock, sleep, automation}) {
+  const control=createDeviceControl({env,request,sleep});
   const reply=(statusCode,data)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(data)});
   return async event=>{
     if(event.httpMethod!=='POST')return reply(405,{error:'POST 요청만 지원합니다.'});
@@ -19,9 +54,9 @@ function createHandler({env, request, withLock, sleep=ms=>new Promise(r=>setTime
     if(password.length<10||!/[A-Za-z]/.test(password)||!/[0-9]/.test(password))return reply(503,{error:'서버의 윈치 제어 비밀번호는 영문과 숫자를 포함한 10자 이상이어야 합니다.'});
     const supplied=event.headers?.['x-winch-password'] || '';
     if(typeof supplied!=='string'||!crypto.timingSafeEqual(digest(supplied),digest(password)))return reply(401,{error:'제어 비밀번호를 확인하세요.'});
-    let action,batchId;
-    try{({action,batchId}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
-    if(!['status_all','status','up','down','stop'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
+    let action,batchId,stage;
+    try{({action,batchId,stage}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
+    if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
     // Preserve requests from the previous single-winch UI during deployment.
     if(batchId===undefined)batchId='2';
     if(!['string','number'].includes(typeof batchId)||!Object.hasOwn(WINCHES,String(batchId)))
@@ -29,49 +64,35 @@ function createHandler({env, request, withLock, sleep=ms=>new Promise(r=>setTime
     batchId=String(batchId);
     try{
       const getBatchState=async id=>{
-        const config=WINCHES[id];
-        const detail=await request('GET',`/v1.0/devices/${config.deviceId}`);
-        const values=Object.fromEntries((detail.status||[]).map(s=>[s.code,s.value]));
-        return {batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,
-          online:detail.online===true,up:values[config.upChannel],down:values[config.downChannel],
-          safetyMatches:Object.entries(config.safety).every(([key,value])=>values[key]===value),
-          enabled:env[config.enabledEnv]==='true',checkedAt:Date.now()};
+        const state=await control.getState(id);
+        if(automation)state.auto=await automation.status(id);
+        return state;
       };
       if(action==='status_all'){
         const batches={};
         await Promise.all(Object.keys(WINCHES).map(async id=>{
           const config=WINCHES[id];
           try{batches[id]=await getBatchState(id);}
-          catch{batches[id]={batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,error:'장치 상태를 확인하지 못했습니다.'};}
+          catch(error){batches[id]={batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,error:error.status?error.message:'장치 상태를 확인하지 못했습니다.'};}
         }));
         return reply(200,{batches});
       }
-      const config=WINCHES[batchId],PATH=`/v1.0/devices/${config.deviceId}`;
-      const OFF=[{code:config.downChannel,value:false},{code:config.upChannel,value:false}];
-      const getState=()=>getBatchState(batchId);
-      if(action==='status')return reply(200,await getState());
-      const result=await withLock(action,async()=>{
-        if(action!=='stop'){
-          const state=await getState();
-          if(!state.enabled)throw fail('관리자의 현장 확인 후 서버에서 제어를 활성화해야 합니다.');
-          if(!state.online)throw fail('장치가 오프라인입니다.');
-          if(!state.safetyMatches)throw fail('장치의 상호잠금·자동 꺼짐 설정이 확인된 값과 다릅니다. Smart Life 설정을 확인하세요.');
-          if(state.up!==false||state.down!==false)throw fail('동작 중이거나 상태가 불확실합니다. 정지 후 상태를 확인하세요.');
-        }
-        const send=async commands=>{
-          if(await request('POST',PATH+'/commands',{commands})!==true)throw fail('Tuya가 명령을 수락하지 않았습니다.',502);
-        };
-        await send(OFF);
-        if(action!=='stop'){
-          await sleep(600);
-          const stopped=await getState();
-          if(!stopped.online||!stopped.safetyMatches||stopped.up!==false||stopped.down!==false)throw fail('양방향 OFF 확인에 실패해 동작을 취소했습니다.');
-          await send([{code:action==='up'?config.upChannel:config.downChannel,value:true}]);
-        }
-        return {accepted:true,action,batchId,message:action==='stop'?'정지 명령 전달됨 · 실제 상태 확인 중':'동작 명령 전달됨 · 실제 상태 확인 중'};
-      },batchId);
+      if(action==='status')return reply(200,await getBatchState(batchId));
+      if(action==='diagnostics'){
+        const state=await control.getState(batchId);
+        await withLock('diagnostics',async()=>{},batchId);
+        return reply(200,{state,message:'장치 상태 조회와 서버 잠금 읽기·쓰기 정상. 실제 동작 명령은 보내지 않았습니다.'});
+      }
+      if(action.startsWith('auto_')){
+        if(!automation)throw fail('자동 운전 서버가 준비되지 않았습니다.',503);
+        if(action==='auto_status')return reply(200,await automation.probe(batchId));
+        if(action==='auto_on')return reply(200,await automation.enable(batchId,stage));
+        return reply(200,await automation.manual('stop',batchId));
+      }
+      const result=automation ? await automation.manual(action,batchId) :
+        await withLock(action,()=>control.move(action,batchId),batchId);
       return reply(200,result);
     }catch(e){return reply(e.status||502,{error:e.status?e.message:'장치 연결 또는 명령 결과를 확인하지 못했습니다. 자동으로 재전송하지 않습니다. 상태를 확인하세요.'});}
   };
 }
-module.exports={createHandler,DEVICE,SAFETY,WINCHES};
+module.exports={createHandler,createDeviceControl,DEVICE,SAFETY,WINCHES};

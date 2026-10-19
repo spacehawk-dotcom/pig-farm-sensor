@@ -6,11 +6,12 @@ const source = fs.readFileSync(require.resolve('../winch-panel.js'), 'utf8');
 const healthy = {online:true,enabled:true,safetyMatches:true,up:false,down:false,upSeconds:5,downSeconds:6};
 const response = (data,status=200) => ({ok:status===200,status,headers:{get:()=> 'application/json'},json:async()=>data});
 function fixture() {
-  const nodes = Object.fromEntries(['panel','login','password','connect','lock','status','refresh'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false}]));
+  const nodes = Object.fromEntries(['panel','login','password','connect','lock','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,showModal(){this.open=true;},close(){this.open=false;}}]));
   const panels = Array.from({length:7},(_,i)=>{
     const message = {textContent:''};
     const buttons = ['up','stop','down'].map(action=>({dataset:{winchAction:action},disabled:true}));
-    return {dataset:{winchBatch:String(i+1)},message,buttons,querySelector:()=>message,querySelectorAll:()=>buttons};
+    const autoButton={},autoMessage={};
+    return {dataset:{winchBatch:String(i+1)},message,buttons,autoButton,autoMessage,querySelector:selector=>selector==='[data-winch-auto]'?autoButton:selector==='[data-winch-auto-message]'?autoMessage:message,querySelectorAll:()=>buttons};
   });
   const calls=[];
   let reply=async()=>response({batches:{'2':healthy}});
@@ -67,4 +68,31 @@ test('offline or unsafe batches cannot move but retain stop',async()=>{
     const f=fixture();f.setReply(async()=>response({batches:{'2':{...healthy,...changes}}}));await f.login();
     assert.equal(f.panels[1].buttons[0].disabled,true);assert.equal(f.panels[1].buttons[1].disabled,false);assert.equal(f.panels[1].buttons[2].disabled,true);
   }
+});
+
+test('auto setup only reads state until explicit stage selection and start',async()=>{
+  const f=fixture();await f.login();
+  f.setReply(async()=>response({auto:{enabled:false,stage:null,reason:'수동'},sample:{temperature:24,measuredAt:1800000000000}}));
+  f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
+  assert.equal(f.nodes['winch-auto-dialog'].open,true);assert.equal(f.calls.at(-1).action,'auto_status');
+  assert.equal(f.nodes['winch-auto-start'].disabled,true);
+  f.nodes['winch-auto-stage'].value='1';f.nodes['winch-auto-stage'].onchange();
+  assert.equal(f.nodes['winch-auto-start'].disabled,false);
+  f.setReply(async()=>response({message:'자동 설정',batches:{'2':{...healthy,auto:{enabled:true,stage:1}}}}));
+  await f.nodes['winch-auto-start'].onclick();
+  assert(f.calls.some(c=>c.action==='auto_on'&&c.batchId==='2'&&c.stage===1));
+  assert(!f.calls.some(c=>['up','down','stop'].includes(c.action)));
+});
+
+test('sensor errors and already enabled automatic mode block start',async()=>{
+  for(const data of [{auto:{enabled:false},sensorError:'센서 오래됨'},{auto:{enabled:true,stage:1},sample:{temperature:24,measuredAt:1800000000000}}]){
+    const f=fixture();await f.login();f.setReply(async()=>response(data));
+    f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
+    f.nodes['winch-auto-stage'].value='1';f.nodes['winch-auto-stage'].onchange();assert.equal(f.nodes['winch-auto-start'].disabled,true);
+  }
+});
+
+test('screen lock closes dialog and never cancels running server automation',async()=>{
+  const f=fixture();await f.login();const count=f.calls.length;f.nodes['winch-lock'].onclick();
+  assert.equal(f.nodes['winch-auto-dialog'].open,false);assert.equal(f.calls.length,count);
 });

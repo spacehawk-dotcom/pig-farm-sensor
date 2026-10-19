@@ -50,12 +50,20 @@ test('one authenticated status request returns registered batches without comman
 
 test('unregistered or malformed batch IDs never reach any device',async()=>{
   for(const id of ['1','3','4','5','6','7','8','2/../1','02','__proto__',null,{},['2']]){
-    for(const action of ['up','down','stop','status']){
+    for(const action of ['up','down','stop','status','auto_status','auto_on','auto_off','diagnostics']){
       const f=fixture();
       assert.equal((await f.send(action,f.env.WINCH_CONTROL_PASSWORD,id)).statusCode,404);
       assert.equal(f.calls.length,0);
     }
   }
+});
+
+test('automatic setup and diagnostics require authentication and diagnostics never issues commands',async()=>{
+  const f=fixture();
+  for(const action of ['auto_status','auto_on','auto_off','diagnostics'])assert.equal((await f.send(action,'wrong','2')).statusCode,401);
+  assert.equal(f.calls.length,0);
+  const result=await f.send('diagnostics',f.env.WINCH_CONTROL_PASSWORD,'2');
+  assert.equal(result.statusCode,200);assert(f.calls.every(c=>c.method==='GET'));
 });
 
 test('explicit batch routes commands and shared lock to batch 2',async()=>{
