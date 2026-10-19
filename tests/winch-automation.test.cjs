@@ -89,6 +89,20 @@ test('read-only probe does not enable automation or send commands',async()=>{
   const f=fixture();const result=await f.automation.probe('2');assert.equal(result.auto.enabled,false);assert.equal(result.sample.temperature,24);
   assert.equal(f.moves.length,0);assert.equal(f.writes.length,0);
 });
+
+test('authorized reporting-log fallback preserves original sensor timestamp',async()=>{
+  const now=1800000000000,calls=[];
+  const automation=createAutomation({registry:{'2':{sensorId:'sensor2'}},store:{read:async()=>null},now:()=>now,
+    request:async(method,path)=>{
+      calls.push(path);assert.equal(method,'GET');
+      if(path.endsWith('/specifications'))return specification;
+      if(path.endsWith('/shadow/properties'))throw Object.assign(Error('denied'),{tuyaCode:'28841105'});
+      if(path.includes('/report-logs?'))return {logs:[{code:'va_temperature',value:'241',event_time:now-1000}]};
+      return {online:true};
+    }});
+  const result=await automation.probe('2');assert.equal(result.sample.temperature,24.1);assert.equal(result.sample.measuredAt,now-1000);
+  assert(calls.some(path=>path.includes('/report-logs?')));
+});
 test('credential parser reports malformed JSON and normalizes escaped PEM newlines without exposing values',()=>{
   for(const value of ['', 'not-json','{}','"string"'])assert.throws(()=>serviceAccountConfig(value),/형식 오류/);
   const parsed=serviceAccountConfig(JSON.stringify({project_id:'test',client_email:'test@example.com',private_key:'line1\\nline2'}));

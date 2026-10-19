@@ -16,7 +16,7 @@ async function tuya(method,path,body,token=''){
   const data=await response.json();
   if(!response.ok||data.success!==true){
     const code=String(data.code||response.status).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,30);
-    throw Object.assign(new Error(`Tuya ${method==='POST'?'명령 전송':'조회'} 실패 (${code}). 장치 연결 및 API 권한을 확인하세요.`),{status:502});
+    throw Object.assign(new Error(`Tuya ${method==='POST'?'명령 전송':'조회'} 실패 (${code}). 장치 연결 및 API 권한을 확인하세요.`),{status:502,tuyaCode:code});
   }
   return data.result;
 }
