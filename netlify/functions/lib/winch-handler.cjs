@@ -20,11 +20,13 @@ async function tuya(method,path,body,token=''){
 }
 
 function database(){
-  const admin=require('firebase-admin');
   if(!env.WINCH_FIREBASE_SERVICE_ACCOUNT)throw Object.assign(new Error('서버의 윈치 동시 제어 잠금 설정이 필요합니다.'),{status:503});
   try{
-    const app=admin.apps.find(a=>a.name==='winch')||admin.initializeApp({credential:admin.credential.cert(serviceAccountConfig(env.WINCH_FIREBASE_SERVICE_ACCOUNT))},'winch');
-    return app.firestore();
+    // Explicit subpath imports keep Firestore's lazy namespace loader out of the bundle.
+    const {getApps,initializeApp,cert}=require('firebase-admin/app');
+    const {getFirestore}=require('firebase-admin/firestore');
+    const app=getApps().find(a=>a.name==='winch')||initializeApp({credential:cert(serviceAccountConfig(env.WINCH_FIREBASE_SERVICE_ACCOUNT))},'winch');
+    return getFirestore(app);
   }catch(error){throw databaseError(error);}
 }
 

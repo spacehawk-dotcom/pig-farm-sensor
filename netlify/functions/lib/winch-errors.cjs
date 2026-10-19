@@ -7,6 +7,8 @@ function serviceAccountConfig(value){
 }
 function databaseError(error){
   if(error.status)return error;
+  if(error.code==='MODULE_NOT_FOUND'||error.code==='ERR_MODULE_NOT_FOUND')
+    return Object.assign(new Error('윈치 서버에 필요한 Firebase 모듈이 배포되지 않았습니다. 서버 배포 설정을 확인하세요.'),{status:503});
   const code=String(error.code||'unknown').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,40);
   return Object.assign(new Error(`윈치 서버 잠금 저장소 연결 실패 (${code}). Firebase 서비스 계정과 Firestore 권한을 확인하세요.`),{status:503});
 }
