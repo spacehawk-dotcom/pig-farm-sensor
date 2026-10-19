@@ -1,4 +1,6 @@
 const crypto=require('node:crypto');
+const {getApps,initializeApp,cert}=require('firebase-admin/app');
+const {getFirestore}=require('firebase-admin/firestore');
 const {createHandler,createDeviceControl,WINCHES}=require('./winch-control');
 const {createAutomation}=require('./winch-automation.cjs');
 const {serviceAccountConfig,databaseError}=require('./winch-errors.cjs');
@@ -22,9 +24,7 @@ async function tuya(method,path,body,token=''){
 function database(){
   if(!env.WINCH_FIREBASE_SERVICE_ACCOUNT)throw Object.assign(new Error('서버의 윈치 동시 제어 잠금 설정이 필요합니다.'),{status:503});
   try{
-    // Explicit subpath imports keep Firestore's lazy namespace loader out of the bundle.
-    const {getApps,initializeApp,cert}=require('firebase-admin/app');
-    const {getFirestore}=require('firebase-admin/firestore');
+    // Static imports ensure the deploy packager includes both Firebase modules.
     const app=getApps().find(a=>a.name==='winch')||initializeApp({credential:cert(serviceAccountConfig(env.WINCH_FIREBASE_SERVICE_ACCOUNT))},'winch');
     return getFirestore(app);
   }catch(error){throw databaseError(error);}
