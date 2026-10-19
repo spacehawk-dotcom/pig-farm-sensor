@@ -48,7 +48,8 @@ function createAutomation({registry,request,control,withLock,store,now=Date.now}
       // Some Smart Home projects expose reporting logs but not the newer shadow API.
       // Keep the actual device-reported timestamp; never substitute the request time.
       const end=now(),codes=['va_temperature','temp_current','temperature'];
-      const result=await request('GET',`/v1.0/iot-03/devices/${sensor}/report-logs?codes=${codes.join(',')}&start_time=${end-MAX_SAMPLE_AGE}&end_time=${end}&size=100`);
+      // Tuya signs the query string with parameter keys in alphabetical order.
+      const result=await request('GET',`/v1.0/iot-03/devices/${sensor}/report-logs?codes=${codes.join(',')}&end_time=${end}&size=100&start_time=${end-MAX_SAMPLE_AGE}`);
       const logs=(result.logs||result.list||[]).filter(log=>codes.includes(log.code)&&typeof log.event_time==='number').sort((a,b)=>b.event_time-a.event_time);
       if(!logs.length)throw fail('최근 15분의 온도 보고 기록이 없어 자동 운전을 대기합니다.');
       const latest=logs[0],value=typeof latest.value==='string'&&/^-?\d+(\.\d+)?$/.test(latest.value)?Number(latest.value):latest.value;

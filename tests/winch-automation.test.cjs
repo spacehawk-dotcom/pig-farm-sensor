@@ -97,7 +97,10 @@ test('authorized reporting-log fallback preserves original sensor timestamp',asy
       calls.push(path);assert.equal(method,'GET');
       if(path.endsWith('/specifications'))return specification;
       if(path.endsWith('/shadow/properties'))throw Object.assign(Error('denied'),{tuyaCode:'28841105'});
-      if(path.includes('/report-logs?'))return {logs:[{code:'va_temperature',value:'241',event_time:now-1000}]};
+      if(path.includes('/report-logs?')){
+        const keys=[...new URL('https://example.invalid'+path).searchParams.keys()];assert.deepEqual(keys,[...keys].sort());
+        return {logs:[{code:'va_temperature',value:'241',event_time:now-1000}]};
+      }
       return {online:true};
     }});
   const result=await automation.probe('2');assert.equal(result.sample.temperature,24.1);assert.equal(result.sample.measuredAt,now-1000);
