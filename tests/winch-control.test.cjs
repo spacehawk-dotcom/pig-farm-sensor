@@ -123,3 +123,15 @@ test('new batch channel mapping and commissioning remain isolated from batch 2',
   assert.equal((await send('down','4')).statusCode,409);
   assert(!calls.some(c=>c.method==='POST'));
 });
+
+test('missing commissioning snapshot fails closed even if the enable flag is true',async()=>{
+  for(const safety of [null,{}]){
+    const calls=[],registry={'1':{...WINCHES['1'],safety}};
+    const handler=createHandler({registry,env:{WINCH_CONTROL_PASSWORD:'Abcde12345',WINCH_1_SAFETY_CONFIRMED:'true'},
+      request:async(method)=>{calls.push(method);return {online:true,status:[
+        {code:'switch_1',value:false},{code:'switch_2',value:false}
+      ]};},withLock:async(_,run)=>run()});
+    const result=await handler({httpMethod:'POST',headers:{'x-winch-password':'Abcde12345'},body:JSON.stringify({action:'up',batchId:'1'})});
+    assert.equal(result.statusCode,409);assert.deepEqual(calls,['GET']);
+  }
+});

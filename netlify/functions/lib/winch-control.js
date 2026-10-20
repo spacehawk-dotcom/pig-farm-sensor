@@ -2,6 +2,8 @@ const crypto = require('node:crypto');
 const DEVICE = 'bfb4be1d3b42f4b899zcv2';
 // Confirmed Smart Life configuration snapshot; never rewrite these settings.
 const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAACAwAHBQAIBgAC'};
+// Observed on grower 3/4 after the user's on-site confirmation, 2026-10-20.
+const CHANNEL_12_SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AQAFAwAGBAACBgAC'};
 // Add a batch only after verifying its device, channels, timer and safety settings.
 // Each new batch must use its own commissioning environment variable.
 const WINCHES = Object.freeze({
@@ -10,9 +12,9 @@ const WINCHES = Object.freeze({
   '2': {deviceId:DEVICE,upChannel:'switch_3',downChannel:'switch_2',upSeconds:5,downSeconds:6,
     safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED',haSensorKey:'육성_2배치'},
   '3': {deviceId:'bf28266bf6b5528dc3jagu',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
-    safety:null,enabledEnv:'WINCH_3_SAFETY_CONFIRMED',haSensorKey:'육성_3배치'},
+    safety:CHANNEL_12_SAFETY,enabledEnv:'WINCH_3_SAFETY_CONFIRMED',haSensorKey:'육성_3배치'},
   '4': {deviceId:'bf45e580cdc45371f4oeff',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
-    safety:null,enabledEnv:'WINCH_4_SAFETY_CONFIRMED',haSensorKey:'육성_4배치'}
+    safety:CHANNEL_12_SAFETY,enabledEnv:'WINCH_4_SAFETY_CONFIRMED',haSensorKey:'육성_4배치'}
 });
 const digest = value => crypto.createHash('sha256').update(value).digest();
 const fail = (message, status=409) => Object.assign(new Error(message),{status});
