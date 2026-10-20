@@ -2,13 +2,13 @@ const crypto = require('node:crypto');
 const DEVICE = 'bfb4be1d3b42f4b899zcv2';
 // Confirmed Smart Life configuration snapshot; never rewrite these settings.
 const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAACAwAHBQAIBgAC'};
-// Observed on grower 3/4 after the user's on-site confirmation, 2026-10-20.
+// Observed on grower 3/4 on 2026-10-20 and corrected grower 1 on 2026-10-21.
 const CHANNEL_12_SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AQAFAwAGBAACBgAC'};
 // Add a batch only after verifying its device, channels, timer and safety settings.
 // Each new batch must use its own commissioning environment variable.
 const WINCHES = Object.freeze({
   '1': {deviceId:'bfc3bfc544f6c06e35jcn1',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
-    safety:null,enabledEnv:'WINCH_1_SAFETY_CONFIRMED',haSensorKey:'육성_1배치'},
+    safety:CHANNEL_12_SAFETY,enabledEnv:'WINCH_1_SAFETY_CONFIRMED',haSensorKey:'육성_1배치'},
   '2': {deviceId:DEVICE,upChannel:'switch_3',downChannel:'switch_2',upSeconds:5,downSeconds:6,
     safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED',haSensorKey:'육성_2배치'},
   '3': {deviceId:'bf28266bf6b5528dc3jagu',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
