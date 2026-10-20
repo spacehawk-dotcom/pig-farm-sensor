@@ -1,4 +1,4 @@
-const MAX_SAMPLE_AGE=15*60*1000;
+const {MAX_SAMPLE_AGE}=require('./winch-ha-temperature.cjs');
 const MIN_COMMAND_INTERVAL=5*60*1000;
 const fail=message=>Object.assign(new Error(message),{status:409});
 const validStage=stage=>Number.isInteger(stage)&&stage>=0&&stage<=2;
@@ -13,50 +13,8 @@ function nextAction(stage,temperature){
   return null;
 }
 
-function parseTemperature(detail,shadow,specification,now){
-  if(detail.online!==true)throw fail('온도 센서 오프라인 · 자동 대기');
-  const codes=['va_temperature','temp_current','temperature'];
-  const properties=(shadow.properties||[]).filter(p=>codes.includes(p.code));
-  if(properties.length!==1)throw fail('자동 운전용 온도 항목을 확인하지 못했습니다.');
-  const property=properties[0];
-  const spec=(specification.status||[]).find(s=>s.code===property.code);
-  let values;
-  try{values=typeof spec?.values==='string'?JSON.parse(spec.values):spec?.values;}catch{}
-  if(!values||!['℃','°C','C','c'].includes(values.unit)||!Number.isInteger(values.scale)||values.scale<0||values.scale>3)
-    throw fail('온도 단위와 소수점 배율을 확인하지 못했습니다.');
-  const temperature=property.value/10**values.scale,measuredAt=property.time;
-  if(typeof property.value!=='number'||!Number.isFinite(temperature)||temperature< -40||temperature>80)
-    throw fail('온도 측정값 오류 · 자동 대기');
-  if(typeof measuredAt!=='number'||!Number.isFinite(measuredAt)||measuredAt<=0||now-measuredAt>MAX_SAMPLE_AGE||measuredAt>now+30000)
-    throw fail('온도 갱신이 15분 이상 지연되었거나 측정 시간이 불확실합니다.');
-  return {temperature,measuredAt};
-}
-
-function createAutomation({registry,request,control,withLock,store,now=Date.now}){
+function createAutomation({readTemperature,control,withLock,store,now=Date.now}){
   const status=async id=>await store.read(id)||{enabled:false,stage:null,reason:'수동 모드'};
-  const readTemperature=async id=>{
-    const sensor=registry[id].sensorId;
-    if(!sensor)throw fail('이 배치의 자동 운전용 온도 센서가 등록되지 않았습니다.');
-    const [detail,spec]=await Promise.all([
-      request('GET',`/v1.0/devices/${sensor}`),
-      request('GET',`/v1.0/devices/${sensor}/specifications`)
-    ]);
-    let shadow;
-    try{shadow=await request('GET',`/v2.0/cloud/thing/${sensor}/shadow/properties`);}
-    catch(error){
-      if(error.tuyaCode!=='28841105')throw error;
-      // Some Smart Home projects expose reporting logs but not the newer shadow API.
-      // Keep the actual device-reported timestamp; never substitute the request time.
-      const end=now(),codes=['va_temperature','temp_current','temperature'];
-      // Tuya signs the query string with parameter keys in alphabetical order.
-      const result=await request('GET',`/v1.0/iot-03/devices/${sensor}/report-logs?codes=${codes.join(',')}&end_time=${end}&size=100&start_time=${end-MAX_SAMPLE_AGE}`);
-      const logs=(result.logs||result.list||[]).filter(log=>codes.includes(log.code)&&typeof log.event_time==='number').sort((a,b)=>b.event_time-a.event_time);
-      if(!logs.length)throw fail('최근 15분의 온도 보고 기록이 없어 자동 운전을 대기합니다.');
-      const latest=logs[0],value=typeof latest.value==='string'&&/^-?\d+(\.\d+)?$/.test(latest.value)?Number(latest.value):latest.value;
-      shadow={properties:[{code:latest.code,value,time:latest.event_time}]};
-    }
-    return parseTemperature(detail,shadow,spec,now());
-  };
   const probe=async id=>{
     const auto=await status(id);
     try{return {auto,sample:await readTemperature(id)};}
@@ -116,4 +74,4 @@ function createAutomation({registry,request,control,withLock,store,now=Date.now}
   },id);
   return {status,probe,enable,manual,tick};
 }
-module.exports={createAutomation,nextAction,parseTemperature,MAX_SAMPLE_AGE,MIN_COMMAND_INTERVAL};
+module.exports={createAutomation,nextAction,MAX_SAMPLE_AGE,MIN_COMMAND_INTERVAL};

@@ -3,6 +3,7 @@ const {getApps,initializeApp,cert}=require('firebase-admin/app');
 const {getFirestore}=require('firebase-admin/firestore');
 const {createHandler,createDeviceControl,WINCHES}=require('./winch-control');
 const {createAutomation}=require('./winch-automation.cjs');
+const {createHaTemperatureReader}=require('./winch-ha-temperature.cjs');
 const {serviceAccountConfig,databaseError}=require('./winch-errors.cjs');
 const env=process.env;
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
@@ -66,7 +67,8 @@ function runtime(){
     read:async id=>{try{return (await database().doc(`winch_server_locks/auto_grower_${id}`).get()).data();}catch(error){throw databaseError(error);}},
     write:async(id,state)=>{try{await database().doc(`winch_server_locks/auto_grower_${id}`).set(state);}catch(error){throw databaseError(error);}}
   };
-  const automation=createAutomation({registry:WINCHES,request,control,withLock,store});
+  const readTemperature=createHaTemperatureReader({registry:WINCHES});
+  const automation=createAutomation({readTemperature,control,withLock,store});
   return {request,automation};
 }
 exports.handler=async event=>{

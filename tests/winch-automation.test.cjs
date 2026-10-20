@@ -1,12 +1,16 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {createAutomation,nextAction,parseTemperature,MAX_SAMPLE_AGE,MIN_COMMAND_INTERVAL}=require('../netlify/functions/lib/winch-automation.cjs');
+const {createAutomation,nextAction,MIN_COMMAND_INTERVAL}=require('../netlify/functions/lib/winch-automation.cjs');
+const {createHaTemperatureReader,parseHaTemperature,parseKoreanTimestamp,MAX_SAMPLE_AGE}=require('../netlify/functions/lib/winch-ha-temperature.cjs');
 const {serviceAccountConfig,databaseError}=require('../netlify/functions/lib/winch-errors.cjs');
-const sample=(temperature,time)=>({properties:[{code:'va_temperature',value:temperature*10,time}]});
-const specification={status:[{code:'va_temperature',values:JSON.stringify({unit:'℃',scale:1})}]};
+const timestamp=time=>{
+  const d=new Date(time+9*60*60*1000),h=d.getUTCHours(),pad=n=>String(n).padStart(2,'0');
+  return `${d.getUTCFullYear()}. ${d.getUTCMonth()+1}. ${d.getUTCDate()}. ${h>=12?'오후':'오전'} ${h%12||12}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+};
 function fixture(){
   let clock=1800000000000,state,temperature=24,online=true,failMove=false,failWrite=false,failFinal=false;
-  const moves=[],writes=[],requests=[];
+  let sensorAge=0,readFailure=false;
+  const moves=[],writes=[];
   let queue=Promise.resolve();
   const store={read:async()=>structuredClone(state),write:async(id,value)=>{
     if(failWrite||failFinal&&value.lastAction)throw Error('write failed');
@@ -14,15 +18,15 @@ function fixture(){
   }};
   const control={getState:async()=>({online}),ensureReady:s=>{if(!s.online)throw Object.assign(Error('offline'),{status:409});},
     move:async(action,id)=>{moves.push({action,id});if(failMove)throw Error('timeout');return {message:'accepted'};}};
-  const automation=createAutomation({registry:{'2':{sensorId:'sensor2'}},store,control,now:()=>clock,
+  const automation=createAutomation({store,control,now:()=>clock,
     withLock:async(action,run,id)=>{assert.equal(id,'2');const pending=queue.then(run);queue=pending.catch(()=>{});return pending;},
-    request:async(method,path)=>{requests.push({method,path});assert.equal(method,'GET');
-      if(path.endsWith('/specifications'))return specification;
-      if(path.endsWith('/shadow/properties'))return sample(temperature,clock);
-      return {online};
+    readTemperature:async id=>{
+      assert.equal(id,'2');if(readFailure)throw Error('network');
+      return parseHaTemperature({temp:temperature,timestamp:timestamp(clock-sensorAge),online},clock);
     }});
-  return {automation,moves,writes,requests,get state(){return state;},setState:value=>state=value,
+  return {automation,moves,writes,get state(){return state;},setState:value=>state=value,
     advance:()=>clock+=MIN_COMMAND_INTERVAL,setTemperature:value=>temperature=value,setOnline:value=>online=value,
+    setSensorAge:value=>sensorAge=value,setReadFailure:value=>readFailure=value,
     failMove:()=>failMove=true,failWrite:()=>failWrite=true,failFinal:()=>failFinal=true};
 }
 test('exact boundaries and hysteresis prevent repeats at every stage',()=>{
@@ -77,34 +81,70 @@ test('manual stop still sends OFF if automatic cancellation cannot be saved',asy
   const f=fixture();f.failWrite();await assert.rejects(()=>f.automation.manual('stop','2'),/정지 명령은 전달/);
   assert.deepEqual(f.moves,[{action:'stop',id:'2'}]);
 });
-test('temperature requires Celsius scale, valid numeric value and recent measurement time',()=>{
-  const now=1800000000000,online={online:true};
-  assert.equal(parseTemperature(online,sample(0,now),specification,now).temperature,0);
-  for(const shadow of [sample(25,now-MAX_SAMPLE_AGE-1),sample(25,now+30001),sample(25,undefined),sample(NaN,now),{properties:[]},
-    {properties:[{code:'va_temperature',value:'250',time:now}]}])assert.throws(()=>parseTemperature(online,shadow,specification,now));
-  assert.throws(()=>parseTemperature({online:false},sample(25,now),specification,now));
-  assert.throws(()=>parseTemperature(online,sample(25,now),{status:[{code:'va_temperature',values:'{"unit":"F","scale":1}'}]},now));
+test('HA temperature validates values and the original sensor timestamp',()=>{
+  const now=Date.parse('2026-10-20T12:25:00Z'),record={temp:23.7,timestamp:'2026. 10. 20. 오후 9:25:00'};
+  assert.deepEqual(parseHaTemperature(record,now),{temperature:23.7,measuredAt:now,source:'ha'});
+  for(const temp of [0,'0','23.7',-40,80])assert.equal(parseHaTemperature({...record,temp},now).temperature,Number(temp));
+  for(const temp of [null,undefined,'',' ','unknown','unavailable','--',NaN,Infinity,true,[],{},'23.7C',-41,81])
+    assert.throws(()=>parseHaTemperature({...record,temp},now));
+  for(const data of [null,{}, {...record,online:false},{...record,available:false},{...record,unit:'°F'},
+    {...record,timestamp:undefined},{...record,timestamp:timestamp(now-MAX_SAMPLE_AGE)},
+    {...record,timestamp:timestamp(now+31000)}])assert.throws(()=>parseHaTemperature(data,now));
+  assert.equal(parseHaTemperature({...record,timestamp:timestamp(now-MAX_SAMPLE_AGE+1000)},now).measuredAt,now-MAX_SAMPLE_AGE+1000);
 });
 test('read-only probe does not enable automation or send commands',async()=>{
   const f=fixture();const result=await f.automation.probe('2');assert.equal(result.auto.enabled,false);assert.equal(result.sample.temperature,24);
   assert.equal(f.moves.length,0);assert.equal(f.writes.length,0);
 });
 
-test('authorized reporting-log fallback preserves original sensor timestamp',async()=>{
+test('Korean sensor timestamps handle midnight, noon and invalid dates independently of host timezone',()=>{
+  for(const [input,expected] of [
+    ['2026. 10. 20. 오전 12:00:00','2026-10-19T15:00:00Z'],
+    ['2026. 10. 20. 오후 12:00:00','2026-10-20T03:00:00Z'],
+    ['2028. 2. 29. 오후 1:02:03','2028-02-29T04:02:03Z']
+  ])assert.equal(parseKoreanTimestamp(input),Date.parse(expected));
+  for(const input of [null,'2026. 2. 29. 오전 1:00:00','2026. 4. 31. 오후 1:00:00',
+    '2026. 13. 1. 오전 1:00:00','2026. 1. 0. 오전 1:00:00','2026. 1. 1. 오전 0:00:00',
+    '2026. 1. 1. 오후 13:00:00','2026. 1. 1. 오전 1:60:00','2026. 1. 1. 오전 1:00:60',
+    '2026-10-20',Date.now()])assert(Number.isNaN(parseKoreanTimestamp(input)));
+});
+
+test('HA reader only fetches the mapped Firebase record, without Tuya or writes',async()=>{
   const now=1800000000000,calls=[];
-  const automation=createAutomation({registry:{'2':{sensorId:'sensor2'}},store:{read:async()=>null},now:()=>now,
-    request:async(method,path)=>{
-      calls.push(path);assert.equal(method,'GET');
-      if(path.endsWith('/specifications'))return specification;
-      if(path.endsWith('/shadow/properties'))throw Object.assign(Error('denied'),{tuyaCode:'28841105'});
-      if(path.includes('/report-logs?')){
-        const keys=[...new URL('https://example.invalid'+path).searchParams.keys()];assert.deepEqual(keys,[...keys].sort());
-        return {logs:[{code:'va_temperature',value:'241',event_time:now-1000}]};
-      }
-      return {online:true};
-    }});
-  const result=await automation.probe('2');assert.equal(result.sample.temperature,24.1);assert.equal(result.sample.measuredAt,now-1000);
-  assert(calls.some(path=>path.includes('/report-logs?')));
+  const readTemperature=createHaTemperatureReader({registry:{'2':{haSensorKey:'육성_2배치'}},now:()=>now,
+    fetchImpl:async(url,options)=>{calls.push({url,options});
+      return {ok:true,json:async()=>({temp:24.1,timestamp:timestamp(now-1000)})};}});
+  const automation=createAutomation({readTemperature,store:{read:async()=>null}});
+  const result=await automation.probe('2');
+  assert.deepEqual(result.sample,{temperature:24.1,measuredAt:now-1000,source:'ha'});
+  assert.equal(result.auto.enabled,false);
+  assert.equal(calls.length,1);
+  assert.equal(calls[0].url,'https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs/'+encodeURIComponent('육성_2배치')+'.json');
+  assert.equal(calls[0].options.method,'GET');assert.equal(calls[0].options.cache,'no-store');
+  await assert.rejects(()=>readTemperature('3'));assert.equal(calls.length,1);
+});
+
+test('failed or stale HA reads block enabling and pause ticks without movement',async()=>{
+  for(const failure of ['stale','network']){
+    const f=fixture();
+    await f.automation.enable('2',0);f.setTemperature(28);f.advance();
+    if(failure==='stale')f.setSensorAge(MAX_SAMPLE_AGE);else f.setReadFailure(true);
+    await f.automation.tick('2');assert.equal(f.moves.length,0);assert.equal(f.state.stage,0);
+    const result=await f.automation.probe('2');assert(result.sensorError);assert(!result.sample);
+    f.setState({enabled:false});
+    await assert.rejects(()=>f.automation.enable('2',0));assert.equal(f.state.enabled,false);
+  }
+});
+
+test('HA reader rejects HTTP errors, invalid JSON and timeouts without retry or secret leakage',async()=>{
+  for(const fetchImpl of [async()=>({ok:false,status:403}),
+    async()=>({ok:true,json:async()=>{throw Error('bad JSON');}}),
+    async()=>{throw Error('secret token timeout');}]){
+    let calls=0;
+    const read=createHaTemperatureReader({registry:{'2':{haSensorKey:'육성_2배치'}},fetchImpl:async(...args)=>{calls++;return fetchImpl(...args);}});
+    await assert.rejects(()=>read('2'),error=>error.status===409&&!error.message.includes('secret'));
+    assert.equal(calls,1);
+  }
 });
 test('credential parser reports malformed JSON and normalizes escaped PEM newlines without exposing values',()=>{
   for(const value of ['', 'not-json','{}','"string"'])assert.throws(()=>serviceAccountConfig(value),/형식 오류/);

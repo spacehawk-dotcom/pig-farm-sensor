@@ -165,7 +165,7 @@
       const data=await api('auto_status',id);
       if(ticket!==epoch||view!==autoView)return;
       $('auto-state').textContent=autoSummary(data.auto);
-      $('auto-sensor').textContent=data.sensorError||`자동 운전용 센서 ${data.sample.temperature}℃ · ${new Date(data.sample.measuredAt).toLocaleString('ko-KR')}`;
+      $('auto-sensor').textContent=data.sensorError||`${data.sample.source==='ha'?'HA 온도':'자동 운전용 센서'} ${data.sample.temperature}℃ · 센서 수신 ${new Date(data.sample.measuredAt).toLocaleString('ko-KR')}`;
       autoReady=!data.sensorError&&!data.auto.enabled&&canMove(batches.get(id));
     }catch(error){
       if(ticket!==epoch||view!==autoView)return;

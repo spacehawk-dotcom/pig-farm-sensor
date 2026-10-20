@@ -6,7 +6,7 @@ const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAACAwAHBQAIBgAC
 // Each new batch must use its own commissioning environment variable.
 const WINCHES = Object.freeze({
   '2': {deviceId:DEVICE,upChannel:'switch_3',downChannel:'switch_2',upSeconds:5,downSeconds:6,
-    safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED',sensorId:'bf58ee06fc0c104896tv51'}
+    safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED',haSensorKey:'육성_2배치'}
 });
 const digest = value => crypto.createHash('sha256').update(value).digest();
 const fail = (message, status=409) => Object.assign(new Error(message),{status});
