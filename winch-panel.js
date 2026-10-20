@@ -5,7 +5,7 @@
     <form id="winch-login" class="flex flex-wrap gap-2 mt-3"><label class="text-sm">제어 비밀번호 <input id="winch-password" type="password" autocomplete="off" required class="border rounded p-2 max-w-full" placeholder="관리자에게 받은 비밀번호"></label><button id="winch-connect" class="bg-slate-700 text-white rounded px-4 py-2 disabled:opacity-40">연결 확인</button></form>
     <p id="winch-status" role="status" class="text-sm text-slate-700 mt-3">상단에서 한 번 연결하면 등록된 육성 배치의 윈치를 사용할 수 있습니다.</p>
     <button id="winch-refresh" hidden class="text-sm underline mt-2">전체 상태 새로고침</button>
-    <button id="winch-diagnose" hidden class="text-sm underline mt-2 ml-3">2배치 연결 진단</button><p id="winch-diagnostic" role="status" class="text-sm text-red-700 mt-2"></p>
+    <button id="winch-diagnose" hidden class="text-sm underline mt-2 ml-3">등록된 윈치 연결 진단</button><p id="winch-diagnostic" role="status" class="text-sm text-red-700 mt-2 whitespace-pre-line break-words"></p>
     <p class="text-xs text-slate-500 mt-2">장치의 자동 꺼짐 설정을 사용합니다. 표시 상태는 릴레이 출력이며 실제 윈치 위치가 아닙니다. 화면 잠금·브라우저 종료 후에도 설정한 자동 운전은 계속됩니다.</p>
     <dialog id="winch-auto-dialog" aria-labelledby="winch-auto-title" class="rounded-2xl p-5 w-[min(94vw,480px)] shadow-xl backdrop:bg-black/50">
       <div class="flex justify-between items-center gap-3"><h3 id="winch-auto-title" class="font-bold text-lg">자동 운전 설정</h3><button id="winch-auto-close" class="border rounded px-3 py-1">닫기</button></div>
@@ -208,7 +208,15 @@
   $('diagnose').onclick=async()=>{
     if(!authenticated)return;
     const ticket=epoch;$('diagnose').disabled=true;$('diagnostic').textContent='장치를 작동시키지 않고 서버 연결을 진단합니다…';
-    try{const result=await api('diagnostics','2');if(ticket===epoch)$('diagnostic').textContent=result.message;}
+    try{
+      const lines=await Promise.all([...batches.keys()].map(async id=>{
+        try{
+          const result=await api('diagnostics',id);
+          return `육성 ${id}배치: ${result.message}${result.state.safetyMatches?'':` 설정 확인 필요 ${JSON.stringify(result.state.safetySnapshot)}`}`;
+        }catch(error){if(error.status===401)throw error;return `육성 ${id}배치: ${error.message}`;}
+      }));
+      if(ticket===epoch)$('diagnostic').textContent=lines.join('\n');
+    }
     catch(error){if(ticket===epoch){if(error.status===401)lock(error.message);else $('diagnostic').textContent=error.message;}}
     finally{if(ticket===epoch)$('diagnose').disabled=false;}
   };

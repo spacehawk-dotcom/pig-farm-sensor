@@ -1,6 +1,7 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {createHandler,SAFETY}=require('../netlify/functions/lib/winch-control');
+const {WINCHES}=require('../netlify/functions/lib/winch-control');
 function fixture(overrides={}){
   const calls=[];
   let values={switch_2:false,switch_3:false,...SAFETY,...overrides};
@@ -40,7 +41,7 @@ test('one authenticated status request returns registered batches without comman
   const response=await f.send('status_all');
   assert.equal(response.statusCode,200);
   const {batches}=JSON.parse(response.body);
-  assert.deepEqual(Object.keys(batches),['2']);
+  assert.deepEqual(Object.keys(batches),['1','2','3','4']);
   assert.equal(batches['2'].upSeconds,5);
   assert.equal(batches['2'].downSeconds,6);
   assert.equal(batches['2'].enabled,true);
@@ -49,7 +50,7 @@ test('one authenticated status request returns registered batches without comman
 });
 
 test('unregistered or malformed batch IDs never reach any device',async()=>{
-  for(const id of ['1','3','4','5','6','7','8','2/../1','02','__proto__',null,{},['2']]){
+  for(const id of ['5','6','7','8','2/../1','02','__proto__',null,{},['2']]){
     for(const action of ['up','down','stop','status','auto_status','auto_on','auto_off','diagnostics']){
       const f=fixture();
       assert.equal((await f.send(action,f.env.WINCH_CONTROL_PASSWORD,id)).statusCode,404);
@@ -76,4 +77,49 @@ test('explicit batch routes commands and shared lock to batch 2',async()=>{
     }});
   const result=await handler({httpMethod:'POST',headers:{'x-winch-password':'Abcde12345'},body:JSON.stringify({action:'stop',batchId:'2'})});
   assert.equal(result.statusCode,200);assert.equal(lockedBatch,'2');
+});
+
+test('new batch channel mapping and commissioning remain isolated from batch 2',async()=>{
+  // Synthetic device IDs and safety snapshots are test-only, never production registration.
+  const registry={...WINCHES};
+  const env={WINCH_CONTROL_PASSWORD:'Abcde12345',WINCH_SAFETY_CONFIRMED:'true'};
+  for(const id of ['1','3','4']){
+    registry[id]={deviceId:`test-winch-${id}`,upChannel:'switch_1',downChannel:'switch_2',
+      upSeconds:5,downSeconds:6,safety:{switch_interlock:`test-interlock-${id}`,switch_inching:`test-timer-${id}`},
+      enabledEnv:`WINCH_${id}_SAFETY_CONFIRMED`,haSensorKey:`육성_${id}배치`};
+    env[registry[id].enabledEnv]='true';
+  }
+  const calls=[],locks=[],states=Object.fromEntries(Object.values(registry).map(c=>[c.deviceId,{
+    switch_1:false,switch_2:false,switch_3:false,...c.safety
+  }]));
+  const handler=createHandler({registry,env,sleep:async()=>{},
+    withLock:async(action,run,id)=>{locks.push(id);return run();},
+    request:async(method,path,body)=>{
+      const deviceId=path.split('/')[3],values=states[deviceId];assert(values);
+      calls.push({method,path,body});
+      if(method==='GET')return {online:true,status:Object.entries(values).map(([code,value])=>({code,value}))};
+      body.commands.forEach(c=>values[c.code]=c.value);return true;
+    }});
+  const send=(action,batchId)=>handler({httpMethod:'POST',headers:{'x-winch-password':env.WINCH_CONTROL_PASSWORD},body:JSON.stringify({action,batchId})});
+  const all=JSON.parse((await send('status_all')).body);
+  assert.deepEqual(Object.keys(all.batches),['1','2','3','4']);
+  assert(calls.every(c=>c.method==='GET'));
+  for(const id of ['1','3','4']){
+    for(const [action,channel] of [['up','switch_1'],['down','switch_2']]){
+      calls.length=0;
+      assert.equal((await send(action,id)).statusCode,200);
+      assert.equal(locks.at(-1),id);
+      assert(calls.every(c=>c.path.startsWith(`/v1.0/devices/test-winch-${id}`)));
+      assert.deepEqual(calls.at(-1).body.commands,[{code:channel,value:true}]);
+      assert(calls.filter(c=>c.method==='POST').every(c=>c.body.commands.every(x=>['switch_1','switch_2'].includes(x.code))));
+      await send('stop',id);
+    }
+  }
+  env.WINCH_3_SAFETY_CONFIRMED='false';calls.length=0;
+  assert.equal((await send('up','3')).statusCode,409);
+  assert(!calls.some(c=>c.method==='POST'));
+  assert.equal((await send('up','1')).statusCode,200);await send('stop','1');
+  states['test-winch-4'].switch_inching='changed';calls.length=0;
+  assert.equal((await send('down','4')).statusCode,409);
+  assert(!calls.some(c=>c.method==='POST'));
 });

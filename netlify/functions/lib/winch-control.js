@@ -5,20 +5,27 @@ const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAACAwAHBQAIBgAC
 // Add a batch only after verifying its device, channels, timer and safety settings.
 // Each new batch must use its own commissioning environment variable.
 const WINCHES = Object.freeze({
+  '1': {deviceId:'bfc3bfc544f6c06e35jcn1',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
+    safety:null,enabledEnv:'WINCH_1_SAFETY_CONFIRMED',haSensorKey:'육성_1배치'},
   '2': {deviceId:DEVICE,upChannel:'switch_3',downChannel:'switch_2',upSeconds:5,downSeconds:6,
-    safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED',haSensorKey:'육성_2배치'}
+    safety:SAFETY,enabledEnv:'WINCH_SAFETY_CONFIRMED',haSensorKey:'육성_2배치'},
+  '3': {deviceId:'bf28266bf6b5528dc3jagu',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
+    safety:null,enabledEnv:'WINCH_3_SAFETY_CONFIRMED',haSensorKey:'육성_3배치'},
+  '4': {deviceId:'bf45e580cdc45371f4oeff',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
+    safety:null,enabledEnv:'WINCH_4_SAFETY_CONFIRMED',haSensorKey:'육성_4배치'}
 });
 const digest = value => crypto.createHash('sha256').update(value).digest();
 const fail = (message, status=409) => Object.assign(new Error(message),{status});
 
-function createDeviceControl({env,request,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
-  const getState=async id=>{
-    const config=WINCHES[id];
+function createDeviceControl({env,request,registry=WINCHES,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
+  const getState=async(id,diagnostic=false)=>{
+    const config=registry[id];
     const detail=await request('GET',`/v1.0/devices/${config.deviceId}`);
     const values=Object.fromEntries((detail.status||[]).map(s=>[s.code,s.value]));
     return {batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,
       online:detail.online===true,up:values[config.upChannel],down:values[config.downChannel],
-      safetyMatches:Object.entries(config.safety).every(([key,value])=>values[key]===value),
+      safetyMatches:!!config.safety&&Object.keys(config.safety).length>0&&Object.entries(config.safety).every(([key,value])=>values[key]===value),
+      ...(diagnostic?{safetySnapshot:{switch_interlock:values.switch_interlock??null,switch_inching:values.switch_inching??null}}:{}),
       enabled:env[config.enabledEnv]==='true',checkedAt:Date.now()};
   };
   const ensureReady=state=>{
@@ -29,7 +36,7 @@ function createDeviceControl({env,request,sleep=ms=>new Promise(r=>setTimeout(r,
   };
   // Caller must hold the shared per-batch lock, for both manual and automatic commands.
   const move=async(action,id)=>{
-    const config=WINCHES[id],path=`/v1.0/devices/${config.deviceId}`;
+    const config=registry[id],path=`/v1.0/devices/${config.deviceId}`;
     if(action!=='stop')ensureReady(await getState(id));
     const send=async commands=>{
       if(await request('POST',path+'/commands',{commands})!==true)throw fail('Tuya가 명령을 수락하지 않았습니다.',502);
@@ -45,8 +52,8 @@ function createDeviceControl({env,request,sleep=ms=>new Promise(r=>setTimeout(r,
   return {getState,ensureReady,move};
 }
 
-function createHandler({env, request, withLock, sleep, automation}) {
-  const control=createDeviceControl({env,request,sleep});
+function createHandler({env, request, withLock, sleep, automation,registry=WINCHES}) {
+  const control=createDeviceControl({env,request,sleep,registry});
   const reply=(statusCode,data)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(data)});
   return async event=>{
     if(event.httpMethod!=='POST')return reply(405,{error:'POST 요청만 지원합니다.'});
@@ -59,7 +66,7 @@ function createHandler({env, request, withLock, sleep, automation}) {
     if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
     // Preserve requests from the previous single-winch UI during deployment.
     if(batchId===undefined)batchId='2';
-    if(!['string','number'].includes(typeof batchId)||!Object.hasOwn(WINCHES,String(batchId)))
+    if(!['string','number'].includes(typeof batchId)||!Object.hasOwn(registry,String(batchId)))
       return reply(404,{error:'이 배치에는 윈치가 등록되지 않았습니다.'});
     batchId=String(batchId);
     try{
@@ -70,8 +77,8 @@ function createHandler({env, request, withLock, sleep, automation}) {
       };
       if(action==='status_all'){
         const batches={};
-        await Promise.all(Object.keys(WINCHES).map(async id=>{
-          const config=WINCHES[id];
+        await Promise.all(Object.keys(registry).map(async id=>{
+          const config=registry[id];
           try{batches[id]=await getBatchState(id);}
           catch(error){batches[id]={batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,error:error.status?error.message:'장치 상태를 확인하지 못했습니다.'};}
         }));
@@ -79,7 +86,7 @@ function createHandler({env, request, withLock, sleep, automation}) {
       }
       if(action==='status')return reply(200,await getBatchState(batchId));
       if(action==='diagnostics'){
-        const state=await control.getState(batchId);
+        const state=await control.getState(batchId,true);
         await withLock('diagnostics',async()=>{},batchId);
         return reply(200,{state,message:'장치 상태 조회와 서버 잠금 읽기·쓰기 정상. 실제 동작 명령은 보내지 않았습니다.'});
       }
