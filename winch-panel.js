@@ -10,9 +10,11 @@
     <dialog id="winch-auto-dialog" aria-labelledby="winch-auto-title" class="rounded-2xl p-5 w-[min(94vw,480px)] shadow-xl backdrop:bg-black/50">
       <div class="flex justify-between items-center gap-3"><h3 id="winch-auto-title" class="font-bold text-lg">자동 운전 설정</h3><button id="winch-auto-close" class="border rounded px-3 py-1">닫기</button></div>
       <p class="text-sm text-slate-600 mt-3">서버에서 <b>5분마다</b> 확인합니다. 한 번 확인할 때 한 단계만 작동하며, 같은 단계에서는 반복하지 않습니다.</p>
+      <p id="winch-auto-settings" role="status" class="text-sm mt-3 font-bold"></p>
       <table class="w-full text-sm my-4 text-left"><thead><tr class="border-b"><th class="py-2">단계 이동</th><th>온도</th><th>작동</th></tr></thead><tbody>
-        <tr><td class="py-1">0 → 1</td><td>24.3℃ 이상</td><td>올림 5초</td></tr><tr><td class="py-1">1 → 2</td><td>27℃ 이상</td><td>올림 5초</td></tr>
-        <tr><td class="py-1">2 → 1</td><td>23.7℃ 이하</td><td>내림 6초</td></tr><tr><td class="py-1">1 → 0</td><td>21℃ 이하</td><td>내림 6초</td></tr></tbody></table>
+        <tr><td class="py-1">0 → 1</td><td id="winch-auto-up1">설정온도 +0.3℃ 이상</td><td>올림 5초</td></tr><tr><td class="py-1">1 → 2</td><td id="winch-auto-up2">설정온도 +3℃ 이상</td><td>올림 5초</td></tr>
+        <tr><td class="py-1">2 → 1</td><td id="winch-auto-down1">설정온도 −0.3℃ 이하</td><td>내림 6초</td></tr><tr><td class="py-1">1 → 0</td><td id="winch-auto-down0">설정온도 −3℃ 이하</td><td>내림 6초</td></tr></tbody></table>
+      <p class="text-xs text-slate-500">온도앱에서 저장한 1그룹 설정온도를 5분마다 다시 읽습니다. 변경값은 다음 서버 확인부터 적용됩니다.</p>
       <p id="winch-auto-state" role="status" class="bg-slate-50 rounded p-3 text-sm break-words"></p>
       <p id="winch-auto-sensor" class="text-sm mt-2 break-words"></p>
       <label class="block mt-4 text-sm font-bold">현장에서 확인한 현재 단계
@@ -161,16 +163,22 @@
     const id=autoBatch,ticket=epoch,view=++autoView;
     if(!authenticated||!id)return;
     autoBusy=true;autoReady=false;autoButtons();$('auto-sensor').textContent='온도 센서와 자동 운전 상태 확인 중…';
+    $('auto-settings').textContent='1그룹 설정온도 확인 중…';
+    for(const key of ['up1','up2','down1','down0'])$('auto-'+key).textContent='확인 중…';
     try{
       const data=await api('auto_status',id);
       if(ticket!==epoch||view!==autoView)return;
       $('auto-state').textContent=autoSummary(data.auto);
       $('auto-sensor').textContent=data.sensorError||`${data.sample.source==='ha'?'HA 온도':'자동 운전용 센서'} ${data.sample.temperature}℃ · 센서 수신 ${new Date(data.sample.measuredAt).toLocaleString('ko-KR')}`;
-      autoReady=!data.sensorError&&!data.auto.enabled&&canMove(batches.get(id));
+      const settings=data.settings;
+      $('auto-settings').textContent=data.settingsError||(!settings?'1그룹 설정온도를 확인하지 못했습니다.':`이 배치의 1그룹 설정온도: ${settings.targetTemperature}℃`);
+      for(const key of ['up1','up2','down1','down0'])$('auto-'+key).textContent=settings?`${settings[key]}℃ ${key.startsWith('up')?'이상':'이하'}`:'설정값 확인 필요';
+      autoReady=!data.sensorError&&!data.settingsError&&!!settings&&!data.auto.enabled&&canMove(batches.get(id));
     }catch(error){
       if(ticket!==epoch||view!==autoView)return;
       if(error.status===401){lock(error.message);return;}
       $('auto-sensor').textContent=error.message;
+      $('auto-settings').textContent='설정온도를 확인하지 못했습니다. 상태 확인을 다시 눌러주세요.';
     }finally{if(ticket===epoch&&view===autoView){autoBusy=false;autoButtons();}}
   }
   async function openAuto(id){

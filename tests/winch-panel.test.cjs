@@ -6,7 +6,7 @@ const source = fs.readFileSync(require.resolve('../winch-panel.js'), 'utf8');
 const healthy = {online:true,enabled:true,safetyMatches:true,up:false,down:false,upSeconds:5,downSeconds:6};
 const response = (data,status=200) => ({ok:status===200,status,headers:{get:()=> 'application/json'},json:async()=>data});
 function fixture() {
-  const nodes = Object.fromEntries(['panel','login','password','connect','lock','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,showModal(){this.open=true;},close(){this.open=false;}}]));
+  const nodes = Object.fromEntries(['panel','login','password','connect','lock','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-down1','auto-down0','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,showModal(){this.open=true;},close(){this.open=false;}}]));
   const panels = Array.from({length:7},(_,i)=>{
     const message = {textContent:''};
     const buttons = ['up','stop','down'].map(action=>({dataset:{winchAction:action},disabled:true}));
@@ -85,12 +85,14 @@ test('offline or unsafe batches cannot move but retain stop',async()=>{
 
 test('auto setup only reads state until explicit stage selection and start',async()=>{
   const f=fixture();await f.login();
-  f.setReply(async()=>response({auto:{enabled:false,stage:null,reason:'수동'},sample:{temperature:24,measuredAt:1800000000000}}));
+  f.setReply(async()=>response({auto:{enabled:false,stage:null,reason:'수동'},settings:{targetTemperature:26,up1:26.3,up2:29,down1:25.7,down0:23},sample:{temperature:24,measuredAt:1800000000000}}));
   f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
   assert.equal(f.nodes['winch-auto-dialog'].open,true);assert.equal(f.calls.at(-1).action,'auto_status');
   assert.equal(f.nodes['winch-auto-start'].disabled,true);
   f.nodes['winch-auto-stage'].value='1';f.nodes['winch-auto-stage'].onchange();
   assert.equal(f.nodes['winch-auto-start'].disabled,false);
+  assert.equal(f.nodes['winch-auto-up1'].textContent,'26.3℃ 이상');
+  assert.equal(f.nodes['winch-auto-down0'].textContent,'23℃ 이하');
   f.setReply(async()=>response({message:'자동 설정',batches:{'2':{...healthy,auto:{enabled:true,stage:1}}}}));
   await f.nodes['winch-auto-start'].onclick();
   assert(f.calls.some(c=>c.action==='auto_on'&&c.batchId==='2'&&c.stage===1));
@@ -98,7 +100,10 @@ test('auto setup only reads state until explicit stage selection and start',asyn
 });
 
 test('sensor errors and already enabled automatic mode block start',async()=>{
-  for(const data of [{auto:{enabled:false},sensorError:'센서 오래됨'},{auto:{enabled:true,stage:1},sample:{temperature:24,measuredAt:1800000000000}}]){
+  for(const data of [{auto:{enabled:false},sensorError:'센서 오래됨'},
+    {auto:{enabled:false},sample:{temperature:24,measuredAt:1800000000000},settingsError:'설정값 없음'},
+    {auto:{enabled:false},sample:{temperature:24,measuredAt:1800000000000}},
+    {auto:{enabled:true,stage:1},settings:{targetTemperature:24,up1:24.3,up2:27,down1:23.7,down0:21},sample:{temperature:24,measuredAt:1800000000000}}]){
     const f=fixture();await f.login();f.setReply(async()=>response(data));
     f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
     f.nodes['winch-auto-stage'].value='1';f.nodes['winch-auto-stage'].onchange();assert.equal(f.nodes['winch-auto-start'].disabled,true);
