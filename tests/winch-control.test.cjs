@@ -41,7 +41,7 @@ test('one authenticated status request returns registered batches without comman
   const response=await f.send('status_all');
   assert.equal(response.statusCode,200);
   const {batches}=JSON.parse(response.body);
-  assert.deepEqual(Object.keys(batches),['1','2','3','4']);
+  assert.deepEqual(Object.keys(batches),['1','2','3','4','5','6','7']);
   assert.equal(batches['2'].upSeconds,5);
   assert.equal(batches['2'].downSeconds,6);
   assert.equal(batches['2'].enabled,true);
@@ -50,7 +50,7 @@ test('one authenticated status request returns registered batches without comman
 });
 
 test('unregistered or malformed batch IDs never reach any device',async()=>{
-  for(const id of ['5','6','7','8','2/../1','02','__proto__',null,{},['2']]){
+  for(const id of ['0','8','2/../1','02','__proto__',null,{},['2']]){
     for(const action of ['up','down','stop','status','auto_status','auto_on','auto_off','diagnostics']){
       const f=fixture();
       assert.equal((await f.send(action,f.env.WINCH_CONTROL_PASSWORD,id)).statusCode,404);
@@ -83,7 +83,7 @@ test('new batch channel mapping and commissioning remain isolated from batch 2',
   // Synthetic device IDs and safety snapshots are test-only, never production registration.
   const registry={...WINCHES};
   const env={WINCH_CONTROL_PASSWORD:'Abcde12345',WINCH_SAFETY_CONFIRMED:'true'};
-  for(const id of ['1','3','4']){
+  for(const id of ['1','3','4','5','6','7']){
     registry[id]={deviceId:`test-winch-${id}`,upChannel:'switch_1',downChannel:'switch_2',
       upSeconds:5,downSeconds:6,safety:{switch_interlock:`test-interlock-${id}`,switch_inching:`test-timer-${id}`},
       enabledEnv:`WINCH_${id}_SAFETY_CONFIRMED`,haSensorKey:`육성_${id}배치`};
@@ -102,9 +102,9 @@ test('new batch channel mapping and commissioning remain isolated from batch 2',
     }});
   const send=(action,batchId)=>handler({httpMethod:'POST',headers:{'x-winch-password':env.WINCH_CONTROL_PASSWORD},body:JSON.stringify({action,batchId})});
   const all=JSON.parse((await send('status_all')).body);
-  assert.deepEqual(Object.keys(all.batches),['1','2','3','4']);
+  assert.deepEqual(Object.keys(all.batches),['1','2','3','4','5','6','7']);
   assert(calls.every(c=>c.method==='GET'));
-  for(const id of ['1','3','4']){
+  for(const id of ['1','3','4','5','6','7']){
     for(const [action,channel] of [['up','switch_1'],['down','switch_2']]){
       calls.length=0;
       assert.equal((await send(action,id)).statusCode,200);

@@ -1,7 +1,8 @@
 const crypto = require('node:crypto');
 const DEVICE = 'bfb4be1d3b42f4b899zcv2';
+// Grower 2 read on 2026-10-22: channel 3 ON/5s, channel 2 ON/6s.
 // Confirmed Smart Life configuration snapshot; never rewrite these settings.
-const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAACAwAHBQAIBgAC'};
+const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAAFAwAGBQAFBgAC'};
 // Observed on grower 3/4 on 2026-10-20 and corrected grower 1 on 2026-10-21.
 const CHANNEL_12_SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AQAFAwAGBAACBgAC'};
 // Add a batch only after verifying its device, channels, timer and safety settings.
@@ -14,7 +15,13 @@ const WINCHES = Object.freeze({
   '3': {deviceId:'bf28266bf6b5528dc3jagu',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
     safety:CHANNEL_12_SAFETY,enabledEnv:'WINCH_3_SAFETY_CONFIRMED',haSensorKey:'육성_3배치'},
   '4': {deviceId:'bf45e580cdc45371f4oeff',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
-    safety:CHANNEL_12_SAFETY,enabledEnv:'WINCH_4_SAFETY_CONFIRMED',haSensorKey:'육성_4배치'}
+    safety:CHANNEL_12_SAFETY,enabledEnv:'WINCH_4_SAFETY_CONFIRMED',haSensorKey:'육성_4배치'},
+  '5': {deviceId:'bf5c24b61edbc6750cjw34',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
+    safety:null,enabledEnv:'WINCH_5_SAFETY_CONFIRMED',haSensorKey:'육성_5배치'},
+  '6': {deviceId:'bf4f181985fcdb6b1fkddi',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
+    safety:null,enabledEnv:'WINCH_6_SAFETY_CONFIRMED',haSensorKey:'육성_6배치'},
+  '7': {deviceId:'bf2fc7c86f8148ef80xom4',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
+    safety:null,enabledEnv:'WINCH_7_SAFETY_CONFIRMED',haSensorKey:'육성_7배치'}
 });
 const digest = value => crypto.createHash('sha256').update(value).digest();
 const fail = (message, status=409) => Object.assign(new Error(message),{status});
