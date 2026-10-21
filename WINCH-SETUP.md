@@ -33,6 +33,9 @@ HA 전송 시각이나 서버 조회 시각으로 이 필드를 덮어쓰지 않
 | 2 | bfb4be1d3b42f4b899zcv2 | switch_3 / switch_2 | WINCH_SAFETY_CONFIRMED |
 | 3 | bf28266bf6b5528dc3jagu | switch_1 / switch_2 | WINCH_3_SAFETY_CONFIRMED |
 | 4 | bf45e580cdc45371f4oeff | switch_1 / switch_2 | WINCH_4_SAFETY_CONFIRMED |
+| 5 | bf5c24b61edbc6750cjw34 | switch_1 / switch_2 | WINCH_5_SAFETY_CONFIRMED |
+| 6 | bf4f181985fcdb6b1fkddi | switch_1 / switch_2 | WINCH_6_SAFETY_CONFIRMED |
+| 7 | bf2fc7c86f8148ef80xom4 | switch_1 / switch_2 | WINCH_7_SAFETY_CONFIRMED |
 
 HA 엔티티 이름의 숫자로 채널을 추정하지 않습니다. 정지는 해당 배치의 두 출력만 OFF로 보냅니다.
 공통 비밀번호 한 번으로 등록된 배치들을 조회하며 각 배치의 동작, 자동 단계, 잠금은 독립적입니다.
@@ -43,6 +46,16 @@ HA 엔티티 이름의 숫자로 채널을 추정하지 않습니다. 정지는 
 2026-10-20 신규 기기 확인:
 - 3·4배치: 현장 확인 완료 및 클라우드 스냅샷 수집. 상호잠금 `AA8AAAAAAAA=`, 자동 꺼짐 `AQAFAwAGBAACBgAC`.
 - 1배치: 사용자가 열림 5초·닫힘 6초로 수정한 후 2026-10-21 재조회 완료. 상호잠금 `AA8AAAAAAAA=`, 자동 꺼짐 `AQAFAwAGBAACBgAC`로 3·4배치와 일치하며 검증 스냅샷 등록 완료.
+
+2026-10-22 2배치 점검: 연결과 서버 잠금은 정상이지만 이전 자동 꺼짐 스냅샷과 달라 제어가 차단됨.
+현재 기기가 보고한 `AAAFAwAGBQAFBgAC`는 채널 3 열림 5초, 채널 2 닫힘 6초 활성 설정이며,
+사용자가 확인한 동작 시간과 일치하여 서버 비교 기준을 갱신함. 기기 설정이나 출력을 변경하지 않음.
+타이머 형식 참고: https://developer.tuya.com/en/docs/iot/production-development?id=Kbev9zps57vim (DP 19).
+
+2026-10-22 5·6·7배치: 사용자가 세 기기 모두 채널 1 열림 5초·채널 2 닫힘 6초 및 상호잠금을
+현장에서 확인함. 읽기 전용 진단에서 세 기기 모두 상호잠금 `AA8AAAAAAAA=`, 자동 꺼짐
+`AQAFAwAGBAACBgAC`를 보고하여 검증 기준에 등록하고 Production 활성화 변수를 설정함.
+자동 운전은 수동 상태로 유지하며 사용자가 현재 단계를 선택한 후 시작해야 함.
 
 ## Netlify 환경변수 (Functions 범위)
 
@@ -74,7 +87,7 @@ Raw 값을 임의 해석하거나 변경하지 않습니다. 설정이 달라지
 정지 명령은 계속 허용합니다. 새 설정 검증 없이 비교 상수를 변경하지 마세요.
 
 - 기존 2배치 switch_interlock: AA8AAAAAAAA=
-- 기존 2배치 switch_inching: AAACAwAHBQAIBgAC
+- 2배치 switch_inching (2026-10-22 조회): AAAFAwAGBQAFBgAC
 
 자동 정지는 장치의 Inching에 의존합니다. 서버나 브라우저 타이머를 안전장치로 쓰지 않습니다.
 상태는 클라우드가 마지막 보고한 릴레이 출력이며 실제 위치/동작 확인이 아닙니다.

@@ -2,6 +2,16 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {createHandler,SAFETY}=require('../netlify/functions/lib/winch-control');
 const {WINCHES}=require('../netlify/functions/lib/winch-control');
+test('commissioned timers agree with the advertised duration on each mapped channel',()=>{
+  for(const config of Object.values(WINCHES)){
+    if(!config.safety)continue; // Uncommissioned devices remain blocked by separate tests.
+    const bytes=Buffer.from(config.safety.switch_inching,'base64');
+    const timers=new Map();
+    for(let i=0;i<bytes.length;i+=3)timers.set(`switch_${(bytes[i]>>1)+1}`,{enabled:!!(bytes[i]&1),seconds:bytes.readUInt16BE(i+1)});
+    assert.deepEqual(timers.get(config.upChannel),{enabled:true,seconds:config.upSeconds});
+    assert.deepEqual(timers.get(config.downChannel),{enabled:true,seconds:config.downSeconds});
+  }
+});
 function fixture(overrides={}){
   const calls=[];
   let values={switch_2:false,switch_3:false,...SAFETY,...overrides};

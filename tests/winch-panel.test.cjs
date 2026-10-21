@@ -45,19 +45,18 @@ test('one login unlocks only registered safe batches and survives sensor rerende
   assert.equal(f.panels[1].buttons[0].disabled,true);
   f.nodes['winch-lock'].onclick();assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
 });
-test('one login unlocks all four registered batches and diagnostics never actuates',async()=>{
+test('one login unlocks all seven registered batches and diagnostics never actuates',async()=>{
   const f=fixture();
-  const batches=Object.fromEntries(['1','2','3','4'].map(id=>[id,{...healthy}]));
+  const batches=Object.fromEntries(['1','2','3','4','5','6','7'].map(id=>[id,{...healthy}]));
   f.setReply(async()=>response({batches}));await f.login();f.render();
-  for(const i of [0,1,2,3])assert(f.panels[i].buttons.every(b=>!b.disabled));
-  for(const i of [4,5,6])assert(f.panels[i].buttons.every(b=>b.disabled));
+  for(const panel of f.panels)assert(panel.buttons.every(b=>!b.disabled));
   f.setReply(async()=>response({state:{...healthy},message:'진단 정상'}));
   await f.nodes['winch-diagnose'].onclick();
   const diagnosticCalls=f.calls.filter(c=>c.action==='diagnostics');
-  assert.deepEqual(diagnosticCalls.map(c=>c.batchId),['1','2','3','4']);
+  assert.deepEqual(diagnosticCalls.map(c=>c.batchId),['1','2','3','4','5','6','7']);
   assert(f.calls.every(c=>['status_all','diagnostics'].includes(c.action)));
   assert.match(f.nodes['winch-diagnostic'].textContent,/육성 1배치: 진단 정상/);
-  assert.match(f.nodes['winch-diagnostic'].textContent,/육성 4배치: 진단 정상/);
+  assert.match(f.nodes['winch-diagnostic'].textContent,/육성 7배치: 진단 정상/);
 });
 test('late login response cannot unlock after manual lock',async()=>{
   const f=fixture();let resolve;
