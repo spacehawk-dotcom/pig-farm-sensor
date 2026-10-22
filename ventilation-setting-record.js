@@ -6,7 +6,13 @@
         const count = Number(data.pigs || data.count || data.currentCount || data.totalPigs || 0);
         if (data.status === 'empty' || !Number.isInteger(count) || count <= 0) throw Error('현재 사육 두수가 있는 배치를 선택하세요.');
         const overrides = Object.fromEntries(keys.map(k=>[k,{...(data.ventilationOverrides?.[k] || {})}]));
+        overrides.coefficient = V.ventilationCoefficient(data.ventilationOverrides?.coefficient);
         for (const [path,value] of Object.entries(updates)) {
+            if (path === 'ventilationOverrides.coefficient') {
+                if (!Number.isFinite(value) || value <= 0 || value > 10) throw Error('환기 계수를 확인하세요.');
+                overrides.coefficient = value;
+                continue;
+            }
             const [,key,field] = path.split('.');
             if (!keys.includes(key) || !['t','min','max','diff'].includes(field) || !Number.isFinite(value)) throw Error('설정값을 확인하세요.');
             overrides[key][field] = value;
@@ -16,7 +22,7 @@
         const opt = V.calculateOptimalSettings(age, weight, count, null, type, timing.stockDiffDays, outdoor, overrides);
         const record = {schemaVersion:1, id, source:'app_saved', room:`${type === '이유사' ? '이유' : '육성'}_${Number(batchId.slice(6))}배치`, batchId,
             createdAt:now, start:now, end:now, groups:keys.map(k=>Object.fromEntries(['t','min','max','diff'].map(f=>[f,opt[k][f]]))),
-            count, weight, age, weightSource:'predicted', measuredFlow:null, observation:'unknown',
+            count, weight, age, coefficient:opt.coefficient, weightSource:'predicted', measuredFlow:null, observation:'unknown',
             context:String(context || '').trim() || '설비 상태 미입력', note:'온도설정 앱에서 저장한 시점의 설정 · 실제 운전 확인 전'};
         if (!valid(record)) throw Error('자동 저장할 설정값을 확인하세요.');
         return record;

@@ -1,6 +1,11 @@
 // Shared ventilation calculations for both screens.
 (function(root) {
 const BASE_TEMPERATURE = 24;
+const DEFAULT_VENTILATION_COEFFICIENT = 0.4;
+function ventilationCoefficient(value) {
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 10
+        ? value : DEFAULT_VENTILATION_COEFFICIENT;
+}
 const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.69901082) });
         function calculateWeight(age) {
             let w = 5;
@@ -174,7 +179,8 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             const crossSectionArea = (roomType === '육성사' ? length : width) * height;
             const buildingVolume = width * height * length;
 
-            let baseMinVentCMH = weight * count * 0.5;
+            const coefficient = ventilationCoefficient(overrides?.coefficient);
+            let baseMinVentCMH = weight * count * coefficient;
             if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5;
 
             // 요구 환기량을 충족하는 가동률을 1%p 단위로 올림한다. 이유사는 1그룹만 계산한다.
@@ -216,6 +222,11 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
                 f800_2: { t: Math.round(t_800_2), min: 0, max: Math.round(max_800_2), diff: diff_800_2 },
                 historyMsg, volume: buildingVolume, crossSectionArea, minVel: min_velocity, maxVel: max_velocity,
                 minRequiredCMH: baseMinVentCMH, minSuppliedCMH: min_cmh, minShortfallCMH, minimumStatus,
+                coefficient,
+                recommendedMinimum: {
+                    f500_1: { rate: min_500_1, cmh: fan_500_1_cap * min_500_1 / 100 },
+                    f500_2: { rate: min_500_2, cmh: fan_500_2_cap * min_500_2 / 100 }
+                },
                 optMaxVel: optimal_max_vel, inletArea: inletGapArea, inletMaxVel: inletMaxVel, roomType: roomType,
                 caps: { c1: fan_500_1_cap, c2: fan_500_2_cap, c3: fan_800_1_cap, c4: fan_800_2_cap },
             }, overrides);
@@ -249,5 +260,5 @@ function applyOverrides(calculated, overrides) {
 function recentOutdoorTemperatures(readings, now = Date.now()) {
     return readings.filter(r => r.time > now - 48 * 60 * 60 * 1000 && r.time <= now && Number.isFinite(r.temp)).map(r => r.temp);
 }
-root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, FAN_AIRFLOW, calculateWeight, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides });
+root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, FAN_AIRFLOW, calculateWeight, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides });
 })(globalThis);
