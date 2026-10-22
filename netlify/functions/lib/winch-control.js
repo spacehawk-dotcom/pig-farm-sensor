@@ -61,7 +61,7 @@ function createDeviceControl({env,request,registry=WINCHES,sleep=ms=>new Promise
   return {getState,ensureReady,move};
 }
 
-function createHandler({env, request, withLock, sleep, automation,registry=WINCHES}) {
+function createHandler({env, request, withLock, sleep, automation,offsetStore,registry=WINCHES}) {
   const control=createDeviceControl({env,request,sleep,registry});
   const reply=(statusCode,data)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(data)});
   return async event=>{
@@ -70,15 +70,19 @@ function createHandler({env, request, withLock, sleep, automation,registry=WINCH
     if(password.length<10||!/[A-Za-z]/.test(password)||!/[0-9]/.test(password))return reply(503,{error:'서버의 윈치 제어 비밀번호는 영문과 숫자를 포함한 10자 이상이어야 합니다.'});
     const supplied=event.headers?.['x-winch-password'] || '';
     if(typeof supplied!=='string'||!crypto.timingSafeEqual(digest(supplied),digest(password)))return reply(401,{error:'제어 비밀번호를 확인하세요.'});
-    let action,batchId,stage;
-    try{({action,batchId,stage}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
-    if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
+    let action,batchId,stage,offsets,revision;
+    try{({action,batchId,stage,offsets,revision}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
+    if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics','offsets_get','offsets_save'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
     // Preserve requests from the previous single-winch UI during deployment.
     if(batchId===undefined)batchId='2';
     if(!['string','number'].includes(typeof batchId)||!Object.hasOwn(registry,String(batchId)))
       return reply(404,{error:'이 배치에는 윈치가 등록되지 않았습니다.'});
     batchId=String(batchId);
     try{
+      if(action==='offsets_get'||action==='offsets_save'){
+        if(!offsetStore)throw fail('편차 저장 서버가 준비되지 않았습니다.',503);
+        return reply(200,action==='offsets_get'?await offsetStore.read():await offsetStore.save(offsets,revision));
+      }
       const getBatchState=async id=>{
         const state=await control.getState(id);
         if(automation)state.auto=await automation.status(id);
