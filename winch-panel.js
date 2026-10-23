@@ -33,6 +33,8 @@
     </dialog>`;
   const $ = id => document.getElementById('winch-' + id);
   let password = '', authenticated = false, epoch = 0, refreshId = 0, timer;
+  const STATUS_POLL_MS=60000, ERROR_POLL_MS=300000;
+  let pollDelay=STATUS_POLL_MS, refreshingEpoch=null;
   const batches = new Map();
   let autoBatch = null, autoBusy = false, autoReady = false, autoView = 0;
   let offsetBusy=false,offsetRevision=null;
@@ -69,6 +71,12 @@
     finally{if(ticket===epoch){offsetBusy=false;offsetButtons();}}
   }
   const status = text => { $('status').textContent = text; };
+  function connectionStatus(){
+    const failed=[...batches.values()].filter(batch=>!batch.state||batch.state.error).length;
+    pollDelay=failed?ERROR_POLL_MS:STATUS_POLL_MS;
+    status(failed?`로그인됨 · ${failed}개 배치 상태 확인 실패 · 5분 후 자동 재확인합니다. 각 배치의 오류를 확인하세요.`:
+      `연결됨 · 등록된 윈치 ${batches.size}개 · 상태는 1분마다 갱신됩니다. 실제 조작 전 서버에서 다시 확인합니다.`);
+  }
   const canMove = batch => authenticated && batch && !batch.busy && !batch.state?.error && batch.state?.online &&
     batch.state?.enabled && batch.state?.safetyMatches && batch.state.up === false && batch.state.down === false;
   function describe(state) {
@@ -138,36 +146,40 @@
   function lock(message = '잠겼습니다.') {
     closeAuto();
     epoch++; refreshId++; password = ''; authenticated = false; batches.clear(); clearTimeout(timer);
+    refreshingEpoch=null;pollDelay=STATUS_POLL_MS;
     offsetBusy=false;offsetRevision=null;offsetInputs().forEach(input=>input.value='');offsetButtons();
     $('offset-status').textContent='제어 비밀번호로 연결한 후 편차를 입력하고 저장하세요.';
     $('password').value = ''; $('login').style.display = ''; $('connect').disabled = false;
     $('refresh').hidden = true;$('diagnose').hidden=true;$('diagnostic').textContent=''; status(message+' 설정된 자동 운전은 유지됩니다.'); render();
   }
   async function refresh() {
-    if (!authenticated) return;
+    if (!authenticated || refreshingEpoch===epoch) return;
     const ticket = epoch, requestId = ++refreshId;
+    refreshingEpoch=ticket;
     const versions = new Map([...batches].map(([id, batch]) => [id, batch.version]));
     try {
       const data = await api('status_all');
       if (ticket !== epoch || requestId !== refreshId) return;
       applyStates(data, versions);
-      status(`연결됨 · 등록된 윈치 ${batches.size}개 · 각 배치 카드에서 조작하세요.`);
+      connectionStatus();
     } catch (error) {
       if (ticket !== epoch || requestId !== refreshId) return;
       if (error.status === 401) { lock(error.message); return; }
+      pollDelay=ERROR_POLL_MS;
       for (const [id, batch] of batches) if (!batch.busy && batch.version === versions.get(id)) {
         batch.state = null; batch.message = error.message;
       }
-      status(error.message);
-    }
+      status(error.message+' · 5분 후 자동 재확인합니다.');
+    } finally { if(refreshingEpoch===ticket)refreshingEpoch=null; }
     render();
+    if(ticket===epoch&&authenticated)poll();
   }
   function poll() {
     clearTimeout(timer);
     timer = setTimeout(async () => {
       if (authenticated && !document.hidden) await refresh();
       if (authenticated) poll();
-    }, 5000);
+    }, pollDelay);
   }
   async function operate(id, action) {
     const batch = batches.get(id);
@@ -283,7 +295,7 @@
       if (ticket !== epoch) return;
       applyStates(data, new Map()); authenticated = true;
       $('login').style.display = 'none'; $('refresh').hidden = false;$('diagnose').hidden=false;$('diagnose').disabled=false;
-      status(`연결됨 · 등록된 윈치 ${batches.size}개 · 각 배치 카드에서 조작하세요.`); render(); poll();await loadOffsets();
+      connectionStatus(); render(); poll();await loadOffsets();
     } catch (error) { if (ticket === epoch) lock(error.message); }
     finally { if (ticket === epoch) $('connect').disabled = false; }
   };

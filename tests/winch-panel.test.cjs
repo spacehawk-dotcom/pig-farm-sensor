@@ -13,20 +13,51 @@ function fixture() {
     const autoButton={},autoMessage={};
     return {dataset:{winchBatch:String(i+1)},message,buttons,autoButton,autoMessage,querySelector:selector=>selector==='[data-winch-auto]'?autoButton:selector==='[data-winch-auto-message]'?autoMessage:message,querySelectorAll:()=>buttons};
   });
-  const calls=[];
+  const calls=[],timers=[];
   let reply=async()=>response({batches:{'2':healthy}});
   const context=vm.createContext({
     document:{getElementById:id=>nodes[id],querySelectorAll:()=>panels,dispatchEvent:()=>{},hidden:false},
     window:{addEventListener:()=>{},confirm:()=>true},
     fetch:async(url,options)=>{calls.push(JSON.parse(options.body));return JSON.parse(options.body).action==='offsets_get'?response({configured:false,revision:0,offsets:null}):reply();},
-    setTimeout:()=>1,clearTimeout:()=>{},AbortSignal:{timeout:()=>({})},Event:class {}
+    setTimeout:(fn,ms)=>{timers.push({fn,ms});return timers.length;},clearTimeout:()=>{},AbortSignal:{timeout:()=>({})},Event:class {}
   });
   vm.runInContext(source,context);
   const render=()=>context.window.FarmWinch.render();
   const login=async()=>{nodes['winch-password'].value='not-a-real-password';await nodes['winch-login'].onsubmit({preventDefault(){}});};
   const click=(id,action)=>panels[id-1].buttons.find(b=>b.dataset.winchAction===action).onclick({stopPropagation(){}});
-  return {nodes,panels,calls,render,login,click,setReply:fn=>{reply=fn;},context};
+  return {nodes,panels,calls,timers,render,login,click,setReply:fn=>{reply=fn;},context};
 }
+
+test('healthy status polls once per minute and batch errors back off to five minutes',async()=>{
+  const f=fixture();await f.login();assert.equal(f.timers.at(-1).ms,60000);
+  f.setReply(async()=>response({batches:{'2':{error:'Firestore 사용량 한도 (8)',upSeconds:5,downSeconds:6}}}));
+  await f.timers.at(-1).fn();
+  assert.equal(f.timers.at(-1).ms,300000);
+  assert.match(f.nodes['winch-status'].textContent,/상태 확인 실패/);
+  assert.equal(f.panels[1].buttons[0].disabled,true);
+  f.setReply(async()=>response({batches:{'2':healthy}}));
+  await f.nodes['winch-refresh'].onclick();
+  assert.equal(f.timers.at(-1).ms,60000);
+  assert.equal(f.panels[1].buttons[0].disabled,false);
+  assert(f.calls.every(c=>['status_all','offsets_get'].includes(c.action)));
+});
+
+test('failed requests back off and concurrent refresh clicks share the in-flight request',async()=>{
+  const f=fixture();await f.login();let resolve;
+  f.setReply(()=>new Promise(r=>{resolve=r;}));
+  const pending=f.nodes['winch-refresh'].onclick();
+  const before=f.calls.length;
+  await f.nodes['winch-refresh'].onclick();assert.equal(f.calls.length,before);
+  resolve(response({error:'저장소 사용량 한도'},503));await pending;
+  assert.equal(f.timers.at(-1).ms,300000);
+  assert.equal(f.panels[1].buttons[0].disabled,true);
+});
+
+test('hidden pages skip automatic status reads',async()=>{
+  const f=fixture();await f.login();f.context.document.hidden=true;
+  const before=f.calls.length;await f.timers.at(-1).fn();
+  assert.equal(f.calls.length,before);
+});
 test('failed authentication keeps login visible and all batch controls locked',async()=>{
   const f=fixture();f.setReply(async()=>response({error:'제어 비밀번호를 확인하세요.'},401));await f.login();
   assert.equal(f.nodes['winch-login'].style.display,'');

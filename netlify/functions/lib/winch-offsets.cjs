@@ -1,4 +1,5 @@
 const fail=(message,status=409)=>Object.assign(new Error(message),{status});
+const {databaseError}=require('./winch-errors.cjs');
 // User-approved initial values. Persist once; later manual edits always win.
 const INITIAL_OFFSETS={up:[0.3,1.5,3],down:[-0.3,-1.5,-3]};
 
@@ -23,7 +24,7 @@ function createOffsetStore({database,now=Date.now}){
   const read=async()=>{
     let data;
     try{data=(await reference().get()).data();}
-    catch{throw fail('공통 온도 편차를 읽지 못했습니다. 잠시 후 다시 확인하세요.');}
+    catch(error){throw databaseError(error);}
     if(!data)return {configured:false,revision:0,offsets:validateOffsets(INITIAL_OFFSETS)};
     return {configured:true,revision:data.revision,offsets:validateOffsets(data.offsets)};
   };
@@ -37,7 +38,7 @@ function createOffsetStore({database,now=Date.now}){
       const next={offsets,revision:revision+1,updatedAt:now()};
       tx.set(ref,next);
       return {configured:true,offsets,revision:next.revision};
-    });}catch(error){if(error.status)throw error;throw fail('편차 저장 결과를 확인하지 못했습니다. 다시 불러와 확인하세요.');}
+    });}catch(error){if(error.status)throw error;throw databaseError(error);}
   };
   return {read,save};
 }

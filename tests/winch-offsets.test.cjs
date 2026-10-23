@@ -3,6 +3,19 @@ const assert=require('node:assert/strict');
 const {validateOffsets,createOffsetStore}=require('../netlify/functions/lib/winch-offsets.cjs');
 const {createHandler}=require('../netlify/functions/lib/winch-control');
 const valid={up:[0.3,1.5,3],down:[-0.3,-1.5,-3]};
+
+test('quota failures explain exhausted resources for both offset reads and saves',async()=>{
+  const {databaseError}=require('../netlify/functions/lib/winch-errors.cjs');
+  for(const code of [8,'8','RESOURCE_EXHAUSTED','resource-exhausted']){
+    const error=databaseError({code,message:'private diagnostic content'});
+    assert.equal(error.status,503);assert.match(error.message,/사용량 한도/);
+    assert.doesNotMatch(error.message,/private diagnostic|서비스 계정/);
+  }
+  const reject=async()=>{throw {code:8};};
+  const store=createOffsetStore({database:()=>({doc:()=>({get:reject}),runTransaction:reject})});
+  await assert.rejects(store.read(),/사용량 한도/);
+  await assert.rejects(store.save(valid,0),/사용량 한도/);
+});
 test('six signed offsets require increasing distance and reject malformed values',()=>{
   assert.deepEqual(validateOffsets(valid),valid);
   for(const offsets of [null,{}, {...valid,up:[0.3,3]}, {...valid,up:[0.3,0.3,3]},
