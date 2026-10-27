@@ -303,8 +303,8 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="simulation-core.js?v=20261003-weight-cap110"></script>
-    <script src="ventilation.js?v=20261023-seasonal-coefficient"></script>
-    <script src="ventilation-setting-record.js?v=20261023-seasonal-coefficient"></script>
+    <script src="ventilation.js?v=20261027-pen-weighted-age"></script>
+    <script src="ventilation-setting-record.js?v=20261027-pen-weighted-age"></script>
     <script type="module">
         import { createHistoryCharts } from "./ventilation-history-charts.js";
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -323,7 +323,7 @@
         };
 
         // 근옥 휀 1대당 최대 풍량 (m³/h). 그룹 풍량은 설치 대수로 계산한다.
-        const { BASE_TEMPERATURE, FAN_AIRFLOW, calculateWeight, calculatePigAge, calculateOptimalSettings } = window.FarmVentilation;
+        const { BASE_TEMPERATURE, FAN_AIRFLOW, calculateWeight, calculateBatchCount, calculatePigAge, calculateOptimalSettings } = window.FarmVentilation;
 
         document.getElementById('spec_fan500_cmh').textContent = FAN_AIRFLOW.fan500.toLocaleString('ko-KR');
         document.getElementById('spec_fan800_cmh').textContent = FAN_AIRFLOW.fan800.toLocaleString('ko-KR');
@@ -422,7 +422,7 @@
             const processDoc = (doc, type) => {
                 const data = doc.data();
                 const status = (data.status || "").toLowerCase();
-                const count = Number(data.pigs || data.count || data.currentCount || data.totalPigs || 0);
+                const count = calculateBatchCount(data);
                 if (status === 'empty' || count <= 0) { delete fetchedBatches[`${type}_${doc.id}`]; return false; }
                 let name = data.name || data.batchName || data.roomName || (`${data.id}번 배치`);
                 const batchNumStr = name.replace(/[^0-9]/g, '');
@@ -435,12 +435,19 @@
             };
 
             onSnapshot(collection(db, "farms/sungamfarm/grower"), (snapshot) => {
-                growerCount = 0; snapshot.forEach(doc => { if (processDoc(doc, '육성사')) growerCount++; });
+                growerCount = 0; const currentIds = new Set(snapshot.docs.map(doc => `육성사_${doc.id}`));
+                for (const key of Object.keys(fetchedBatches)) if (key.startsWith('육성사_') && !currentIds.has(key)) delete fetchedBatches[key];
+                snapshot.forEach(doc => { if (processDoc(doc, '육성사')) growerCount++; });
                 document.getElementById('db-log-grower').innerHTML = `✔ 육성사: <b>${growerCount}</b>개 배치`;
                 updateSelectUI();
                 if (currentSelectedBatchId && fetchedBatches[currentSelectedBatchId]) {
                     document.getElementById('batch-select').value = currentSelectedBatchId;
                     document.getElementById('batch-select').dispatchEvent(new Event('change'));
+                } else if (currentSelectedBatchId) {
+                    currentSelectedBatchId = null; editorDirty = false; coefficientDirty = false;
+                    document.getElementById('results_container').classList.add('hidden');
+                    document.getElementById('results_container').classList.remove('flex');
+                    document.getElementById('empty_state').classList.remove('hidden');
                 }
                 refreshAutomaticSettings();
             });
@@ -553,7 +560,7 @@
         function refreshAutomaticSettings() {
             let selectedDatesChanged = false;
             for (const [key, batch] of Object.entries(fetchedBatches)) {
-                const dates = calculatePigAge(batch.sourceData, batch.type);
+                const dates = {...calculatePigAge(batch.sourceData, batch.type), count:calculateBatchCount(batch.sourceData)};
                 if (key === currentSelectedBatchId && (dates.age !== batch.age || dates.stockDiffDays !== batch.stockDiffDays)) selectedDatesChanged = true;
                 Object.assign(batch, dates);
             }

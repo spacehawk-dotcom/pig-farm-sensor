@@ -3,7 +3,7 @@
     const keys = ['f500_1','f500_2','f800_1','f800_2'];
     function build({id, batchId, type, data, updates, context, now, outdoor = []}, V) {
         if (!/^batch_\d+$/.test(batchId)) throw Error('배치 번호를 확인하세요.');
-        const count = Number(data.pigs || data.count || data.currentCount || data.totalPigs || 0);
+        const count = V.calculateBatchCount(data);
         if (data.status === 'empty' || !Number.isInteger(count) || count <= 0) throw Error('현재 사육 두수가 있는 배치를 선택하세요.');
         const overrides = Object.fromEntries(keys.map(k=>[k,{...(data.ventilationOverrides?.[k] || {})}]));
         overrides.coefficient = V.ventilationCoefficient(data.ventilationOverrides?.coefficient);
@@ -17,7 +17,7 @@
             if (!keys.includes(key) || !['t','min','max','diff'].includes(field) || !Number.isFinite(value)) throw Error('설정값을 확인하세요.');
             overrides[key][field] = value;
         }
-        const timing = V.calculatePigAge(data, type), age = timing.age, weight = V.calculateWeight(age);
+        const timing = V.calculatePigAge(data, type, now), age = timing.age, weight = V.calculateWeight(age);
         if (!Number.isFinite(age) || age < 0 || !Number.isFinite(weight) || weight <= 0) throw Error('일령과 체중을 확인하세요.');
         const opt = V.calculateOptimalSettings(age, weight, count, null, type, timing.stockDiffDays, outdoor, overrides);
         const record = {schemaVersion:1, id, source:'app_saved', room:`${type === '이유사' ? '이유' : '육성'}_${Number(batchId.slice(6))}배치`, batchId,

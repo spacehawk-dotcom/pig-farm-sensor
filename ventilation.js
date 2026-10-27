@@ -17,110 +17,89 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             return parseFloat(Math.min(110, w).toFixed(1));
         }
 
-        const parseDate = (val) => {
-            if (!val) return null;
-            if (typeof val === 'object' && val.toDate) return val.toDate();
-            if (typeof val === 'object' && val.seconds) return new Date(val.seconds * 1000);
-
-            let dStr = String(val).trim();
-            let match = dStr.match(/(20\d{2}|\d{2})[-\.\/](\d{1,2})[-\.\/](\d{1,2})/);
-            if (match) {
-                let year = parseInt(match[1], 10);
-                if (year < 100) year += 2000;
-                return new Date(year, parseInt(match[2], 10) - 1, parseInt(match[3], 10));
+        const DAY_MS = 86400000;
+        const koreanDay = value => Math.floor((new Date(value).getTime() + 9 * 3600000) / DAY_MS);
+        function dateDay(value) {
+            if (value == null || value === '') return null;
+            if (value instanceof Date) return Number.isFinite(value.getTime()) ? koreanDay(value) : null;
+            if (typeof value === 'object') {
+                if (typeof value.toDate === 'function') return dateDay(value.toDate());
+                if (Number.isFinite(value.seconds)) return koreanDay(value.seconds * 1000);
+                return null;
             }
-
-            let d = dStr.replace(/[^0-9]/g, '');
-            if (d.length === 8) {
-                return new Date(parseInt(d.substring(0,4), 10), parseInt(d.substring(4,6), 10) - 1, parseInt(d.substring(6,8), 10));
-            } else if (d.length === 6) {
-                return new Date(parseInt("20"+d.substring(0,2), 10), parseInt(d.substring(2,4), 10) - 1, parseInt(d.substring(4,6), 10));
-            }
+            const text = String(value).trim();
+            const match = text.match(/^(\d{4}|\d{2})[-./]\s*(\d{1,2})[-./]\s*(\d{1,2})\.?$/)
+                || text.match(/^(\d{4})(\d{2})(\d{2})$/) || text.match(/^(\d{2})(\d{2})(\d{2})$/);
+            if (!match) return null;
+            const year = Number(match[1]) + (match[1].length === 2 ? 2000 : 0);
+            const month = Number(match[2]), day = Number(match[3]);
+            const time = Date.UTC(year, month - 1, day), date = new Date(time);
+            return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day ? time / DAY_MS : null;
+        }
+        function firstDateDay(values) {
+            for (const value of values) { const day = dateDay(value); if (day !== null) return day; }
             return null;
-        };
-
-        const getFirstValidDate = (arr) => {
-            if (!Array.isArray(arr)) return null;
-            for (let item of arr) {
-                if (parseDate(item) !== null) return parseDate(item);
+        }
+        function calculateBatchCount(data) {
+            // Occupied pens are authoritative; an explicit zero must not fall through to stale totals.
+            if (Array.isArray(data.penDetails) && data.penDetails.length)
+                return data.penDetails.reduce((sum, value) => sum + (Number.isInteger(Number(value)) && Number(value) > 0 ? Number(value) : 0), 0);
+            for (const value of [data.pigs, data.count, data.currentCount, data.totalPigs]) {
+                if (value != null && String(value).trim() !== '' && Number.isInteger(Number(value)) && Number(value) >= 0) return Number(value);
             }
-            return null;
-        };
+            return 0;
+        }
+        function calculatePigAge(data, type, now = Date.now()) {
+            const today = koreanDay(now);
+            let age = null, sourceMsg = '', diffDays = null, stockDiffDays = null;
+            const penDates = Array.isArray(data.penDates) ? data.penDates : [];
+            const penDetails = Array.isArray(data.penDetails) ? data.penDetails : [];
+            const occupiedDates = penDetails.length ? penDates.filter((_, i) => Number(penDetails[i]) > 0) : penDates;
+            const rawStockDay = firstDateDay(type === '육성사'
+                ? [data.date, ...occupiedDates, data.moveDate, data.inDate, data.stockDate, data.startDate, data.growerInDate]
+                : [...occupiedDates, data.date, data.moveDate, data.inDate]);
+            // The grower stocking date affects acclimatization only, not biological age.
+            const stockDay = type === '육성사' && Object.prototype.hasOwnProperty.call(data, 'growerInDate')
+                ? dateDay(data.growerInDate) : rawStockDay;
+            if (stockDay !== null) stockDiffDays = Math.max(0, today - stockDay);
 
-        function calculatePigAge(data, type) {
-            let age = null; let sourceMsg = "";
-            let diffDays = null; let stockDiffDays = null;
-
-            let rawStockDate = null;
-            if (type === '육성사') {
-                rawStockDate = data.date || getFirstValidDate(data.penDates) || data.moveDate || data.inDate || data.stockDate || data.startDate || data.growerInDate || null;
-            } else {
-                rawStockDate = getFirstValidDate(data.penDates) || data.date || data.moveDate || data.inDate || null;
+            const baseAge = type === '육성사' && Number(data.id) === 8 ? 1 : 20;
+            let weightedAge = 0, datedCount = 0;
+            for (let i = 0; i < penDetails.length; i++) {
+                const count = Number(penDetails[i]);
+                if (!Number.isInteger(count) || count <= 0) continue;
+                const day = firstDateDay([penDates[i], data.weaningDate, data.date]);
+                if (day === null || day > today) continue;
+                weightedAge += (today - day + baseAge) * count;
+                datedCount += count;
             }
-
-            // 명시한 육성사 입식일은 적응 기간에 사용하며, 기존 일령 계산용 날짜는 유지한다.
-            // 빈 문자열은 사용자가 입식일을 지운 상태이므로 기존 날짜로 대체하지 않는다.
-            const stockingDateValue = type === '육성사' && Object.prototype.hasOwnProperty.call(data, 'growerInDate')
-                ? data.growerInDate : rawStockDate;
-            if (stockingDateValue) {
-                const stockDate = parseDate(stockingDateValue);
-                if (stockDate) {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0); stockDate.setHours(0, 0, 0, 0);
-                    stockDiffDays = Math.floor((today.getTime() - stockDate.getTime()) / (1000 * 60 * 60 * 24));
-                    if (stockDiffDays < 0) stockDiffDays = 0;
-                }
+            if (datedCount > 0) {
+                age = Math.round(weightedAge / datedCount);
+                diffDays = age - baseAge;
+                sourceMsg = `사육현황 칸별 일령(이유일 +${baseAge}일) × 현재 두수 가중평균`;
+                const total = calculateBatchCount(data);
+                if (datedCount < total) sourceMsg += ` · 날짜 확인 ${datedCount}/${total}두`;
             }
-
-            const ageKeys = ['avgAge', 'averageAge', 'currentAge', 'age'];
-            for (const key of ageKeys) {
-                if (data[key] !== undefined && data[key] !== null && String(data[key]).trim() !== '') {
-                    age = Number(data[key]);
-                    sourceMsg = `DB 일령(${key}) 적용`;
-                    break;
-                }
-            }
-
-            if (age === null && data.birthDate) {
-                const bDate = parseDate(data.birthDate);
-                if (bDate) {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0); bDate.setHours(0, 0, 0, 0);
-                    age = Math.floor((today.getTime() - bDate.getTime()) / (1000 * 60 * 60 * 24));
-                    sourceMsg = "출생일 기준 역산";
-                }
-            }
-
             if (age === null) {
-                let baseAge = (type === '육성사') ? 70 : 28;
-                let targetDateStr = null;
-
-                if (type === '육성사' && data.weaningDate && typeof data.weaningDate === 'string' && data.weaningDate.trim() !== '') {
-                    targetDateStr = data.weaningDate.trim();
-                    baseAge = 28;
-                    sourceMsg = "이유일 기준 역산(+28)";
-                } else if (rawStockDate) {
-                    targetDateStr = rawStockDate;
-                    sourceMsg = `입식일 기준 역산(+${baseAge})`;
-                }
-
-                if (targetDateStr) {
-                    const targetDate = parseDate(targetDateStr);
-                    if (targetDate) {
-                        const today = new Date();
-                        today.setHours(0, 0, 0, 0); targetDate.setHours(0, 0, 0, 0);
-                        diffDays = Math.floor((today.getTime() - targetDate.getTime()) / (1000 * 60 * 60 * 24));
-                        age = diffDays + baseAge;
+                for (const key of ['avgAge', 'averageAge', 'currentAge', 'age']) {
+                    if (data[key] != null && String(data[key]).trim() !== '' && Number.isFinite(Number(data[key])) && Number(data[key]) > 0) {
+                        age = Number(data[key]); sourceMsg = `DB 일령(${key}) 적용 · 칸별 날짜 없음`; break;
                     }
                 }
             }
-
-            if (age === null || isNaN(age) || age <= 0) {
-                age = 30;
-                sourceMsg = "데이터 없음 (기본 30일)";
+            if (age === null) {
+                const birthDay = dateDay(data.birthDate);
+                if (birthDay !== null && birthDay <= today) { age = today - birthDay; sourceMsg = '출생일 기준 역산'; }
             }
-
-            return { age: Math.round(Math.max(1, age)), sourceMsg, diffDays, stockDiffDays };
+            if (age === null) {
+                const day = firstDateDay([data.weaningDate, data.date]);
+                if (day !== null && day <= today) {
+                    diffDays = today - day; age = diffDays + baseAge;
+                    sourceMsg = `사육현황 공통 이유일 기준(+${baseAge})`;
+                }
+            }
+            if (age === null || !Number.isFinite(age) || age < 0) { age = 30; sourceMsg = '일령 날짜 없음 (기본 30일)'; }
+            return {age: Math.round(age), sourceMsg, diffDays, stockDiffDays};
         }
 
         function calculateOptimalSettings(age, weight, count, historyStats, roomType = '육성사', stockDiffDays = null, outdoorTempHistory = [], overrides = null) {
@@ -260,5 +239,5 @@ function applyOverrides(calculated, overrides) {
 function recentOutdoorTemperatures(readings, now = Date.now()) {
     return readings.filter(r => r.time > now - 48 * 60 * 60 * 1000 && r.time <= now && Number.isFinite(r.temp)).map(r => r.temp);
 }
-root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, FAN_AIRFLOW, calculateWeight, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides });
+root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, FAN_AIRFLOW, calculateWeight, calculateBatchCount, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides });
 })(globalThis);
