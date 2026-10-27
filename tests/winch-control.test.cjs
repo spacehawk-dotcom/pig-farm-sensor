@@ -25,6 +25,18 @@ function fixture(overrides={}){
   return {calls,send,env};
 }
 test('unauthorized requests never contact device',async()=>{const f=fixture();assert.equal((await f.send('up','wrong')).statusCode,401);assert.equal(f.calls.length,0);});
+test('monitor without password reads states but never sends device commands',async()=>{
+  const f=fixture();const result=await f.send('monitor','');
+  assert.equal(result.statusCode,200);
+  assert.equal(JSON.parse(result.body).batches['2'].up,false);
+  assert(f.calls.every(call=>call.method==='GET'));
+  assert(!result.body.includes('deviceId'));
+  for(const action of ['up','down','stop','auto_on','auto_off','offsets_save','diagnostics']){
+    const before=f.calls.length;
+    assert.equal((await f.send(action,'')).statusCode,401);
+    assert.equal(f.calls.length,before);
+  }
+});
 test('password policy accepts ten mixed characters and rejects weak configuration',async()=>{
   const valid=fixture();assert.equal((await valid.send('status')).statusCode,200);
   for(const password of ['Abcd12345','abcdefghij','1234567890','']){

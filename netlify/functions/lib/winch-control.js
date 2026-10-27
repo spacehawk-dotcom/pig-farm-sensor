@@ -66,12 +66,28 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
   const reply=(statusCode,data)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(data)});
   return async event=>{
     if(event.httpMethod!=='POST')return reply(405,{error:'POST 요청만 지원합니다.'});
+    let action,batchId,stage,offsets,revision;
+    try{({action,batchId,stage,offsets,revision}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
+    // Monitoring is read-only. Never route this action through command handlers.
+    if(action==='monitor'){
+      const batches={};
+      await Promise.all(Object.keys(registry).map(async id=>{
+        try{
+          const state=await control.getState(id);
+          batches[id]=state;
+          if(automation){
+            try{const auto=await automation.status(id);
+              state.auto={enabled:auto.enabled,paused:auto.paused,stage:auto.stage,reason:auto.reason};
+            }catch{state.autoError='자동 운전 상태 조회 실패';}
+          }
+        }catch{batches[id]={error:'장치 상태 조회 실패 · 잠시 후 다시 확인하세요.'};}
+      }));
+      return reply(200,{batches});
+    }
     const password=env.WINCH_CONTROL_PASSWORD || '';
     if(password.length<10||!/[A-Za-z]/.test(password)||!/[0-9]/.test(password))return reply(503,{error:'서버의 윈치 제어 비밀번호는 영문과 숫자를 포함한 10자 이상이어야 합니다.'});
     const supplied=event.headers?.['x-winch-password'] || '';
     if(typeof supplied!=='string'||!crypto.timingSafeEqual(digest(supplied),digest(password)))return reply(401,{error:'제어 비밀번호를 확인하세요.'});
-    let action,batchId,stage,offsets,revision;
-    try{({action,batchId,stage,offsets,revision}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
     if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics','offsets_get','offsets_save'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
     // Preserve requests from the previous single-winch UI during deployment.
     if(batchId===undefined)batchId='2';

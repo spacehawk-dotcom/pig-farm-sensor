@@ -5,6 +5,16 @@ const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../winch-panel.js'), 'utf8');
 const healthy = {online:true,enabled:true,safetyMatches:true,up:false,down:false,upSeconds:5,downSeconds:6};
 const response = (data,status=200) => ({ok:status===200,status,headers:{get:()=> 'application/json'},json:async()=>data});
+test('locked monitoring shows batch state while all control actions remain disabled',async()=>{
+  const f=fixture();await new Promise(resolve=>setImmediate(resolve));f.render();
+  assert.equal(f.calls[0].action,'monitor');
+  assert.match(f.panels[1].message.textContent,/출력 OFF.*제어 잠김/);
+  assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
+  assert(f.panels.every(p=>p.autoButton.disabled));
+  assert.match(source,/<details[^>]*><summary/);
+  await f.login();f.nodes['winch-lock'].onclick();
+  assert.match(f.panels[1].message.textContent,/출력 OFF.*제어 잠김/);
+});
 function fixture() {
   const nodes = Object.fromEntries(['offset-form','offset-save','offset-load','offset-status','offset-up-1','offset-up-2','offset-up-3','offset-down-1','offset-down-2','offset-down-3','panel','login','password','connect','lock','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-up3','auto-down1','auto-down2','auto-down3','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,checkValidity(){return true;},showModal(){this.open=true;},close(){this.open=false;}}]));
   const panels = Array.from({length:7},(_,i)=>{
@@ -39,7 +49,7 @@ test('healthy status polls once per minute and batch errors back off to five min
   await f.nodes['winch-refresh'].onclick();
   assert.equal(f.timers.at(-1).ms,60000);
   assert.equal(f.panels[1].buttons[0].disabled,false);
-  assert(f.calls.every(c=>['status_all','offsets_get'].includes(c.action)));
+  assert(f.calls.every(c=>['monitor','status_all','offsets_get'].includes(c.action)));
 });
 
 test('failed requests back off and concurrent refresh clicks share the in-flight request',async()=>{
@@ -66,7 +76,7 @@ test('failed authentication keeps login visible and all batch controls locked',a
 });
 test('one login unlocks only registered safe batches and survives sensor rerender',async()=>{
   const f=fixture();await f.login();f.render();
-  assert.equal(f.nodes['winch-login'].style.display,'none');
+  assert.equal(f.nodes['winch-login'].style.display,'');
   assert(f.panels[1].buttons.every(b=>!b.disabled));
   for(const i of [0,2,3,4,5,6])assert(f.panels[i].buttons.every(b=>b.disabled));
   assert.match(f.panels[0].message.textContent,/미등록/);
@@ -85,7 +95,7 @@ test('one login unlocks all seven registered batches and diagnostics never actua
   await f.nodes['winch-diagnose'].onclick();
   const diagnosticCalls=f.calls.filter(c=>c.action==='diagnostics');
   assert.deepEqual(diagnosticCalls.map(c=>c.batchId),['1','2','3','4','5','6','7']);
-  assert(f.calls.every(c=>['status_all','offsets_get','diagnostics'].includes(c.action)));
+  assert(f.calls.every(c=>['monitor','status_all','offsets_get','diagnostics'].includes(c.action)));
   assert.match(f.nodes['winch-diagnostic'].textContent,/육성 1배치: 진단 정상/);
   assert.match(f.nodes['winch-diagnostic'].textContent,/육성 7배치: 진단 정상/);
 });
@@ -151,7 +161,7 @@ test('default paused automatic mode supports stage 3 but never starts until expl
   assert.equal(f.nodes['winch-auto-start'].disabled,false);
   assert.equal(f.nodes['winch-auto-up3'].textContent,'26℃ 이상');
   assert.equal(f.nodes['winch-auto-down2'].textContent,'21.5℃ 이하');
-  assert(f.calls.every(c=>['status_all','offsets_get','auto_status'].includes(c.action)));
+  assert(f.calls.every(c=>['monitor','status_all','offsets_get','auto_status'].includes(c.action)));
 });
 
 test('screen lock closes dialog and never cancels running server automation',async()=>{
@@ -167,7 +177,7 @@ test('six offset inputs save signed values without enabling or moving a winch',a
   f.setReply(async()=>response({configured:true,revision:1,offsets}));
   await f.nodes['winch-offset-form'].onsubmit({preventDefault(){}});
   assert.deepEqual(f.calls.at(-1),{action:'offsets_save',offsets,revision:0});
-  assert(f.calls.every(c=>['status_all','offsets_get','offsets_save'].includes(c.action)));
+  assert(f.calls.every(c=>['monitor','status_all','offsets_get','offsets_save'].includes(c.action)));
   assert.match(f.nodes['winch-offset-status'].textContent,/저장 완료/);
   f.nodes['winch-lock'].onclick();assert.equal(f.nodes['winch-offset-save'].disabled,true);
   assert.equal(f.nodes['winch-offset-up-1'].value,'');

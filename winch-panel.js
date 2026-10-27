@@ -2,13 +2,14 @@
   const host = document.getElementById('winch-panel');
   if (!host) return;
   host.innerHTML = `<div class="flex flex-wrap justify-between items-center gap-2"><h2 class="font-bold text-lg">육성사 윈치</h2><button id="winch-lock" class="text-sm underline">잠금</button></div>
+    <details class="mt-3"><summary class="cursor-pointer font-bold text-sm">육성사 윈치 설정 · 펼치기/접기</summary>
     <form id="winch-offset-form" class="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
       <p class="font-bold text-sm">자동 운전 공통 온도 편차</p><p class="text-xs text-slate-600 mt-1">각 배치의 1그룹 설정온도에 아래 편차를 더합니다. 육성 1~7배치에 공통 적용됩니다.</p>
       ${['up','down'].map(direction=>`<div class="grid grid-cols-3 gap-2 mt-3">${[1,2,3].map(n=>`<label class="text-xs">${direction==='up'?'올림':'내림'} ${n}차 (℃)<input id="winch-offset-${direction}-${n}" type="number" min="${direction==='up'?0.1:-20}" max="${direction==='up'?20:-0.1}" step="0.1" required disabled placeholder="${direction==='up'?'+편차':'−편차'}" class="block w-full border rounded p-2 mt-1 disabled:opacity-50"></label>`).join('')}</div>`).join('')}
       <p class="text-xs text-slate-500 mt-2">올림은 양수, 내림은 음수로 입력하세요. 1차→2차→3차 순서로 편차의 크기를 늘립니다.</p>
       <div class="flex gap-2 mt-3"><button id="winch-offset-save" disabled class="bg-green-700 text-white rounded px-4 py-2 text-sm disabled:opacity-40">편차 저장</button><button id="winch-offset-load" type="button" disabled class="border rounded px-3 py-2 text-sm disabled:opacity-40">저장값 불러오기</button></div>
       <p id="winch-offset-status" role="status" class="text-sm mt-2">제어 비밀번호로 연결한 후 편차를 입력하고 저장하세요.</p>
-    </form>
+    </form></details>
     <form id="winch-login" class="flex flex-wrap gap-2 mt-3"><label class="text-sm">제어 비밀번호 <input id="winch-password" type="password" autocomplete="off" required class="border rounded p-2 max-w-full" placeholder="관리자에게 받은 비밀번호"></label><button id="winch-connect" class="bg-slate-700 text-white rounded px-4 py-2 disabled:opacity-40">연결 확인</button></form>
     <p id="winch-status" role="status" class="text-sm text-slate-700 mt-3">상단에서 한 번 연결하면 등록된 육성 배치의 윈치를 사용할 수 있습니다.</p>
     <button id="winch-refresh" hidden class="text-sm underline mt-2">전체 상태 새로고침</button>
@@ -72,10 +73,10 @@
   }
   const status = text => { $('status').textContent = text; };
   function connectionStatus(){
-    const failed=[...batches.values()].filter(batch=>!batch.state||batch.state.error).length;
+    const failed=[...batches.values()].filter(batch=>!batch.state||batch.state.error||batch.state.autoError).length;
     pollDelay=failed?ERROR_POLL_MS:STATUS_POLL_MS;
-    status(failed?`로그인됨 · ${failed}개 배치 상태 확인 실패 · 5분 후 자동 재확인합니다. 각 배치의 오류를 확인하세요.`:
-      `연결됨 · 등록된 윈치 ${batches.size}개 · 상태는 1분마다 갱신됩니다. 실제 조작 전 서버에서 다시 확인합니다.`);
+    status(failed?`${authenticated?'로그인됨':'조회 모드'} · ${failed}개 배치 상태 확인 실패 · 5분 후 자동 재확인합니다. 각 배치의 오류를 확인하세요.`:
+      `${authenticated?'제어 연결됨':'조회 모드 · 제어 잠김'} · 등록된 윈치 ${batches.size}개 · 상태는 1분마다 갱신됩니다.`);
   }
   const canMove = batch => authenticated && batch && !batch.busy && !batch.state?.error && batch.state?.online &&
     batch.state?.enabled && batch.state?.safetyMatches && batch.state.up === false && batch.state.down === false;
@@ -83,17 +84,15 @@
     if (!state) return '상태 확인 중…';
     if (state.error) return state.error;
     if (!state.online) return '장치 오프라인';
-    if (!state.enabled) return '현장 확인 및 제어 활성화 대기';
-    if (!state.safetyMatches) return '안전 설정 불일치 · 제어 잠김';
-    if (state.up === false && state.down === false) return '올림·내림 출력 OFF';
-    if (state.up === true && state.down === false) return '올림 출력 ON';
-    if (state.down === true && state.up === false) return '내림 출력 ON';
-    return '출력 상태 불확실 · 현장 확인 필요';
+    const output=state.up === false && state.down === false ? '올림·내림 출력 OFF' :
+      state.up === true && state.down === false ? '올림 출력 ON' :
+      state.down === true && state.up === false ? '내림 출력 ON' : '출력 상태 불확실 · 현장 확인 필요';
+    return '온라인 · '+output+(!state.enabled?' · 제어 활성화 대기':!state.safetyMatches?' · 안전 설정 불일치 · 제어 잠김':'');
   }
   function render() {
     document.querySelectorAll('[data-winch-batch]').forEach(panel => {
       const id = panel.dataset.winchBatch, batch = batches.get(id);
-      panel.querySelector('[data-winch-message]').textContent = !authenticated ? '상단 비밀번호로 연결' : !batch ? '윈치 미등록 · 연결 예정' : batch.message || describe(batch.state);
+      panel.querySelector('[data-winch-message]').textContent = !batch ? (authenticated?'윈치 미등록 · 연결 예정':'상태 확인 중…') : (batch.message || describe(batch.state)) + (!authenticated ? ' · 제어 잠김' : '');
       panel.querySelectorAll('[data-winch-action]').forEach(button => {
         const action = button.dataset.winchAction;
         button.disabled = action === 'stop' ? !authenticated || !batch : !canMove(batch);
@@ -108,7 +107,7 @@
         autoButton.onclick=event=>{event.stopPropagation();openAuto(id);};
       }
       const autoMessage=panel.querySelector('[data-winch-auto-message]');
-      if(autoMessage)autoMessage.textContent=batch?.state?.auto ? autoSummary(batch.state.auto) : '';
+      if(autoMessage)autoMessage.textContent=batch?.state?.auto ? autoSummary(batch.state.auto) : batch?.state?.autoError || '';
     });
   }
   function cardHtml(id) {
@@ -145,20 +144,20 @@
   }
   function lock(message = '잠겼습니다.') {
     closeAuto();
-    epoch++; refreshId++; password = ''; authenticated = false; batches.clear(); clearTimeout(timer);
+    epoch++; refreshId++; password = ''; authenticated = false; clearTimeout(timer);
     refreshingEpoch=null;pollDelay=STATUS_POLL_MS;
     offsetBusy=false;offsetRevision=null;offsetInputs().forEach(input=>input.value='');offsetButtons();
     $('offset-status').textContent='제어 비밀번호로 연결한 후 편차를 입력하고 저장하세요.';
     $('password').value = ''; $('login').style.display = ''; $('connect').disabled = false;
-    $('refresh').hidden = true;$('diagnose').hidden=true;$('diagnostic').textContent=''; status(message+' 설정된 자동 운전은 유지됩니다.'); render();
+    $('refresh').hidden = false;$('diagnose').hidden=true;$('diagnostic').textContent=''; status(message+' 설정된 자동 운전은 유지됩니다.'); render(); poll();
   }
   async function refresh() {
-    if (!authenticated || refreshingEpoch===epoch) return;
+    if (refreshingEpoch===epoch) return;
     const ticket = epoch, requestId = ++refreshId;
     refreshingEpoch=ticket;
     const versions = new Map([...batches].map(([id, batch]) => [id, batch.version]));
     try {
-      const data = await api('status_all');
+      const data = await api(authenticated?'status_all':'monitor');
       if (ticket !== epoch || requestId !== refreshId) return;
       applyStates(data, versions);
       connectionStatus();
@@ -172,13 +171,13 @@
       status(error.message+' · 5분 후 자동 재확인합니다.');
     } finally { if(refreshingEpoch===ticket)refreshingEpoch=null; }
     render();
-    if(ticket===epoch&&authenticated)poll();
+    if(ticket===epoch)poll();
   }
   function poll() {
     clearTimeout(timer);
     timer = setTimeout(async () => {
-      if (authenticated && !document.hidden) await refresh();
-      if (authenticated) poll();
+      if (!document.hidden) await refresh();
+      poll();
     }, pollDelay);
   }
   async function operate(id, action) {
@@ -290,11 +289,12 @@
     event.preventDefault(); if ($('connect').disabled) return;
     password = $('password').value; $('password').value = ''; $('connect').disabled = true;
     const ticket = ++epoch; status('등록된 윈치 연결 확인 중…');
+    const versions = new Map([...batches].map(([id,batch])=>[id,batch.version]));
     try {
       const data = await api('status_all');
       if (ticket !== epoch) return;
-      applyStates(data, new Map()); authenticated = true;
-      $('login').style.display = 'none'; $('refresh').hidden = false;$('diagnose').hidden=false;$('diagnose').disabled=false;
+      applyStates(data, versions); authenticated = true;
+      $('login').style.display = ''; $('refresh').hidden = false;$('diagnose').hidden=false;$('diagnose').disabled=false;
       connectionStatus(); render(); poll();await loadOffsets();
     } catch (error) { if (ticket === epoch) lock(error.message); }
     finally { if (ticket === epoch) $('connect').disabled = false; }
@@ -302,4 +302,6 @@
   window.addEventListener('pagehide', () => lock());
   window.FarmWinch = { cardHtml, render };
   document.dispatchEvent(new Event('winch-ready'));
+  $('refresh').hidden=false;
+  refresh();
 })();
