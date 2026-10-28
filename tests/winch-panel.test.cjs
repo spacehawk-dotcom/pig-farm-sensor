@@ -124,19 +124,17 @@ test('offline or unsafe batches cannot move but retain stop',async()=>{
   }
 });
 
-test('auto setup only reads state until explicit stage selection and start',async()=>{
+test('auto popup starts without a stage and opening never actuates',async()=>{
   const f=fixture();await f.login();
   f.setReply(async()=>response({auto:{enabled:false,stage:null,reason:'수동'},settings:{targetTemperature:26,up:[26.3,27.5,29],down:[25.7,24.5,23]},sample:{temperature:24,measuredAt:1800000000000}}));
   f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
   assert.equal(f.nodes['winch-auto-dialog'].open,true);assert.equal(f.calls.at(-1).action,'auto_status');
-  assert.equal(f.nodes['winch-auto-start'].disabled,true);
-  f.nodes['winch-auto-stage'].value='1';f.nodes['winch-auto-stage'].onchange();
   assert.equal(f.nodes['winch-auto-start'].disabled,false);
   assert.equal(f.nodes['winch-auto-up1'].textContent,'26.3℃ 이상');
   assert.equal(f.nodes['winch-auto-down3'].textContent,'23℃ 이하');
   f.setReply(async()=>response({message:'자동 설정',batches:{'2':{...healthy,auto:{enabled:true,stage:1}}}}));
   await f.nodes['winch-auto-start'].onclick();
-  assert(f.calls.some(c=>c.action==='auto_on'&&c.batchId==='2'&&c.stage===1));
+  assert(f.calls.some(c=>c.action==='auto_on'&&c.batchId==='2'&&!Object.hasOwn(c,'stage')));
   assert(!f.calls.some(c=>['up','down','stop'].includes(c.action)));
 });
 
@@ -147,17 +145,15 @@ test('sensor errors and already enabled automatic mode block start',async()=>{
     {auto:{enabled:true,stage:1},settings:{targetTemperature:24,up:[24.3,25.5,27],down:[23.7,22.5,21]},sample:{temperature:24,measuredAt:1800000000000}}]){
     const f=fixture();await f.login();f.setReply(async()=>response(data));
     f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
-    f.nodes['winch-auto-stage'].value='1';f.nodes['winch-auto-stage'].onchange();assert.equal(f.nodes['winch-auto-start'].disabled,true);
+    assert.equal(f.nodes['winch-auto-start'].disabled,true);
   }
 });
 
-test('default paused automatic mode supports stage 3 but never starts until explicit confirmation',async()=>{
+test('paused automatic mode can resume without entering a position',async()=>{
   const f=fixture();await f.login();
   f.setReply(async()=>response({auto:{enabled:true,paused:true,stage:null,reason:'현재 단계 확인'},
     settings:{targetTemperature:23,up:[23.3,24.5,26],down:[22.7,21.5,20]},sample:{temperature:24,measuredAt:1800000000000}}));
   f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
-  assert.equal(f.nodes['winch-auto-start'].disabled,true);
-  f.nodes['winch-auto-stage'].value='3';f.nodes['winch-auto-stage'].onchange();
   assert.equal(f.nodes['winch-auto-start'].disabled,false);
   assert.equal(f.nodes['winch-auto-up3'].textContent,'26℃ 이상');
   assert.equal(f.nodes['winch-auto-down2'].textContent,'21.5℃ 이하');

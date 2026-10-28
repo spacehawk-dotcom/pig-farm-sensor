@@ -66,8 +66,8 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
   const reply=(statusCode,data)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(data)});
   return async event=>{
     if(event.httpMethod!=='POST')return reply(405,{error:'POST 요청만 지원합니다.'});
-    let action,batchId,stage,offsets,revision;
-    try{({action,batchId,stage,offsets,revision}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
+    let action,batchId,offsets,revision;
+    try{({action,batchId,offsets,revision}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
     // Monitoring is read-only. Never route this action through command handlers.
     if(action==='monitor'){
       const batches={};
@@ -77,7 +77,7 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
           batches[id]=state;
           if(automation){
             try{const auto=await automation.status(id);
-              state.auto={enabled:auto.enabled,paused:auto.paused,stage:auto.stage,reason:auto.reason};
+              state.auto={enabled:auto.enabled,paused:auto.paused,reason:auto.reason};
             }catch{state.autoError='자동 운전 상태 조회 실패';}
           }
         }catch{batches[id]={error:'장치 상태 조회 실패 · 잠시 후 다시 확인하세요.'};}
@@ -122,7 +122,7 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
       if(action.startsWith('auto_')){
         if(!automation)throw fail('자동 운전 서버가 준비되지 않았습니다.',503);
         if(action==='auto_status')return reply(200,await automation.probe(batchId));
-        if(action==='auto_on')return reply(200,await automation.enable(batchId,stage));
+        if(action==='auto_on')return reply(200,await automation.enable(batchId));
         return reply(200,await automation.manual('stop',batchId));
       }
       const result=automation ? await automation.manual(action,batchId) :

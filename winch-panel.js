@@ -17,20 +17,17 @@
     <p class="text-xs text-slate-500 mt-2">장치의 자동 꺼짐 설정을 사용합니다. 표시 상태는 릴레이 출력이며 실제 윈치 위치가 아닙니다. 화면 잠금·브라우저 종료 후에도 설정한 자동 운전은 계속됩니다.</p>
     <dialog id="winch-auto-dialog" aria-labelledby="winch-auto-title" class="rounded-2xl p-5 w-[min(94vw,480px)] max-h-[90vh] overflow-y-auto shadow-xl backdrop:bg-black/50">
       <div class="flex justify-between items-center gap-3"><h3 id="winch-auto-title" class="font-bold text-lg">자동 운전 설정</h3><button id="winch-auto-close" class="border rounded px-3 py-1">닫기</button></div>
-      <p class="text-sm text-slate-600 mt-3">서버에서 <b>5분마다</b> 확인합니다. 한 번 확인할 때 한 단계만 작동하며, 같은 단계에서는 반복하지 않습니다.</p>
+      <p class="text-sm text-slate-600 mt-3">서버에서 <b>5분마다</b> 확인합니다. 기준 온도를 상승·하강 방향으로 통과할 때 한 번 작동합니다. 같은 온도에서는 반복하지 않습니다.</p>
       <p id="winch-auto-settings" role="status" class="text-sm mt-3 font-bold"></p>
-      <table class="w-full text-sm my-4 text-left"><thead><tr class="border-b"><th class="py-2">단계 이동</th><th>온도</th><th>작동</th></tr></thead><tbody>
-        ${[1,2,3].map(n=>`<tr><td class="py-1">${n-1} → ${n}</td><td id="winch-auto-up${n}">올림 ${n}차 편차</td><td>올림 5초</td></tr>`).join('')}
-        ${[1,2,3].map(n=>`<tr><td class="py-1">${4-n} → ${3-n}</td><td id="winch-auto-down${n}">내림 ${n}차 편차</td><td>내림 6초</td></tr>`).join('')}</tbody></table>
+      <table class="w-full text-sm my-4 text-left"><thead><tr class="border-b"><th class="py-2">온도 기준</th><th>온도</th><th>작동</th></tr></thead><tbody>
+        ${[1,2,3].map(n=>`<tr><td class="py-1">올림 ${n}차</td><td id="winch-auto-up${n}">올림 ${n}차 편차</td><td>올림 5초</td></tr>`).join('')}
+        ${[1,2,3].map(n=>`<tr><td class="py-1">내림 ${n}차</td><td id="winch-auto-down${n}">내림 ${n}차 편차</td><td>내림 6초</td></tr>`).join('')}</tbody></table>
       <p class="text-xs text-slate-500">온도앱에서 저장한 1그룹 설정온도를 5분마다 다시 읽습니다. 변경값은 다음 서버 확인부터 적용됩니다.</p>
       <p id="winch-auto-state" role="status" class="bg-slate-50 rounded p-3 text-sm break-words"></p>
       <p id="winch-auto-sensor" class="text-sm mt-2 break-words"></p>
-      <label class="block mt-4 text-sm font-bold">현장에서 확인한 현재 단계
-        <select id="winch-auto-stage" class="block w-full border rounded p-2 mt-2"><option value="">선택하세요</option><option value="0">0단계 · 세 단계 내림 기준 상태</option><option value="1">1단계 · 기준에서 1회 올림</option><option value="2">2단계 · 기준에서 2회 올림</option><option value="3">3단계 · 기준에서 3회 올림</option></select>
-      </label>
-      <p class="text-xs text-slate-500 mt-2">단계는 실제 위치 측정값이 아닙니다. 최초 전환·정지·다른 앱 조작 후에는 현재 단계를 확인하고 재개하세요. 센서 갱신이 15분 이상 지연되면 대기합니다.</p>
+      <p class="text-xs text-slate-500 mt-2">현재 단계 입력 없이 온도 변화를 감시합니다. 시작·재개 시 현재 온도를 기준으로 삼으며, 여러 기준을 한 번에 넘어도 한 번만 작동합니다. 센서 갱신이 15분 이상 지연되면 대기합니다.</p>
       <div class="flex flex-wrap gap-2 mt-4"><button id="winch-auto-start" disabled class="bg-green-700 text-white rounded px-4 py-2 disabled:opacity-40">자동 시작·재개</button><button id="winch-auto-stop" class="bg-red-600 text-white rounded px-4 py-2 disabled:opacity-40">자동 보류·정지</button><button id="winch-auto-check" class="border rounded px-3 py-2 disabled:opacity-40">상태 확인</button></div>
-      <p class="text-xs text-slate-500 mt-3">자동 운전이 기본 모드입니다. 운전 중 수동 올림·내림은 기록 단계를 한 칸 변경하고 5분 후 자동 판단을 재개합니다. 정지는 자동을 보류합니다. 단계를 알 수 없거나 0~3 범위를 벗어나면 현재 단계 확인 후 재개해야 합니다.</p>
+      <p class="text-xs text-slate-500 mt-3">수동 올림·내림 후에는 5분 뒤 새 온도부터 다시 감시합니다. 정지는 자동을 보류합니다. 시작·재개 및 온도 기준 변경 직후에는 새 기준을 기록하고 이후 온도 변화를 판단합니다.</p>
     </dialog>`;
   const $ = id => document.getElementById('winch-' + id);
   let password = '', authenticated = false, epoch = 0, refreshId = 0, timer;
@@ -183,7 +180,7 @@
   async function operate(id, action) {
     const batch = batches.get(id);
     if (!authenticated || !batch || (action !== 'stop' && !canMove(batch))) return;
-    if (action !== 'stop' && !window.confirm(`육성 ${id}배치 윈치를 ${batch[action + 'Seconds']}초 ${action === 'up' ? '올림' : '내림'} 작동하시겠습니까? 자동 운전 중이면 기록 단계를 한 칸 갱신하고 5분 후 자동 판단을 재개합니다. 단계를 알 수 없거나 범위를 벗어나면 자동은 보류됩니다.`)) return;
+    if (action !== 'stop' && !window.confirm(`육성 ${id}배치 윈치를 ${batch[action + 'Seconds']}초 ${action === 'up' ? '올림' : '내림'} 작동하시겠습니까? 자동 운전 중이면 5분 뒤 새 온도부터 다시 감시합니다.`)) return;
     const ticket = epoch, version = ++batch.version;
     batch.busy = true; batch.state = null; batch.message = '명령 전달 중…'; render();
     try {
@@ -202,15 +199,14 @@
     }
   }
   function autoSummary(auto){
-    const mode=auto.enabled?(auto.paused?'자동 보류':`자동 · ${auto.stage}단계`):'자동 설정 대기';
+    const mode=auto.enabled?(auto.paused?'자동 보류':'자동 · 온도 변화 감시'):'자동 설정 대기';
     return `${mode} · ${auto.reason||''}`;
   }
   function closeAuto(){autoView++;autoBatch=null;autoReady=false;autoBusy=false;$('auto-dialog').close();}
   function autoButtons(){
-    $('auto-start').disabled=autoBusy||!autoReady||!['0','1','2','3'].includes($('auto-stage').value);
+    $('auto-start').disabled=autoBusy||!autoReady;
     $('auto-stop').disabled=autoBusy||!authenticated||!autoBatch;
     $('auto-check').disabled=autoBusy;
-    $('auto-stage').disabled=autoBusy;
   }
   async function checkAuto(){
     const id=autoBatch,ticket=epoch,view=++autoView;
@@ -236,19 +232,19 @@
   }
   async function openAuto(id){
     if(!authenticated||!batches.has(id))return;
-    autoBatch=id;$('auto-stage').value='';$('auto-title').textContent=`육성 ${id}배치 자동 운전`;
+    autoBatch=id;$('auto-title').textContent=`육성 ${id}배치 자동 운전`;
     $('auto-state').textContent='상태 확인 중…';$('auto-dialog').showModal();await checkAuto();
   }
   async function changeAuto(action){
     if(autoBusy||!authenticated||!autoBatch)return;
-    if(action==='auto_on'&&(!autoReady||!['0','1','2','3'].includes($('auto-stage').value)))return;
-    const id=autoBatch,stage=Number($('auto-stage').value);
-    if(action==='auto_on'&&!window.confirm(`육성 ${id}배치의 실제 상태가 ${stage}단계인지 확인하셨습니까? 자동 운전을 시작·재개하면 브라우저를 닫아도 5분 후부터 배치 설정온도와 저장한 편차에 따라 올림 5초·내림 6초씩 작동합니다.`))return;
+    if(action==='auto_on'&&!autoReady)return;
+    const id=autoBatch;
+    if(action==='auto_on'&&!window.confirm(`육성 ${id}배치의 온도 자동 운전을 시작·재개하시겠습니까? 현재 온도부터 감시하며, 브라우저를 닫아도 5분마다 기준 온도 통과 여부를 확인하여 올림 5초·내림 6초씩 작동합니다.`))return;
     const ticket=epoch,view=++autoView;
     const batch=batches.get(id),version=++batch.version;
     batch.busy=true;batch.state=null;autoBusy=true;autoReady=false;autoButtons();render();
     try{
-      const result=await api(action,id,action==='auto_on'?{stage}:{});
+      const result=await api(action,id);
       if(ticket!==epoch||view!==autoView)return;
       $('auto-state').textContent=result.message;batch.message=result.message;
     }catch(error){
@@ -264,7 +260,6 @@
   $('offset-form').onsubmit=saveOffsets;
   $('offset-load').onclick=loadOffsets;
   $('auto-dialog').oncancel=()=>{autoView++;autoBatch=null;autoReady=false;autoBusy=false;};
-  $('auto-stage').onchange=autoButtons;
   $('auto-check').onclick=checkAuto;
   $('auto-start').onclick=()=>changeAuto('auto_on');
   $('auto-stop').onclick=()=>changeAuto('auto_off');

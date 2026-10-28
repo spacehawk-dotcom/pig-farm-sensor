@@ -32,11 +32,11 @@ function fixture(){
     setSensorAge:value=>sensorAge=value,setReadFailure:value=>readFailure=value,
     failMove:()=>failMove=true,failWrite:()=>failWrite=true,failFinal:()=>failFinal=true};
 }
-test('exact boundaries and hysteresis prevent repeats at every stage',()=>{
-  for(const [stage,temp,expected] of [[0,24.2,null],[0,24.3,{action:'up',stage:1}],[1,25.4,null],[1,25.5,{action:'up',stage:2}],
-    [2,26.9,null],[2,27,{action:'up',stage:3}],[3,23.8,null],[3,23.7,{action:'down',stage:2}],
-    [2,22.6,null],[2,22.5,{action:'down',stage:1}],[1,21.1,null],[1,21,{action:'down',stage:0}],
-    [0,15,null],[3,35,null],[1,23.7,null],[1,24.3,null],[-1,30,null],[1,NaN,null]])assert.deepEqual(nextAction(stage,temp,thresholdsFor(24,OFFSETS)),expected);
+test('temperature crossings trigger only in the matching direction',()=>{
+  const settings=thresholdsFor(24,OFFSETS);
+  for(const [before,after,action] of [[24,24.3,'up'],[25,25.5,'up'],[26,27,'up'],[24,23.7,'down'],[23,22.5,'down'],[22,21,'down'],[24,30,'up'],[30,20,'down']])
+    assert.deepEqual(nextAction(before,after,settings),{action});
+  for(const [before,after] of [[24.3,24.3],[24.3,24.4],[25,24.3],[23,23.7],[null,30],[24,NaN]])assert.equal(nextAction(before,after,settings),null);
 });
 
 test('each batch reads its own saved first-group temperature and validates it',async()=>{
@@ -53,80 +53,53 @@ test('each batch reads its own saved first-group temperature and validates it',a
   await assert.rejects(()=>broken('1'),error=>error.status===409&&!error.message.includes('secret'));
 });
 
-test('shifted thresholds use exact boundaries in both directions',()=>{
-  const settings=thresholdsFor(26,OFFSETS);
-  for(const [stage,temp,result] of [[0,26.2,null],[0,26.3,{action:'up',stage:1}],
-    [1,27.4,null],[1,27.5,{action:'up',stage:2}],[2,28.9,null],[2,29,{action:'up',stage:3}],
-    [3,25.8,null],[3,25.7,{action:'down',stage:2}],[2,24.6,null],[2,24.5,{action:'down',stage:1}],
-    [1,23.1,null],[1,23,{action:'down',stage:0}]])assert.deepEqual(nextAction(stage,temp,settings),result);
-  assert.equal(nextAction(0,30),null);
-});
-
-test('running automation rereads changed setpoint without resetting stage or repeating commands',async()=>{
-  const f=fixture();f.setTarget(26);f.setTemperature(24.3);await f.automation.enable('2',0);
+test('start needs no stage and records a baseline without moving',async()=>{
+  const f=fixture();await f.automation.enable('2');
+  assert.equal(f.state.referenceTemperature,24);assert.equal(f.state.stage,undefined);assert.equal(f.moves.length,0);
   f.advance();await f.automation.tick('2');assert.equal(f.moves.length,0);
-  f.setTarget(24);f.advance();await f.automation.tick('2');assert.equal(f.state.stage,1);assert.equal(f.moves.length,1);
-  assert.equal(f.state.settings.targetTemperature,24);
-  f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
+  await assert.rejects(()=>f.automation.enable('2'));
+});
+test('three thresholds work independently without a stored position',async()=>{
+  const f=fixture();await f.automation.enable('2');
+  for(const t of [24.3,25.5,27,23.7,22.5,21]){f.setTemperature(t);f.advance();await f.automation.tick('2');}
+  assert.deepEqual(f.moves.map(m=>m.action),['up','up','up','down','down','down']);
+  f.advance();await f.automation.tick('2');assert.equal(f.moves.length,6);
+});
+test('large temperature jump triggers once and does not repeat at a stable temperature',async()=>{
+  const f=fixture();await f.automation.enable('2');f.setTemperature(30);
+  f.advance();await f.automation.tick('2');f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
+});
+test('changed settings establish a baseline instead of simulating a temperature change',async()=>{
+  const f=fixture();await f.automation.enable('2');f.setTarget(22);f.advance();await f.automation.tick('2');
+  assert.equal(f.moves.length,0);f.setTemperature(25);f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
+});
+test('missing settings block start and running commands',async()=>{
+  const f=fixture();f.setSettingsFailure(true);await assert.rejects(()=>f.automation.enable('2'));
+  f.setSettingsFailure(false);await f.automation.enable('2');f.setSettingsFailure(true);f.setTemperature(30);f.advance();
+  await f.automation.tick('2');assert.equal(f.moves.length,0);
 });
 
-test('missing settings blocks starting and pauses existing automation without fallback',async()=>{
-  const f=fixture();f.setSettingsFailure(true);
-  await assert.rejects(()=>f.automation.enable('2',0));assert.equal(f.state,undefined);
-  assert.match((await f.automation.probe('2')).settingsError,/settings missing/);
-  f.setSettingsFailure(false);await f.automation.enable('2',0);f.setTemperature(30);f.advance();
-  f.setSettingsFailure(true);await f.automation.tick('2');assert.equal(f.state.stage,0);assert.equal(f.moves.length,0);
-  f.setSettingsFailure(false);await f.automation.tick('2');assert.equal(f.moves.length,1);
-});
-test('enable validates stage, persists setup and never moves a device',async()=>{
-  const f=fixture();for(const stage of [null,undefined,'1',-1,4,1.2])await assert.rejects(()=>f.automation.enable('2',stage));
-  await f.automation.enable('2',0);assert.equal(f.state.enabled,true);assert.equal(f.moves.length,0);
-  await assert.rejects(()=>f.automation.enable('2',2));
-});
-test('three full stages each way execute once with five minute separation',async()=>{
-  const f=fixture();await f.automation.enable('2',0);f.setTemperature(28);
-  f.advance();await f.automation.tick('2');assert.equal(f.state.stage,1);
-  await f.automation.tick('2');assert.equal(f.moves.length,1);
-  f.advance();await f.automation.tick('2');assert.equal(f.state.stage,2);
-  f.advance();await f.automation.tick('2');assert.equal(f.state.stage,3);
-  f.advance();await f.automation.tick('2');assert.equal(f.moves.length,3);
-  f.setTemperature(20);f.advance();await f.automation.tick('2');assert.equal(f.state.stage,2);
-  f.advance();await f.automation.tick('2');assert.equal(f.state.stage,1);
-  f.advance();await f.automation.tick('2');assert.equal(f.state.stage,0);
-  f.advance();await f.automation.tick('2');assert.deepEqual(f.moves.map(x=>x.action),['up','up','up','down','down','down']);
-  assert.equal(MIN_COMMAND_INTERVAL,300000);
-});
 test('concurrent scheduled invocations cannot issue duplicate commands',async()=>{
   const f=fixture();await f.automation.enable('2',0);f.setTemperature(28);f.advance();
   await Promise.all([f.automation.tick('2'),f.automation.tick('2')]);assert.equal(f.moves.length,1);
 });
-test('manual up and down preserve automatic mode, update stage and defer automation five minutes',async()=>{
-  for(const [action,stage,temp,next] of [['up',2,28,'up'],['down',0,28,'up']]){
-    const f=fixture();await f.automation.enable('2',1);f.advance();
-    await f.automation.manual(action,'2');assert.equal(f.state.enabled,true);assert.equal(f.state.paused,false);assert.equal(f.state.stage,stage);
-    assert(f.writes.some(s=>s.pending?.action===action));
-    f.setTemperature(temp);await f.automation.tick('2');assert.equal(f.moves.length,1);
-    f.advance();await f.automation.tick('2');assert.deepEqual(f.moves,[{action,id:'2'},{action:next,id:'2'}]);
-  }
+test('manual movement preserves active mode and rebaselines after five minutes',async()=>{
+  const f=fixture();await f.automation.enable('2');await f.automation.manual('up','2');
+  assert.equal(f.state.paused,false);f.setTemperature(30);await f.automation.tick('2');assert.equal(f.moves.length,1);
+  f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
+  f.setTemperature(23.7);f.advance();await f.automation.tick('2');assert.equal(f.moves.at(-1).action,'down');
 });
-
-test('stop pauses automatic mode until stage is confirmed and resumed',async()=>{
-  const f=fixture();await f.automation.enable('2',1);await f.automation.manual('stop','2');
-  assert.equal(f.state.enabled,true);assert.equal(f.state.paused,true);assert.equal(f.state.stage,null);
+test('stop stays paused until explicit resume without a stage',async()=>{
+  const f=fixture();await f.automation.enable('2');await f.automation.manual('stop','2');assert.equal(f.state.paused,true);
   f.setTemperature(30);f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
-  await f.automation.enable('2',1);await f.automation.tick('2');assert.equal(f.moves.length,1);
-  f.advance();await f.automation.tick('2');assert.equal(f.moves.length,2);
+  await f.automation.enable('2');f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
 });
-
-test('uninitialized, legacy and out-of-range manual positions never guess a stage',async()=>{
-  for(const stage of [null,0,3]){
-    const f=fixture();if(stage!==null)await f.automation.enable('2',stage);
-    await f.automation.manual(stage===0?'down':'up','2');assert.equal(f.state.paused,true);assert.equal(f.state.stage,null);
-    f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
+test('migration preserves pause and running mode without treating a stage as temperature',async()=>{
+  for(const paused of [true,false]){
+    const f=fixture();f.setState({schemaVersion:2,enabled:true,paused,stage:3,lastActionAt:0});
+    f.setTemperature(30);await f.automation.tick('2');assert.equal(f.moves.length,0);
+    assert.equal((await f.automation.status('2')).paused,paused);
   }
-  const f=fixture();f.setState({schemaVersion:1,enabled:true,stage:2});
-  const state=await f.automation.status('2');assert.equal(state.enabled,true);assert.equal(state.paused,true);assert.equal(state.stage,null);
-  f.setTemperature(30);f.advance();await f.automation.tick('2');assert.equal(f.moves.length,0);
 });
 
 test('failed manual movement or final write pauses without replay; failed intent sends nothing',async()=>{
@@ -143,7 +116,7 @@ test('a crash with a persisted pending command pauses automatic mode without rep
 });
 test('uncertain device command or final persistence failure stops automation',async()=>{
   for(const failure of ['failMove','failFinal']){const f=fixture();await f.automation.enable('2',0);f.setTemperature(28);f.advance();f[failure]();
-    await f.automation.tick('2');assert.equal(f.state.paused,true);assert.equal(f.state.stage,null);
+    await f.automation.tick('2');assert.equal(f.state.paused,true);assert.equal(f.state.referenceTemperature,null);
     f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);}
 });
 test('intent persistence failure must never send a movement',async()=>{
@@ -207,7 +180,7 @@ test('failed or stale HA reads block enabling and pause ticks without movement',
     const f=fixture();
     await f.automation.enable('2',0);f.setTemperature(28);f.advance();
     if(failure==='stale')f.setSensorAge(MAX_SAMPLE_AGE);else f.setReadFailure(true);
-    await f.automation.tick('2');assert.equal(f.moves.length,0);assert.equal(f.state.stage,0);
+    await f.automation.tick('2');assert.equal(f.moves.length,0);assert.equal(f.state.referenceTemperature,24);
     const result=await f.automation.probe('2');assert(result.sensorError);assert(!result.sample);
     f.setState({enabled:false});
     await assert.rejects(()=>f.automation.enable('2',0));assert.equal(f.state.enabled,false);
