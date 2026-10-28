@@ -38,6 +38,29 @@ function fixture() {
   return {nodes,panels,calls,timers,render,login,click,setReply:fn=>{reply=fn;},context};
 }
 
+test('stop refreshes the open popup and enables resume only after healthy paused status',async()=>{
+  for(const sensorError of [undefined,'센서 갱신 지연']){
+    const f=fixture();await f.login();
+    const settings={targetTemperature:24,up:[24.3,25.5,27],down:[23.7,22.5,21]};
+    const sample={temperature:24,measuredAt:1800000000000};
+    f.setReply(async()=>response({auto:{enabled:true,paused:false},settings,sample}));
+    f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
+    assert.equal(f.nodes['winch-auto-start'].disabled,true);
+    f.setReply(async()=>{
+      const action=f.calls.at(-1).action;
+      if(action==='auto_off')return response({message:'자동 보류'});
+      if(action==='status_all')return response({batches:{'2':{...healthy,auto:{enabled:true,paused:true}}}});
+      assert.equal(action,'auto_status');
+      return response({auto:{enabled:true,paused:true},settings,sample,sensorError});
+    });
+    await f.nodes['winch-auto-stop'].onclick();
+    assert.equal(f.nodes['winch-auto-start'].disabled,!!sensorError);
+    assert.equal(f.nodes['winch-auto-dialog'].open,true);
+    assert.equal(f.calls.at(-1).action,'auto_status');
+    assert(!f.calls.some(c=>c.action==='auto_on'));
+  }
+});
+
 test('healthy status polls once per minute and batch errors back off to five minutes',async()=>{
   const f=fixture();await f.login();assert.equal(f.timers.at(-1).ms,60000);
   f.setReply(async()=>response({batches:{'2':{error:'Firestore 사용량 한도 (8)',upSeconds:5,downSeconds:6}}}));

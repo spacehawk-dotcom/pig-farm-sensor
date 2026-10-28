@@ -242,10 +242,12 @@
     if(action==='auto_on'&&!window.confirm(`육성 ${id}배치의 온도 자동 운전을 시작·재개하시겠습니까? 현재 온도부터 감시하며, 브라우저를 닫아도 5분마다 기준 온도 통과 여부를 확인하여 올림 5초·내림 6초씩 작동합니다.`))return;
     const ticket=epoch,view=++autoView;
     const batch=batches.get(id),version=++batch.version;
+    let succeeded=false;
     batch.busy=true;batch.state=null;autoBusy=true;autoReady=false;autoButtons();render();
     try{
       const result=await api(action,id);
       if(ticket!==epoch||view!==autoView)return;
+      succeeded=true;
       $('auto-state').textContent=result.message;batch.message=result.message;
     }catch(error){
       if(ticket!==epoch||view!==autoView)return;
@@ -253,7 +255,10 @@
       $('auto-state').textContent=error.message+' 상태 확인 후 다시 확인하세요.';
     }finally{
       if(ticket===epoch&&batch.version===version){batch.busy=false;render();await refresh();}
-      if(ticket===epoch&&view===autoView){autoBusy=false;autoButtons();}
+      if(ticket===epoch&&view===autoView){
+        if(succeeded)await checkAuto();
+        else {autoBusy=false;autoButtons();}
+      }
     }
   }
   $('auto-close').onclick=closeAuto;
