@@ -240,4 +240,5 @@ function recentOutdoorTemperatures(readings, now = Date.now()) {
     return readings.filter(r => r.time > now - 48 * 60 * 60 * 1000 && r.time <= now && Number.isFinite(r.temp)).map(r => r.temp);
 }
 root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, FAN_AIRFLOW, calculateWeight, calculateBatchCount, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides });
+if (typeof module === 'object' && module.exports) module.exports = root.FarmVentilation;
 })(globalThis);

@@ -1,5 +1,6 @@
 const axios = require('axios');
 const crypto = require('crypto');
+const {calculateBatchCount} = require('../../../ventilation.js');
 
 const ACCESS_ID = process.env.TUYA_ACCESS_ID;
 const ACCESS_SECRET = process.env.TUYA_ACCESS_SECRET;
@@ -48,10 +49,12 @@ async function getFarmData(collection, batchNumber) {
         const response = await axios.get(url);
         
         const fields = response.data.fields;
-        let count = 0;
-        if (fields && fields.pigs) {
-            count = parseInt(fields.pigs.integerValue) || parseInt(fields.pigs.doubleValue) || 0;
-        }
+        const scalar = value => value?.integerValue ?? value?.doubleValue ?? value?.stringValue;
+        const count = calculateBatchCount({
+            penDetails: fields?.penDetails?.arrayValue?.values?.map(scalar),
+            pigs: scalar(fields?.pigs), count: scalar(fields?.count),
+            currentCount: scalar(fields?.currentCount), totalPigs: scalar(fields?.totalPigs)
+        });
 
         let allDates = [];
         if (fields && fields.penDates && fields.penDates.arrayValue && fields.penDates.arrayValue.values) {
@@ -75,7 +78,7 @@ async function getFarmData(collection, batchNumber) {
 
         return { count, dateRange };
     } catch (error) {
-        return { count: 0, dateRange: "--" };
+        return { count: null, dateRange: "--" };
     }
 }
 
