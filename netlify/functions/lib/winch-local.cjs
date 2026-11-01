@@ -18,6 +18,8 @@ function stateFrom(report,id,env,now=Date.now(),diagnostic=false){
   return {batchId:id,source:'ha-localtuya',checkedAt:report?.receivedAt||0,upSeconds:cfg.upSeconds,downSeconds:cfg.downSeconds,
     enabled:env[cfg.enabledEnv]==='true',online,up:online?s.up:null,down:online?s.down:null,
     safetyMatches:online && Object.entries(cfg.safety).every(([k,v])=>snap[k]===v),
+    safetyIssues:online?Object.entries(cfg.safety).filter(([k,v])=>snap[k]!==v).map(([k])=>
+      (k==='switch_interlock'?'상호잠금':'자동 꺼짐')+(snap[k]==null?' 응답 없음':' 설정 불일치')):[],
     ...(diagnostic?{safetySnapshot:snap}:{})};
 }
 function ensureReady(s){

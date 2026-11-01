@@ -84,7 +84,8 @@
     const output=state.up === false && state.down === false ? '올림·내림 출력 OFF' :
       state.up === true && state.down === false ? '올림 출력 ON' :
       state.down === true && state.up === false ? '내림 출력 ON' : '출력 상태 불확실 · 현장 확인 필요';
-    return (state.source==='ha-localtuya'?'HA 로컬 연결 · ':'온라인 · ')+output+(!state.enabled?' · 제어 활성화 대기':!state.safetyMatches?' · 안전 설정 미확인 · 올림·내림 잠김':'');
+    const issue=Array.isArray(state.safetyIssues)&&state.safetyIssues.length?state.safetyIssues.join(' / '):'안전 설정 미확인';
+    return (state.source==='ha-localtuya'?'HA 로컬 연결 · ':'온라인 · ')+output+(!state.enabled?' · 제어 활성화 대기':!state.safetyMatches?' · '+issue+' · 올림·내림 잠김':'');
   }
   function render() {
     document.querySelectorAll('[data-winch-batch]').forEach(panel => {
