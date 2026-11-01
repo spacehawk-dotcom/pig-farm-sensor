@@ -13,6 +13,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from custom_components.localtuya.core.pytuya import CMDType
+from .smartlife_diagnostic import account_interlocks, diagnose, supplement
 
 LOG = logging.getLogger(__name__)
 API = "https://sungamfarm.netlify.app/.netlify/functions/winch-ha"
@@ -29,7 +30,7 @@ INTERLOCK = "AA8AAAAAAAA="
 
 
 class Bridge:
-    def __init__(self, hass, token):
+    def __init__(self, hass, token, smartlife_guard=False):
         self.hass = hass
         self.token = token
         self.session = secrets.token_hex(32)
@@ -38,6 +39,9 @@ class Bridge:
         self.last_ticket = {}
         self.changed = asyncio.Event()
         self.samples = {}
+        self.smartlife_guard = smartlife_guard
+        self.cloud_readings = {}
+        self.cloud_at = 0
         self.probe_locks = {batch:asyncio.Lock() for batch in DEVICES}
 
     async def post(self, op, **fields):
@@ -148,11 +152,19 @@ class Bridge:
         def ready(s):
             if not s["online"] or s["up"] is not False or s["down"] is not False or s["interlock"] != INTERLOCK or s["timer"] != (TIMER_2 if batch=="2" else TIMER):
                 raise ValueError("relay or safety mismatch")
-        ready(await self.live(batch))
+        async def checked():
+            state = await self.live(batch)
+            if self.smartlife_guard and state["online"] and state["interlock"] is None:
+                fresh()
+                async with asyncio.timeout(min(3, max(0,(expires-time.time()*1000)/1000))):
+                    result = await account_interlocks(self.hass, {batch:DEVICES[batch]}, INTERLOCK)
+                state = supplement(state, result.get(batch), INTERLOCK)
+            ready(state)
+        await checked()
         for entity in entities:
             await self.relay("turn_off", entity)
         await asyncio.sleep(0.6)
-        ready(await self.live(batch))
+        await checked()
         fresh()
         await self.relay("turn_on", entities[0 if action=="up" else 1])
         # Confirm the one intended output and the opposite OFF; never retry ON.
@@ -216,6 +228,16 @@ class Bridge:
         while True:
             if time.monotonic() - getattr(self,"last_probe",-100) > 45:
                 await asyncio.gather(*(self.sample(b) for b in DEVICES))
+                if self.smartlife_guard:
+                    missing = {b: DEVICES[b] for b,(_,s) in self.samples.items() if s["online"] and s["interlock"] is None}
+                    self.cloud_readings = {}
+                    if missing:
+                        try:
+                            async with asyncio.timeout(5):
+                                self.cloud_readings = await account_interlocks(self.hass, missing, INTERLOCK)
+                            self.cloud_at = time.monotonic()
+                        except TimeoutError:
+                            pass
                 self.last_probe = time.monotonic()
             states = {}
             for b in DEVICES:
@@ -223,6 +245,8 @@ class Bridge:
                 at,sample = self.samples.get(b,(0,{}))
                 if current["online"] and time.monotonic()-at < 70 and sample.get("online"):
                     current.update(timer=sample["timer"],interlock=sample["interlock"])
+                    if self.smartlife_guard and time.monotonic()-self.cloud_at < 70:
+                        current = supplement(current, self.cloud_readings.get(b), INTERLOCK)
                 else:
                     current.update(timer=None,interlock=None)
                 states[b] = current
@@ -230,11 +254,14 @@ class Bridge:
                 self.hass.states.async_set("sensor.sungam_winch_bridge",sum(s["online"] for s in states.values()),{
                     "friendly_name":"LocalTuya winches", "interlock_dp":48,
                     "timer_received":[b for b,s in states.items() if s["timer"]],
-                    "interlock_received":[b for b,s in states.items() if s["interlock"]],
+                    "interlock_received":[b for b,(_,s) in self.samples.items() if s["online"] and s["interlock"]],
+                    "smartlife_guard_enabled":self.smartlife_guard,
+                    "smartlife_guard_batches":[b for b,s in states.items() if self.smartlife_guard and s["interlock"]==INTERLOCK
+                        and self.samples.get(b,(0,{}))[1].get("interlock") is None],
                     "verified":[b for b,s in states.items() if s["interlock"]==INTERLOCK and s["timer"]==(TIMER_2 if b=="2" else TIMER)]})
             if states != previous or time.monotonic()-last>55:
                 try:
-                    await self.post("report", states=states)
+                    await self.post("report", states=states, smartlifeGuard=self.smartlife_guard)
                     previous,last = states,time.monotonic()
                 except Exception as err:
                     LOG.debug("State report unavailable (%s)",type(err).__name__)
@@ -248,7 +275,11 @@ class Bridge:
 
 async def async_setup(hass, config):
     token = await hass.async_add_executor_job(Path(hass.config.path(".storage/sungam_winch.secret")).read_text)
-    bridge = Bridge(hass,token.strip())
+    options = config.get("sungam_winch") or {}
+    bridge = Bridge(hass,token.strip(),options.get("smartlife_interlock") is True)
+    async def check_smartlife(call):
+        await diagnose(hass, DEVICES, INTERLOCK)
+    hass.services.async_register("sungam_winch","check_smartlife_interlock",check_smartlife)
     jobs = [asyncio.create_task(bridge.listen()),asyncio.create_task(bridge.report())]
     async def stop(event):
         for task in jobs + list(bridge.jobs.values()):

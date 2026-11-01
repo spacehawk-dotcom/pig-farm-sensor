@@ -17,6 +17,19 @@ HA는 기기 ID와 채널의 LocalTuya 고유 ID로 스위치를 찾는다. 출�
 4. `ha core check` 후 재시작한다. HA 상태 `sensor.sungam_winch_bridge`로 연결 수와 안전 설정 확인 결과를 볼 수 있다.
 5. Netlify Git 배포 후 앱에서 ‘등록된 윈치 연결 진단’을 실행한다. 이 검사는 실제 명령 경로로 읽기 전용 요청을 보내고 HA 응답을 확인한다.
 
+### Smart Life 상호잠금 읽기 진단
+
+HA 개발자 도구의 동작에서 `sungam_winch.check_smartlife_interlock`을 실행하면,
+`sensor.sungam_smartlife_interlock_check`의 `results`와 `checked_at`에 조회 결과와 시각이 기록된다.
+기존 HA Tuya 연동으로 장치 상세 상태를 새로 요청해 온라인인 장치의 실제 `switch_interlock` 값만 비교한다.
+‘응답 없음’은 값이 제공되지 않았다는 뜻이며 상호잠금이 꺼졌다는 뜻이 아니다.
+진단 결과는 앱의 제어 허용 조건에 사용하지 않으며, 어떤 릴레이도 조작하지 않는다.
+
+운전용 보조 조회 옵션 `sungam_winch.smartlife_interlock`의 기본값은 꺼짐이다.
+이를 HA YAML에서 명시적으로 `true`로 바꿔 적용하면 로컬 상호잠금 응답이 없을 때만 Smart Life를 조회한다.
+표시용 결과와 별도로, 실제 올림·내림 직전에 해당 장치를 다시 조회한다. 조회 실패·시간 초과·설정 불일치 시 구동하지 않는다.
+정지와 모터 출력은 항상 LocalTuya를 사용한다.
+
 ## 서버와 자동 운전
 
 - 운영 환경에는 기존 `WINCH_CONTROL_PASSWORD`, `WINCH_FIREBASE_SERVICE_ACCOUNT`, 배치별 `WINCH_*SAFETY_CONFIRMED`가 필요하다. 2배치는 `WINCH_SAFETY_CONFIRMED`, 나머지는 `WINCH_N_SAFETY_CONFIRMED`다.

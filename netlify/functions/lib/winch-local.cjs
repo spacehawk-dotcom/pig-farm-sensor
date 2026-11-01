@@ -43,8 +43,8 @@ function waitResult(ref,ticket,timeout){
   });
 }
 function createLocalControl({database,env,notify}){
-  let report;
-  const read=()=>report??=worker(database()).get().then(d=>d.data());
+  let report,guarded=false;
+  const read=()=>report??=worker(database()).get().then(d=>{const r=d.data();guarded=r?.smartlifeGuard===true;return r;});
   const getState=async(id,diagnostic=false)=>stateFrom(await read(),id,env,Date.now(),diagnostic);
   const move=async(action,id)=>{
     if(!batchOK(id)||!['up','down','stop','check'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
@@ -58,7 +58,7 @@ function createLocalControl({database,env,notify}){
     await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500));
     return {accepted:true,batchId:id,action,message:'HA 로컬 채널에서 명령을 확인했습니다.'};
   };
-  return {source:'ha-localtuya',getState,ensureReady,move,check:id=>move('check',id)};
+  return {get source(){return guarded?'ha-localtuya/smartlife-interlock':'ha-localtuya';},getState,ensureReady,move,check:id=>move('check',id)};
 }
 async function workerApi(db,body){
   const {op,session,id,ticket}=body;
@@ -69,7 +69,7 @@ async function workerApi(db,body){
       if(!s||typeof s.online!=='boolean'||[s.up,s.down].some(v=>v!==null&&typeof v!=='boolean')||
         [s.timer,s.interlock].some(v=>v!==null&&(typeof v!=='string'||v.length>128)))throw fail('invalid state',400);
     }
-    await worker(db).set({session,states:body.states,receivedAt:Date.now()});
+    await worker(db).set({session,states:body.states,receivedAt:Date.now(),smartlifeGuard:body.smartlifeGuard===true});
     return {ok:true};
   }
   if(!batchOK(id)||typeof ticket!=='string'||!/^[a-f0-9-]{36}$/.test(ticket)||!['claim','ack'].includes(op))throw fail('invalid message',400);
