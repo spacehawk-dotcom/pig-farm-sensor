@@ -1,7 +1,7 @@
 const crypto=require('node:crypto');
 const {getApps,initializeApp,cert}=require('firebase-admin/app');
 const {getFirestore}=require('firebase-admin/firestore');
-const {createHandler,createDeviceControl,WINCHES}=require('./winch-control');
+const {createHandler,WINCHES}=require('./winch-control');
 const {createAutomation}=require('./winch-automation.cjs');
 const {createHaTemperatureReader}=require('./winch-ha-temperature.cjs');
 const {createSetpointReader}=require('./winch-setpoint.cjs');
@@ -10,18 +10,11 @@ const {serviceAccountConfig,databaseError}=require('./winch-errors.cjs');
 const env=process.env;
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 
-async function tuya(method,path,body,token=''){
-  if(!env.TUYA_ACCESS_ID||!env.TUYA_ACCESS_SECRET)throw new Error('Tuya configuration missing');
-  const json=body?JSON.stringify(body):'',t=String(Date.now());
-  const signing=[method,crypto.createHash('sha256').update(json).digest('hex'),'',path].join('\n');
-  const sign=crypto.createHmac('sha256',env.TUYA_ACCESS_SECRET).update(env.TUYA_ACCESS_ID+token+t+signing).digest('hex').toUpperCase();
-  const response=await fetch('https://openapi.tuyaeu.com'+path,{method,headers:{client_id:env.TUYA_ACCESS_ID,access_token:token,t,sign,sign_method:'HMAC-SHA256','Content-Type':'application/json'},...(body?{body:json}:{}),signal:AbortSignal.timeout(4000)});
-  const data=await response.json();
-  if(!response.ok||data.success!==true){
-    const code=String(data.code||response.status).replace(/[^a-zA-Z0-9_-]/g,'').slice(0,30);
-    throw Object.assign(new Error(`Tuya ${method==='POST'?'명령 전송':'조회'} 실패 (${code}). 장치 연결 및 API 권한을 확인하세요.`),{status:502,tuyaCode:code});
-  }
-  return data.result;
+const {createLocalControl,workerApi,authenticated}=require('./winch-local.cjs');
+const wakeRoot='https://sungamfarm-default-rtdb.firebaseio.com/winch_local_wakeup';
+async function notify(id,payload){
+  const r=await fetch(wakeRoot+'/'+id+'.json',{method:'PUT',body:JSON.stringify(payload),headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(3500)});
+  if(!r.ok)throw new Error('HA notification unavailable');
 }
 
 function database(){
@@ -57,13 +50,7 @@ async function withLock(action,run,batchId){
 }
 
 function runtime(){
-  let tokenPromise;
-  const request=async(method,path,body)=>{
-    tokenPromise ||= tuya('GET','/v1.0/token?grant_type=1').then(result=>result.access_token);
-    const token=await tokenPromise;
-    return tuya(method,path,body,token);
-  };
-  const control=createDeviceControl({env,request});
+  const control=createLocalControl({env,database,notify});
   // Reuse the already server-only collection; browser Firestore rules deny all access.
   const store={
     read:async id=>{try{return (await database().doc(`winch_server_locks/auto_grower_${id}`).get()).data();}catch(error){throw databaseError(error);}},
@@ -73,11 +60,11 @@ function runtime(){
   const offsetStore=createOffsetStore({database});
   const readSettings=createSetpointReader({database,registry:WINCHES,readOffsets:offsetStore.read});
   const automation=createAutomation({readTemperature,readSettings,control,withLock,store});
-  return {request,automation,offsetStore};
+  return {control,automation,offsetStore};
 }
 exports.handler=async event=>{
-  const {request,automation,offsetStore}=runtime();
-  return createHandler({env,withLock,request,automation,offsetStore})(event);
+  const {control,automation,offsetStore}=runtime();
+  return createHandler({env,withLock,control,automation,offsetStore})(event);
 };
 exports.scheduled=async()=>{
   const {automation}=runtime();
@@ -86,4 +73,9 @@ exports.scheduled=async()=>{
     if(env[config.enabledEnv]==='true')await automation.tick(id);
   }));
   if(results.some(result=>result.status==='rejected'))throw new Error('자동 윈치 확인 실패: 저장소 또는 동시 제어 상태를 확인하세요.');
+};
+
+exports.worker=async(token,body)=>{
+  if(!authenticated(token))throw Object.assign(new Error('Unauthorized'),{status:401});
+  return workerApi(database(),body);
 };

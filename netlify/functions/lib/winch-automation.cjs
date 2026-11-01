@@ -37,7 +37,7 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
       const sample=await readTemperature(id);
       const settings=await readSettings(id);
       const auto={enabled:true,paused:false,schemaVersion:SCHEMA_VERSION,referenceTemperature:sample.temperature,pending:null,
-        reason:'자동 운전 대기 · 5분 후부터 확인',...sample,settings,checkedAt:now(),lastActionAt:now()};
+        reason:'자동 운전 대기 · 5분 후부터 확인',...sample,settings,controlSource:control.source||null,checkedAt:now(),lastActionAt:now()};
       await store.write(id,auto);
       return {auto,message:'자동 운전을 설정했습니다. 다음 서버 확인부터 온도 기준을 적용합니다.'};
     },id);
@@ -90,8 +90,9 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
       return;
     }
     // First sample, settings changes and manual moves establish a fresh baseline.
-    const next=sameThresholds(auto.settings,settings)?nextAction(auto.referenceTemperature,sample.temperature,settings):null;
-    auto={...auto,...sample,settings,referenceTemperature:sample.temperature,checkedAt:now()};
+    const sameSource=!control.source || control.source===auto.controlSource;
+    const next=sameSource && sameThresholds(auto.settings,settings)?nextAction(auto.referenceTemperature,sample.temperature,settings):null;
+    auto={...auto,...sample,settings,controlSource:control.source||null,referenceTemperature:sample.temperature,checkedAt:now()};
     if(!next){await store.write(id,{...auto,reason:'기준 온도 대기'});return;}
     // Write the intent BEFORE I/O. A timeout/crash must never replay a movement.
     const pending={action:next.action,at:now()};

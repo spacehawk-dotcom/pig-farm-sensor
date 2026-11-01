@@ -61,8 +61,7 @@ function createDeviceControl({env,request,registry=WINCHES,sleep=ms=>new Promise
   return {getState,ensureReady,move};
 }
 
-function createHandler({env, request, withLock, sleep, automation,offsetStore,registry=WINCHES}) {
-  const control=createDeviceControl({env,request,sleep,registry});
+function createHandler({env, request, withLock, sleep, automation,offsetStore,registry=WINCHES,control=createDeviceControl({env,request,sleep,registry})}) {
   const reply=(statusCode,data)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(data)});
   return async event=>{
     if(event.httpMethod!=='POST')return reply(405,{error:'POST 요청만 지원합니다.'});
@@ -116,7 +115,7 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
       if(action==='status')return reply(200,await getBatchState(batchId));
       if(action==='diagnostics'){
         const state=await control.getState(batchId,true);
-        await withLock('diagnostics',async()=>{},batchId);
+        await withLock('diagnostics',async()=>{if(control.check)await control.check(batchId);},batchId);
         return reply(200,{state,message:'장치 상태 조회와 서버 잠금 읽기·쓰기 정상. 실제 동작 명령은 보내지 않았습니다.'});
       }
       if(action.startsWith('auto_')){
