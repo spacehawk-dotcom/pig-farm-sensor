@@ -77,5 +77,10 @@ exports.scheduled=async()=>{
 
 exports.worker=async(token,body)=>{
   if(!authenticated(token))throw Object.assign(new Error('Unauthorized'),{status:401});
+  if(body.op==='self_check'){
+    if(typeof body.id!=='string'||!Object.hasOwn(WINCHES,body.id))throw Object.assign(new Error('Invalid batch'),{status:400});
+    const {control}=runtime();
+    return withLock('diagnostics',()=>control.check(body.id),body.id);
+  }
   return workerApi(database(),body);
 };

@@ -90,17 +90,35 @@ class Bridge:
                 raise ValueError("no local relay response")
             values = dict(reply["dps"])
             if "48" not in values:
-                # Only request a report, never send a setting or relay value.
-                response = await interface.exchange(CMDType.UPDATEDPS, [44, 48])
-                if isinstance(response,dict):
-                    values.update(response.get("dps",{}))
+                requested = {k:None for k in ("1","2","3","44","48")}
+                try:
+                    async with asyncio.timeout(1):
+                        detail = await interface.exchange(CMDType.DP_QUERY, requested)
+                    if isinstance(detail,dict):
+                        values.update(detail.get("dps",{}))
+                except TimeoutError:
+                    pass
+            if "48" not in values:
+                try:
+                    async with asyncio.timeout(1):
+                        detail = await interface.exchange(CMDType.UPDATEDPS,[44,48])
+                    if isinstance(detail,dict):
+                        values.update(detail.get("dps",{}))
+                except TimeoutError:
+                    pass
+            if batch=="2" and not getattr(self,"logged_probe",False):
+                LOG.warning("LocalTuya read-only probe, returned DP numbers: %s; timer=%s; interlock=%s",
+                            sorted(values), values.get("44"),values.get("48"))
+                self.logged_probe = True
             self.samples[batch] = (time.monotonic(),self.current(batch,values))
             return self.samples[batch][1]
 
     async def sample(self,batch):
         try:
             await self.live(batch)
-        except Exception:
+        except Exception as err:
+            if batch=="2":
+                LOG.warning("LocalTuya read-only probe unavailable: %s",type(err).__name__)
             self.samples.pop(batch,None)
 
     async def relay(self, service, entity):
