@@ -10,6 +10,18 @@ const sign=(session,id,ticket)=>crypto.createHmac('sha256',session).update(id+':
 const mailbox=(db,id)=>db.doc('winch_server_locks/ha_command_'+id);
 const worker=db=>db.doc('winch_server_locks/ha_local_status');
 
+function timerDetail(raw,cfg){
+  if(typeof raw!=='string')return '';
+  const bytes=Buffer.from(raw,'base64'),timers=new Map();
+  if(!bytes.length||bytes.length%3||bytes.toString('base64')!==raw)return '';
+  for(let i=0;i<bytes.length;i+=3){
+    const ch='switch_'+((bytes[i]>>1)+1);
+    if(timers.has(ch))return '';
+    timers.set(ch,(bytes[i]&1)?bytes.readUInt16BE(i+1)+'초':'꺼짐');
+  }
+  return ' (올림 '+(timers.get(cfg.upChannel)||'미보고')+' · 내림 '+(timers.get(cfg.downChannel)||'미보고')+')';
+}
+
 function stateFrom(report,id,env,now=Date.now(),diagnostic=false){
   const cfg=WINCHES[id], s=report?.states?.[id];
   const online=Number.isFinite(report?.receivedAt) && now-report.receivedAt<freshMs &&
@@ -19,7 +31,8 @@ function stateFrom(report,id,env,now=Date.now(),diagnostic=false){
     enabled:env[cfg.enabledEnv]==='true',online,up:online?s.up:null,down:online?s.down:null,
     safetyMatches:online && Object.entries(cfg.safety).every(([k,v])=>snap[k]===v),
     safetyIssues:online?Object.entries(cfg.safety).filter(([k,v])=>snap[k]!==v).map(([k])=>
-      (k==='switch_interlock'?'상호잠금':'자동 꺼짐')+(snap[k]==null?' 응답 없음':' 설정 불일치')):[],
+      (k==='switch_interlock'?'상호잠금':'자동 꺼짐')+(snap[k]==null?' 응답 없음':' 설정 불일치')+
+      (k==='switch_inching'?timerDetail(snap[k],cfg):'')):[],
     ...(diagnostic?{safetySnapshot:snap}:{})};
 }
 function ensureReady(s){

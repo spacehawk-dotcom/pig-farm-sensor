@@ -14,6 +14,12 @@ test('unknown or stale HA outputs and missing safety values never enable movemen
   const report={receivedAt:now,states:{[id]:{online:true,up:false,down:false,timer:cfg.safety.switch_inching,interlock:cfg.safety.switch_interlock}}};
   const control=createLocalControl({env});
   control.ensureReady(stateFrom(report,id,env,now));
+  const different=Buffer.from(cfg.safety.switch_inching,'base64');
+  different.writeUInt16BE(7,7); // batch 2 up is channel 3
+  const varied={...report,states:{[id]:{...report.states[id],timer:different.toString('base64')}}};
+  const mismatch=stateFrom(varied,id,env,now);
+  assert.equal(mismatch.safetyMatches,false);
+  assert.match(mismatch.safetyIssues.join(' '),/올림 7초 · 내림 6초/);
   for(const change of [{timer:null},{interlock:null},{up:null},{down:true},{online:false}]){
     const r={...report,states:{[id]:{...report.states[id],...change}}};
     assert.throws(()=>control.ensureReady(stateFrom(r,id,env,now)));
