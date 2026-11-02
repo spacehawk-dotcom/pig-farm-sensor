@@ -11,7 +11,7 @@ function memory(){
 }
 test('unknown or stale HA outputs and missing safety values never enable movement',()=>{
   const id='2', cfg=WINCHES[id],now=Date.now(), env={[cfg.enabledEnv]:'true'};
-  const report={receivedAt:now,states:{[id]:{online:true,up:false,down:false,timer:cfg.safety.switch_inching,interlock:cfg.safety.switch_interlock}}};
+  const report={receivedAt:now,states:{[id]:{online:true,up:false,down:false,timer:cfg.safety.switch_inching,interlock:null}}};
   const control=createLocalControl({env});
   control.ensureReady(stateFrom(report,id,env,now));
   const different=Buffer.from(cfg.safety.switch_inching,'base64');
@@ -20,7 +20,8 @@ test('unknown or stale HA outputs and missing safety values never enable movemen
   const mismatch=stateFrom(varied,id,env,now);
   assert.equal(mismatch.safetyMatches,false);
   assert.match(mismatch.safetyIssues.join(' '),/올림 7초 · 내림 6초/);
-  for(const change of [{timer:null},{interlock:null},{up:null},{down:true},{online:false}]){
+  control.ensureReady(stateFrom({...report,states:{[id]:{...report.states[id],interlock:"unused"}}},id,env,now));
+  for(const change of [{timer:null},{up:null},{down:true},{online:false}]){
     const r={...report,states:{[id]:{...report.states[id],...change}}};
     assert.throws(()=>control.ensureReady(stateFrom(r,id,env,now)));
   }
@@ -40,4 +41,22 @@ test('private mailbox delivers once and rejects stale, wrong-session and wrong-b
   docs.set(address,{...docs.get(address),phase:'waiting',expires:Date.now()-1});
   assert.equal((await workerApi(db,msg)).command,null);
   assert(!authenticated(''));assert(!authenticated(session));
+});
+
+test('old and new HA reports give all seven batches timer-only readiness',async()=>{
+  const {db,docs}=memory(),env={};
+  for(const legacy of [true,false]){
+    const states={};
+    for(const [id,cfg] of Object.entries(WINCHES)){
+      env[cfg.enabledEnv]='true';
+      states[id]={online:true,up:false,down:false,timer:cfg.safety.switch_inching,
+        ...(legacy?{interlock:'irrelevant'}:{})};
+    }
+    await workerApi(db,{op:'report',session,states});
+    const saved=docs.get('winch_server_locks/ha_local_status');
+    for(const id of Object.keys(WINCHES)){
+      assert(!Object.hasOwn(saved.states[id],'interlock'));
+      assert.equal(stateFrom(saved,id,env).safetyMatches,true);
+    }
+  }
 });

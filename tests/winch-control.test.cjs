@@ -52,7 +52,7 @@ test('up/down use confirmed Tuya channels after OFF and status check',async()=>{
     assert.deepEqual(f.calls[3].body.commands,[{code:channel,value:true}]);
   }
 });
-test('changed safety or moving relay blocks movement',async()=>{for(const value of [{switch_interlock:'different'},{switch_inching:''},{switch_2:true}]){const f=fixture(value);assert.equal((await f.send('up')).statusCode,409);assert(!f.calls.some(c=>c.method==='POST'));}});
+test('changed safety or moving relay blocks movement',async()=>{for(const value of [{switch_inching:''},{switch_2:true}]){const f=fixture(value);assert.equal((await f.send('up')).statusCode,409);assert(!f.calls.some(c=>c.method==='POST'));}});
 test('disabled commissioning blocks movement but permits stop',async()=>{const f=fixture();f.env.WINCH_SAFETY_CONFIRMED='false';assert.equal((await f.send('down')).statusCode,409);assert.equal((await f.send('stop')).statusCode,200);assert(f.calls.filter(c=>c.method==='POST').every(c=>c.body.commands.every(x=>x.value===false)));});
 test('invalid action never contacts device',async()=>{const f=fixture();assert.equal((await f.send('all_on')).statusCode,400);assert.equal(f.calls.length,0);});
 

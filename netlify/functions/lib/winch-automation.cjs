@@ -5,7 +5,7 @@ const SCHEMA_VERSION=3;
 function normalizedState(state){
   if(state?.schemaVersion===SCHEMA_VERSION)return state;
   // Preserve an explicit pause and uncertain commands during migration.
-  return {enabled:state?.enabled!==false,paused:!state||state.paused!==false||!!state.pending,
+  return {enabled:state?.enabled!==false,paused:!state||state.paused!==false,
     pending:state?.pending||null,schemaVersion:SCHEMA_VERSION,referenceTemperature:null,
     reason:'온도 변화 감시 대기',lastActionAt:state?.lastActionAt||0};
 }
@@ -49,33 +49,33 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
     if(action==='stop'){
       // Even when storage is unavailable, send only OFF. Automatic operation remains paused until resumed.
       let persistenceError;
-      try{await store.write(id,pausedState('정지 · 상태 확인 후 자동 재개'));}
+      try{await store.write(id,pausedState('사용자가 정지함 · 자동 시작·재개로 다시 시작'));}
       catch(error){persistenceError=error;}
       const result=await control.move('stop',id);
       if(persistenceError)throw fail('정지 명령은 전달했으나 자동 보류 저장에 실패했습니다. 자동 상태를 다시 확인하세요.');
       return {...result,message:'자동 보류 · '+result.message};
     }
     const old=await status(id);
-    // Intent must be durable before any relay command. Never replay an uncertain manual pulse.
-    await store.write(id,{...old,enabled:true,paused:true,referenceTemperature:null,
-      pending:{action,at:now()},reason:'수동 명령 처리 중',checkedAt:now()});
-    try{
-      const result=await control.move(action,id);
-      const resume=old.enabled&&!old.paused&&!old.pending;
-      const reason=resume?'수동 조작 반영 · 5분 후 자동 판단 재개':'수동 조작 완료 · 상태 확인 후 자동 재개';
-      await store.write(id,{...old,enabled:true,paused:!resume,referenceTemperature:null,pending:null,
-        lastAction:action,lastActionAt:now(),checkedAt:now(),reason});
-      return {...result,message:reason+' · '+result.message};
-    }catch(error){
-      await store.write(id,pausedState('수동 명령 결과 불확실 · 상태 확인 후 자동 재개'));
+    // Persist the baseline reset before dispatch; preserve the operator's mode.
+    const intent={...old,pending:null,referenceTemperature:null,lastActionAt:now(),checkedAt:now()};
+    const mode=old.enabled&&!old.paused?'자동 감시 유지':'기존 운전 모드 유지';
+    await store.write(id,{...intent,reason:'수동 신호 전송 시도 · '+mode});
+    let result;
+    try{result=await control.move(action,id);}
+    catch(error){
+      await store.write(id,{...intent,reason:'수동 신호 전송 미확인 · '+mode});
       throw error;
     }
+    const reason='수동 신호 전달 · '+mode;
+    await store.write(id,{...intent,lastAction:action,reason});
+    return {...result,message:reason};
   },id);
   const tick=id=>withLock('automatic',async()=>{
     let auto=await status(id);
     if(auto.pending){
-      await store.write(id,{...auto,enabled:true,paused:true,referenceTemperature:null,pending:null,
-        reason:'이전 명령 결과 불확실 · 상태 확인 후 자동 재개',checkedAt:now()});
+      // Discard an old in-flight ticket without replaying it or changing the operator's mode.
+      await store.write(id,{...auto,referenceTemperature:null,pending:null,
+        reason:'이전 신호 재전송 없이 기존 모드 유지',checkedAt:now()});
       return;
     }
     if(!auto.enabled||auto.paused)return;
@@ -84,7 +84,6 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
     try{
       sample=await readTemperature(id);
       settings=await readSettings(id);
-      control.ensureReady(await control.getState(id));
     }catch(error){
       await store.write(id,{...auto,reason:error.status?error.message:'장치 연결 실패 · 자동 대기',checkedAt:now()});
       return;
@@ -95,17 +94,15 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
     auto={...auto,...sample,settings,controlSource:control.source||null,referenceTemperature:sample.temperature,checkedAt:now()};
     if(!next){await store.write(id,{...auto,reason:'기준 온도 대기'});return;}
     // Write the intent BEFORE I/O. A timeout/crash must never replay a movement.
-    const pending={action:next.action,at:now()};
-    await store.write(id,{...auto,pending,reason:'자동 명령 처리 중'});
-    try{
-      await control.move(next.action,id);
-      await store.write(id,{...auto,pending:null,lastAction:next.action,lastActionAt:now(),
-        reason:`${sample.temperature}℃ · ${next.action==='up'?'올림 5초':'내림 6초'} 명령 전달`});
-    }catch{
-      // Do not retry an uncertain Tuya command, including when the final state write failed.
-      await store.write(id,{...auto,enabled:true,paused:true,referenceTemperature:null,pending:null,
-        reason:'명령 결과 불확실 · 상태 확인 후 자동 재개',checkedAt:now()});
+    const intent={...auto,pending:null,lastActionAt:now(),reason:'자동 신호 전송 시도'};
+    await store.write(id,intent);
+    try{await control.move(next.action,id);}
+    catch(error){
+      await store.write(id,{...intent,reason:(error.status?error.message:'신호 전송 미확인')+' · 자동 감시 유지'});
+      return;
     }
+    await store.write(id,{...intent,lastAction:next.action,
+      reason:`${sample.temperature}℃ · ${next.action==='up'?'올림 5초':'내림 6초'} 신호 전달`});
   },id);
   return {status,probe,enable,manual,tick};
 }

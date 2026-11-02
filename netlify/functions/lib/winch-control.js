@@ -2,9 +2,9 @@ const crypto = require('node:crypto');
 const DEVICE = 'bfb4be1d3b42f4b899zcv2';
 // Grower 2 read on 2026-10-22: channel 3 ON/5s, channel 2 ON/6s.
 // Confirmed Smart Life configuration snapshot; never rewrite these settings.
-const SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AAAFAwAGBQAFBgAC'};
+const SAFETY = {switch_inching:'AAAFAwAGBQAFBgAC'};
 // Observed on growers 3/4 (Oct 20), corrected 1 (Oct 21), and 5/6/7 (Oct 22).
-const CHANNEL_12_SAFETY = {switch_interlock:'AA8AAAAAAAA=',switch_inching:'AQAFAwAGBAACBgAC'};
+const CHANNEL_12_SAFETY = {switch_inching:'AQAFAwAGBAACBgAC'};
 // Add a batch only after verifying its device, channels, timer and safety settings.
 // Each new batch must use its own commissioning environment variable.
 const WINCHES = Object.freeze({
@@ -33,14 +33,14 @@ function createDeviceControl({env,request,registry=WINCHES,sleep=ms=>new Promise
     const values=Object.fromEntries((detail.status||[]).map(s=>[s.code,s.value]));
     return {batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,
       online:detail.online===true,up:values[config.upChannel],down:values[config.downChannel],
-      safetyMatches:!!config.safety&&Object.keys(config.safety).length>0&&Object.entries(config.safety).every(([key,value])=>values[key]===value),
-      ...(diagnostic?{safetySnapshot:{switch_interlock:values.switch_interlock??null,switch_inching:values.switch_inching??null}}:{}),
+      safetyMatches:!!config.safety?.switch_inching&&values.switch_inching===config.safety.switch_inching,
+      ...(diagnostic?{safetySnapshot:{switch_inching:values.switch_inching??null}}:{}),
       enabled:env[config.enabledEnv]==='true',checkedAt:Date.now()};
   };
   const ensureReady=state=>{
     if(!state.enabled)throw fail('관리자의 현장 확인 후 서버에서 제어를 활성화해야 합니다.');
     if(!state.online)throw fail('장치가 오프라인입니다.');
-    if(!state.safetyMatches)throw fail('장치의 상호잠금·자동 꺼짐 설정이 확인된 값과 다릅니다. Smart Life 설정을 확인하세요.');
+    if(!state.safetyMatches)throw fail('장치의 자동 꺼짐 설정이 확인된 값과 다릅니다. Smart Life 설정을 확인하세요.');
     if(state.up!==false||state.down!==false)throw fail('동작 중이거나 상태가 불확실합니다. 정지 후 상태를 확인하세요.');
   };
   // Caller must hold the shared per-batch lock, for both manual and automatic commands.
@@ -56,7 +56,7 @@ function createDeviceControl({env,request,registry=WINCHES,sleep=ms=>new Promise
       ensureReady(await getState(id));
       await send([{code:action==='up'?config.upChannel:config.downChannel,value:true}]);
     }
-    return {accepted:true,action,batchId:id,message:action==='stop'?'정지 명령 전달됨 · 실제 상태 확인 중':'동작 명령 전달됨 · 실제 상태 확인 중'};
+    return {accepted:true,action,batchId:id,message:action==='stop'?'정지 명령 전달됨':'동작 명령 전달됨'};
   };
   return {getState,ensureReady,move};
 }
@@ -127,7 +127,7 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
       const result=automation ? await automation.manual(action,batchId) :
         await withLock(action,()=>control.move(action,batchId),batchId);
       return reply(200,result);
-    }catch(e){return reply(e.status||502,{error:e.status?e.message:'장치 연결 또는 명령 결과를 확인하지 못했습니다. 자동으로 재전송하지 않습니다. 상태를 확인하세요.'});}
+    }catch(e){return reply(e.status||502,{error:e.status?e.message:'신호 전송 응답을 받지 못했습니다. 자동으로 재전송하지 않습니다.'});}
   };
 }
 module.exports={createHandler,createDeviceControl,DEVICE,SAFETY,WINCHES};

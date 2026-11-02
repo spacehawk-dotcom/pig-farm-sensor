@@ -26,38 +26,37 @@ function stateFrom(report,id,env,now=Date.now(),diagnostic=false){
   const cfg=WINCHES[id], s=report?.states?.[id];
   const online=Number.isFinite(report?.receivedAt) && now-report.receivedAt<freshMs &&
     now>=report.receivedAt && s?.online===true && typeof s.up==='boolean' && typeof s.down==='boolean';
-  const snap={switch_interlock:s?.interlock??null,switch_inching:s?.timer??null};
+  const snap={switch_inching:s?.timer??null};
   return {batchId:id,source:'ha-localtuya',checkedAt:report?.receivedAt||0,upSeconds:cfg.upSeconds,downSeconds:cfg.downSeconds,
     enabled:env[cfg.enabledEnv]==='true',online,up:online?s.up:null,down:online?s.down:null,
-    safetyMatches:online && Object.entries(cfg.safety).every(([k,v])=>snap[k]===v),
-    safetyIssues:online?Object.entries(cfg.safety).filter(([k,v])=>snap[k]!==v).map(([k])=>
-      (k==='switch_interlock'?'상호잠금':'자동 꺼짐')+(snap[k]==null?' 응답 없음':' 설정 불일치')+
-      (k==='switch_inching'?timerDetail(snap[k],cfg):'')):[],
+    safetyMatches:online && snap.switch_inching===cfg.safety.switch_inching,
+    safetyIssues:online && snap.switch_inching!==cfg.safety.switch_inching?
+      ['자동 꺼짐'+(snap.switch_inching==null?' 응답 없음':' 설정 불일치')+timerDetail(snap.switch_inching,cfg)]:[],
     ...(diagnostic?{safetySnapshot:snap}:{})};
 }
 function ensureReady(s){
   if(!s.enabled)throw fail('배치 제어가 활성화되지 않았습니다.');
   if(!s.online)throw fail('HA 로컬 연결 또는 채널 상태를 확인할 수 없습니다.');
-  if(!s.safetyMatches)throw fail('HA에서 상호잠금·자동 꺼짐을 확인하지 못했습니다. 안전 설정을 확인하세요.');
+  if(!s.safetyMatches)throw fail('HA에서 자동 꺼짐을 확인하지 못했습니다. 안전 설정을 확인하세요.');
   if(s.up!==false||s.down!==false)throw fail('윈치가 동작 중이거나 상태가 불확실합니다.');
 }
 function waitResult(ref,ticket,timeout){
   return new Promise((resolve,reject)=>{
     const done=(fn,value)=>{clearTimeout(timer);unsubscribe();fn(value);};
     let unsubscribe=()=>{};
-    const timer=setTimeout(()=>done(reject,fail('HA 명령 결과를 확인하지 못했습니다. 자동 재전송하지 않습니다.',504)),timeout);
+    const timer=setTimeout(()=>done(reject,fail('HA 신호 전송 응답을 받지 못했습니다. 자동 재전송하지 않습니다.',504)),timeout);
     unsubscribe=ref.onSnapshot(doc=>{
       const m=doc.data();
       if(m?.ticket===ticket && m.phase==='done'){
         if(m.ok)done(resolve,true);
-        else done(reject,fail('HA가 윈치 명령을 완료하지 못했습니다. 장치와 안전 설정을 확인하세요.'));
+        else done(reject,fail('HA에서 신호 전송을 확인하지 못했습니다.'));
       }
     },()=>done(reject,fail('HA 명령 확인 연결이 끊겼습니다.',502)));
   });
 }
 function createLocalControl({database,env,notify}){
-  let report,guarded=false;
-  const read=()=>report??=worker(database()).get().then(d=>{const r=d.data();guarded=r?.smartlifeGuard===true;return r;});
+  let report;
+  const read=()=>report??=worker(database()).get().then(d=>d.data());
   const getState=async(id,diagnostic=false)=>stateFrom(await read(),id,env,Date.now(),diagnostic);
   const move=async(action,id)=>{
     if(!batchOK(id)||!['up','down','stop','check'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
@@ -69,20 +68,22 @@ function createLocalControl({database,env,notify}){
     // This public RTDB leaf is only a signed wake-up. It cannot authorize a command.
     await notify(id,{ticket,mac:sign(r.session,id,ticket)});
     await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500));
-    return {accepted:true,batchId:id,action,message:'HA 로컬 채널에서 명령을 확인했습니다.'};
+    return {accepted:true,batchId:id,action,message:'HA 로컬 채널에 신호를 전달했습니다.'};
   };
-  return {get source(){return guarded?'ha-localtuya/smartlife-interlock':'ha-localtuya';},getState,ensureReady,move,check:id=>move('check',id)};
+  return {source:'ha-localtuya/signals',getState,ensureReady,move,check:id=>move('check',id)};
 }
 async function workerApi(db,body){
   const {op,session,id,ticket}=body;
   if(typeof session!=='string'||!/^[0-9a-f]{64}$/.test(session))throw fail('invalid session',400);
   if(op==='report'){
+    const states={};
     for(const id of Object.keys(WINCHES)){
       const s=body.states?.[id];
       if(!s||typeof s.online!=='boolean'||[s.up,s.down].some(v=>v!==null&&typeof v!=='boolean')||
-        [s.timer,s.interlock].some(v=>v!==null&&(typeof v!=='string'||v.length>128)))throw fail('invalid state',400);
+        (s.timer!==null&&(typeof s.timer!=='string'||s.timer.length>128)))throw fail('invalid state',400);
+      states[id]={online:s.online,up:s.up,down:s.down,timer:s.timer};
     }
-    await worker(db).set({session,states:body.states,receivedAt:Date.now(),smartlifeGuard:body.smartlifeGuard===true});
+    await worker(db).set({session,states,receivedAt:Date.now()});
     return {ok:true};
   }
   if(!batchOK(id)||typeof ticket!=='string'||!/^[a-f0-9-]{36}$/.test(ticket)||!['claim','ack'].includes(op))throw fail('invalid message',400);

@@ -27,7 +27,7 @@
       <p id="winch-auto-sensor" class="text-sm mt-2 break-words"></p>
       <p class="text-xs text-slate-500 mt-2">현재 단계 입력 없이 온도 변화를 감시합니다. 시작·재개 시 현재 온도를 기준으로 삼으며, 여러 기준을 한 번에 넘어도 한 번만 작동합니다. 센서 갱신이 15분 이상 지연되면 대기합니다.</p>
       <div class="flex flex-wrap gap-2 mt-4"><button id="winch-auto-start" disabled class="bg-green-700 text-white rounded px-4 py-2 disabled:opacity-40">자동 시작·재개</button><button id="winch-auto-stop" class="bg-red-600 text-white rounded px-4 py-2 disabled:opacity-40">자동 보류·정지</button><button id="winch-auto-check" class="border rounded px-3 py-2 disabled:opacity-40">상태 확인</button></div>
-      <p class="text-xs text-slate-500 mt-3">수동 올림·내림 후에는 5분 뒤 새 온도부터 다시 감시합니다. 정지는 자동을 보류합니다. 시작·재개 및 온도 기준 변경 직후에는 새 기준을 기록하고 이후 온도 변화를 판단합니다.</p>
+      <p class="text-xs text-slate-500 mt-3">수동 올림·내림 후에는 5분 뒤 새 온도부터 다시 감시합니다. 신호 전송 응답이 없어도 자동 감시는 유지됩니다. 실제 작동 여부는 사용자가 판단하며, 정지를 누르면 자동을 보류합니다. 시작·재개 및 온도 기준 변경 직후에는 새 기준을 기록하고 이후 온도 변화를 판단합니다.</p>
     </dialog>`;
   const $ = id => document.getElementById('winch-' + id);
   let password = '', authenticated = false, epoch = 0, refreshId = 0, timer;
@@ -181,7 +181,7 @@
   async function operate(id, action) {
     const batch = batches.get(id);
     if (!authenticated || !batch || (action !== 'stop' && !canMove(batch))) return;
-    if (action !== 'stop' && !window.confirm(`육성 ${id}배치 윈치를 ${batch[action + 'Seconds']}초 ${action === 'up' ? '올림' : '내림'} 작동하시겠습니까? 자동 운전 중이면 5분 뒤 새 온도부터 다시 감시합니다.`)) return;
+    if (action !== 'stop' && !window.confirm(`육성 ${id}배치 윈치를 ${batch[action + 'Seconds']}초 ${action === 'up' ? '올림' : '내림'} 신호를 보낼까요? 실제 움직임은 현장에서 판단합니다. 자동 운전 중이면 5분 뒤 새 온도부터 다시 감시합니다.`)) return;
     const ticket = epoch, version = ++batch.version;
     batch.busy = true; batch.state = null; batch.message = '명령 전달 중…'; render();
     try {
@@ -190,7 +190,7 @@
     } catch (error) {
       if (ticket !== epoch || version !== batch.version) return;
       if (error.status === 401) { lock(error.message); return; }
-      batch.message = error.message + ' 현장에서 상태를 확인하세요.';
+      batch.message = error.message;
     } finally {
       if (ticket === epoch && version === batch.version) {
         batch.busy = false; render();

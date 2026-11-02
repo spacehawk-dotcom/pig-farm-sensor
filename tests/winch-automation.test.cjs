@@ -30,7 +30,7 @@ function fixture(){
   return {automation,moves,writes,setTarget:value=>target=value,setSettingsFailure:value=>settingsFailure=value,get state(){return state;},setState:value=>state={schemaVersion:2,paused:false,...value},
     advance:()=>clock+=MIN_COMMAND_INTERVAL,setTemperature:value=>temperature=value,setOnline:value=>online=value,
     setSensorAge:value=>sensorAge=value,setReadFailure:value=>readFailure=value,
-    failMove:()=>failMove=true,failWrite:()=>failWrite=true,failFinal:()=>failFinal=true};
+    failMove:(value=true)=>failMove=value,failWrite:()=>failWrite=true,failFinal:()=>failFinal=true};
 }
 test('temperature crossings trigger only in the matching direction',()=>{
   const settings=thresholdsFor(24,OFFSETS);
@@ -102,22 +102,33 @@ test('migration preserves pause and running mode without treating a stage as tem
   }
 });
 
-test('failed manual movement or final write pauses without replay; failed intent sends nothing',async()=>{
+test('failed manual movement or final write preserves mode without replay; failed intent sends nothing',async()=>{
   for(const failure of ['failMove','failFinal','failWrite']){
     const f=fixture();await f.automation.enable('2',1);f[failure]();
     await assert.rejects(()=>f.automation.manual('up','2'));
     assert.equal(f.moves.length,failure==='failWrite'?0:1);
-    if(failure!=='failWrite'){assert(f.state.paused||f.state.pending);f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);}
+    if(failure!=='failWrite'){assert.equal(f.state.paused,false);f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);}
   }
 });
-test('a crash with a persisted pending command pauses automatic mode without replay',async()=>{
+test('a crash with a persisted pending command preserves automatic mode without replay',async()=>{
   const f=fixture();f.setState({enabled:true,stage:0,pending:{action:'up'},lastActionAt:0});
-  await f.automation.tick('2');assert.equal(f.moves.length,0);assert.equal(f.state.paused,true);
+  await f.automation.tick('2');assert.equal(f.moves.length,0);assert.equal(f.state.paused,false);
 });
-test('uncertain device command or final persistence failure stops automation',async()=>{
-  for(const failure of ['failMove','failFinal']){const f=fixture();await f.automation.enable('2',0);f.setTemperature(28);f.advance();f[failure]();
-    await f.automation.tick('2');assert.equal(f.state.paused,true);assert.equal(f.state.referenceTemperature,null);
-    f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);}
+test('missing delivery response consumes only that crossing; next distinct crossing can signal',async()=>{
+  const f=fixture();await f.automation.enable('2');f.setTemperature(28);f.advance();f.failMove();
+  await f.automation.tick('2');assert.equal(f.state.paused,false);assert.equal(f.state.referenceTemperature,28);
+  f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
+  f.failMove(false);f.setTemperature(23.7);f.advance();await f.automation.tick('2');
+  assert.deepEqual(f.moves.map(m=>m.action),['up','down']);
+});
+test('failure writing delivery status never replays the consumed crossing',async()=>{
+  const f=fixture();await f.automation.enable('2');f.setTemperature(28);f.advance();f.failFinal();
+  await assert.rejects(()=>f.automation.tick('2'));assert.equal(f.state.paused,false);
+  f.advance();await f.automation.tick('2');assert.equal(f.moves.length,1);
+});
+test('manual delivery failure cannot resume an operator pause',async()=>{
+  const f=fixture();await f.automation.enable('2');await f.automation.manual('stop','2');f.failMove();
+  await assert.rejects(()=>f.automation.manual('down','2'));assert.equal(f.state.paused,true);
 });
 test('intent persistence failure must never send a movement',async()=>{
   const f=fixture();await f.automation.enable('2',0);f.setTemperature(28);f.advance();f.failWrite();
