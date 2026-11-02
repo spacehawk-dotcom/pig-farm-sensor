@@ -24,6 +24,7 @@ DEVICES = {
 }
 TIMER = "AQAFAwAGBAACBgAC"
 TIMER_2 = "AAAFAwAGBQAFBgAC"
+REPORT_RESTART_DELAY = 5
 
 
 class Bridge:
@@ -78,7 +79,7 @@ class Bridge:
         return result
 
     async def live(self, batch):
-        async with self.probe_locks[batch], asyncio.timeout(4):
+        async with asyncio.timeout(4), self.probe_locks[batch]:
             device, _, _ = self.equipment(batch)
             interface = device._interface
             reply = await interface.exchange(command=CMDType.DP_QUERY)
@@ -93,13 +94,26 @@ class Bridge:
             self.samples[batch] = (time.monotonic(),self.current(batch,values))
             return self.samples[batch][1]
 
-    async def sample(self,batch):
-        try:
-            await self.live(batch)
-        except Exception as err:
-            if batch=="2":
-                LOG.warning("LocalTuya read-only probe unavailable: %s",type(err).__name__)
-            self.samples.pop(batch,None)
+    async def sample_batches(self):
+        # LocalTuya may cancel just one device's pending reply on disconnect.
+        # Cancelling the reporter itself still cancels the entire gather.
+        results = await asyncio.gather(*(self.live(batch) for batch in DEVICES), return_exceptions=True)
+        for batch, result in zip(DEVICES, results):
+            if isinstance(result, BaseException):
+                if self.samples.pop(batch, None) is not None:
+                    LOG.warning("Batch %s status unavailable (%s)", batch, type(result).__name__)
+
+    def reported_state(self, batch):
+        at, sample = self.samples.get(batch, (0, {}))
+        if sample.get("online") and time.monotonic() - at < 70:
+            try:
+                current = self.current(batch)
+                if current["online"]:
+                    return {**current, "timer":sample["timer"]}
+            except Exception:
+                self.samples.pop(batch, None)
+                LOG.exception("Could not read cached outputs for batch %s", batch)
+        return {"online":False, "up":None, "down":None, "timer":None}
 
     async def relay(self, service, entity):
         async with asyncio.timeout(3):
@@ -192,17 +206,9 @@ class Bridge:
         previous, last = None, 0
         while True:
             if time.monotonic() - getattr(self,"last_probe",-100) > 45:
-                await asyncio.gather(*(self.sample(b) for b in DEVICES))
+                await self.sample_batches()
                 self.last_probe = time.monotonic()
-            states = {}
-            for b in DEVICES:
-                current = self.current(b)
-                at,sample = self.samples.get(b,(0,{}))
-                if current["online"] and time.monotonic()-at < 70 and sample.get("online"):
-                    current.update(timer=sample["timer"])
-                else:
-                    current.update(timer=None)
-                states[b] = current
+            states = {batch:self.reported_state(batch) for batch in DEVICES}
             if states != previous:
                 self.hass.states.async_set("sensor.sungam_winch_bridge",sum(s["online"] for s in states.values()),{
                     "friendly_name":"LocalTuya winches", "command_mode":"signal_only",
@@ -221,11 +227,25 @@ class Bridge:
                 pass
             self.changed.clear()
 
+    async def supervise_reports(self):
+        while True:
+            try:
+                await asyncio.create_task(self.report())
+            except asyncio.CancelledError:
+                if asyncio.current_task().cancelling():
+                    raise
+                LOG.warning("Status reporter cancelled unexpectedly, restarting")
+            except Exception:
+                LOG.exception("Status reporter failed, restarting")
+            else:
+                LOG.warning("Status reporter exited, restarting")
+            await asyncio.sleep(REPORT_RESTART_DELAY)
+
 
 async def async_setup(hass, config):
     token = await hass.async_add_executor_job(Path(hass.config.path(".storage/sungam_winch.secret")).read_text)
     bridge = Bridge(hass,token.strip())
-    jobs = [asyncio.create_task(bridge.listen()),asyncio.create_task(bridge.report())]
+    jobs = [asyncio.create_task(bridge.listen()),asyncio.create_task(bridge.supervise_reports())]
     async def stop(event):
         for task in jobs + list(bridge.jobs.values()):
             task.cancel()

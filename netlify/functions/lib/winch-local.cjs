@@ -24,11 +24,11 @@ function timerDetail(raw,cfg){
 
 function stateFrom(report,id,env,now=Date.now(),diagnostic=false){
   const cfg=WINCHES[id], s=report?.states?.[id];
-  const online=Number.isFinite(report?.receivedAt) && now-report.receivedAt<freshMs &&
-    now>=report.receivedAt && s?.online===true && typeof s.up==='boolean' && typeof s.down==='boolean';
+  const bridgeFresh=Number.isFinite(report?.receivedAt) && now-report.receivedAt<freshMs && now>=report.receivedAt;
+  const online=bridgeFresh && s?.online===true && typeof s.up==='boolean' && typeof s.down==='boolean';
   const snap={switch_inching:s?.timer??null};
   return {batchId:id,source:'ha-localtuya',checkedAt:report?.receivedAt||0,upSeconds:cfg.upSeconds,downSeconds:cfg.downSeconds,
-    enabled:env[cfg.enabledEnv]==='true',online,up:online?s.up:null,down:online?s.down:null,
+    enabled:env[cfg.enabledEnv]==='true',bridgeFresh,online,up:online?s.up:null,down:online?s.down:null,
     safetyMatches:online && snap.switch_inching===cfg.safety.switch_inching,
     safetyIssues:online && snap.switch_inching!==cfg.safety.switch_inching?
       ['자동 꺼짐'+(snap.switch_inching==null?' 응답 없음':' 설정 불일치')+timerDetail(snap.switch_inching,cfg)]:[],

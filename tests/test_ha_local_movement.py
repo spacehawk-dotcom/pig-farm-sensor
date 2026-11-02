@@ -1,5 +1,6 @@
 """Exercise the HA command path without any HA connection or real device."""
 import importlib.util
+import asyncio
 from pathlib import Path
 import sys
 import time
@@ -52,3 +53,61 @@ class BridgeMovementTest(unittest.IsolatedAsyncioTestCase):
         sample=await bridge.Bridge.live(self.b,"2")
         self.assertEqual(sample["44"],bridge.TIMER_2)
         self.assertEqual(device._interface.exchange.await_args.args,(bridge.CMDType.DP_QUERY,{"44":None}))
+
+
+class BridgeReportingTest(unittest.IsolatedAsyncioTestCase):
+    async def test_one_cancelled_device_is_unknown_then_recovers_on_next_report(self):
+        b = bridge.Bridge(Mock(), "test")
+        healthy = dict(online=True, up=False, down=False, timer=bridge.TIMER)
+        b.current = Mock(return_value=healthy)
+        b.samples = {batch:(time.monotonic(),healthy) for batch in bridge.DEVICES}
+        reports = asyncio.Queue()
+
+        async def probe(batch):
+            if batch == "5" and not b.post.await_count:
+                raise asyncio.CancelledError("device disconnected")
+            b.samples[batch] = time.monotonic(), healthy
+            return healthy
+
+        async def capture(op, states):
+            self.assertEqual(op, "report")
+            reports.put_nowait(states)
+
+        b.live = probe
+        b.post = AsyncMock(side_effect=capture)
+        task = asyncio.create_task(b.report())
+        try:
+            first = await asyncio.wait_for(reports.get(), 2)
+            self.assertEqual(first["5"], dict(online=False, up=None, down=None, timer=None))
+            self.assertEqual(sum(s["online"] for s in first.values()), 6)
+            b.last_probe = -100
+            b.changed.set()
+            second = await asyncio.wait_for(reports.get(), 2)
+            self.assertEqual(sum(s["online"] for s in second.values()), 7)
+        finally:
+            task.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+
+    async def test_supervisor_recovers_exits_and_honors_shutdown(self):
+        b = bridge.Bridge(Mock(), "test")
+        running = asyncio.Event()
+        async def report():
+            attempt = b.report.await_count
+            if attempt == 1:
+                raise asyncio.CancelledError("device reply cancelled")
+            if attempt == 2:
+                raise RuntimeError("report failed")
+            if attempt == 3:
+                return
+            running.set()
+            await asyncio.Event().wait()
+
+        b.report = AsyncMock(side_effect=report)
+        with patch.object(bridge, "REPORT_RESTART_DELAY", 0), self.assertLogs(bridge.LOG, level="WARNING"):
+            supervisor = asyncio.create_task(b.supervise_reports())
+            await asyncio.wait_for(running.wait(), 2)
+            supervisor.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await supervisor
+        self.assertEqual(b.report.await_count, 4)

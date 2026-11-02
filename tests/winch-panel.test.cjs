@@ -38,6 +38,16 @@ function fixture() {
   return {nodes,panels,calls,timers,render,login,click,setReply:fn=>{reply=fn;},context};
 }
 
+test('cards distinguish an unresponsive batch from a missing HA report',async()=>{
+  const f=fixture();await f.login();
+  for(const bridgeFresh of [true,false]){
+    f.setReply(async()=>response({batches:{'1':{online:false,bridgeFresh},'2':{...healthy,online:bridgeFresh,bridgeFresh}}}));
+    await f.nodes['winch-refresh'].onclick();
+    assert.match(f.panels[0].message.textContent,bridgeFresh?/배치 응답 미확인/:/HA 상태 보고 지연/);
+    assert.match(f.panels[1].message.textContent,bridgeFresh?/출력 OFF/:/HA 상태 보고 지연/);
+  }
+});
+
 test('stop refreshes the open popup and enables resume only after healthy paused status',async()=>{
   for(const sensorError of [undefined,'센서 갱신 지연']){
     const f=fixture();await f.login();

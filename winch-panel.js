@@ -80,7 +80,7 @@
   function describe(state) {
     if (!state) return '상태 확인 중…';
     if (state.error) return state.error;
-    if (!state.online) return '장치 오프라인';
+    if (!state.online) return state.bridgeFresh===false?'농장 HA 상태 보고 지연':'배치 응답 미확인';
     const output=state.up === false && state.down === false ? '올림·내림 출력 OFF' :
       state.up === true && state.down === false ? '올림 출력 ON' :
       state.down === true && state.up === false ? '내림 출력 ON' : '출력 상태 불확실 · 현장 확인 필요';
