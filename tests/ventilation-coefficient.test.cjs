@@ -27,6 +27,15 @@ test('saved group inputs do not replace independent recommendations', () => {
     assert.equal(opt.recommendedMinimum.f500_2.rate,28);
 });
 
+test('current airflow display uses the saved minimum per group, including zero', () => {
+    const opt = calculate({f500_1:{min:0}, f500_2:{t:25}});
+    assert.deepEqual(V.minimumAirflowDisplay(opt,'f500_1'), {label:'입력 환기량', value:'0 m³/h (0%)'});
+    assert.deepEqual(V.minimumAirflowDisplay(opt,'f500_2'), {label:'추천 환기량', value:'5,846.4 m³/h (28%)'});
+    const edited = calculate({f500_1:{min:35},f500_2:{min:40}});
+    assert.equal(V.minimumAirflowDisplay(edited,'f500_1').value,'4,872 m³/h (35%)');
+    assert.equal(V.minimumAirflowDisplay(edited,'f500_2').value,'8,352 m³/h (40%)');
+});
+
 test('volume floor, weaning groups and maximum capacity still apply', () => {
     const low = calculate({coefficient:0.2}, 7, 10);
     assert.equal(low.minRequiredCMH,low.volume*1.5);

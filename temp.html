@@ -303,7 +303,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="simulation-core.js?v=20261003-weight-cap110"></script>
-    <script src="ventilation.js?v=20261027-pen-weighted-age"></script>
+    <script src="ventilation.js?v=20261102-group-airflow"></script>
     <script src="ventilation-setting-record.js?v=20261027-pen-weighted-age"></script>
     <script type="module">
         import { createHistoryCharts } from "./ventilation-history-charts.js";
@@ -638,6 +638,10 @@
                 }
 
                 const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, outTempHist, batch.sourceData.ventilationOverrides);
+                function airflowRow(group) {
+                    const airflow = window.FarmVentilation.minimumAirflowDisplay(opt, group);
+                    return `<div class="mb-1"><span class="text-slate-600">${airflow.label}</span><br><strong>${airflow.value}</strong></div>`;
+                }
 
                 let g2Html = '', g3Html = '', g4Html = '';
                 
@@ -647,6 +651,7 @@
                     g4Html = `<td class="p-1.5 sm:p-2 text-slate-400 text-[9px] sm:text-[11px] bg-slate-50/10 text-center align-middle whitespace-nowrap">-</td>`;
                 } else {
                     g2Html = `<td class="p-1.5 sm:p-2 border-r border-teal-100 text-[9px] sm:text-[11px] bg-teal-50/30 text-left align-middle min-w-[110px]">
+                        ${airflowRow('f500_2')}
                         <div class="flex justify-between items-center mb-0.5 border-b border-teal-200/50 pb-0.5"><span class="text-slate-500">온도:</span><span><strong class="text-sm">${opt.f500_2.t}</strong>℃</span></div>
                         <div class="flex justify-between items-center"><span class="text-slate-500">최소:</span><span><strong class="text-sm">${opt.f500_2.min}</strong>%</span></div>
                         <span class="text-slate-500">편차:</span> <b class="text-teal-700">${opt.f500_2.diff}℃</b>
@@ -675,6 +680,7 @@
                             ${tempWarningHtml}
                         </td>
                         <td class="p-1.5 sm:p-2 border-r border-blue-100 text-[9px] sm:text-[11px] bg-blue-50/30 text-left align-middle min-w-[110px]">
+                            ${airflowRow('f500_1')}
                             <div class="flex justify-between items-center mb-0.5 border-b border-blue-200/50 pb-0.5">
                                 <span class="text-slate-500">온도:</span>
                                 <div class="flex items-center">

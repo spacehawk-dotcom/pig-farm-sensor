@@ -239,6 +239,18 @@ function applyOverrides(calculated, overrides) {
 function recentOutdoorTemperatures(readings, now = Date.now()) {
     return readings.filter(r => r.time > now - 48 * 60 * 60 * 1000 && r.time <= now && Number.isFinite(r.temp)).map(r => r.temp);
 }
-root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, FAN_AIRFLOW, calculateWeight, calculateBatchCount, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides });
+function minimumAirflowDisplay(opt, group) {
+    const recommendation = opt.recommendedMinimum[group];
+    const capacity = group === 'f500_1' ? opt.caps.c1 : opt.caps.c2;
+    if (!capacity) return null;
+    const saved = opt.manualFields.includes(group + '.min');
+    const rate = saved ? opt[group].min : recommendation.rate;
+    const cmh = saved ? capacity * rate / 100 : recommendation.cmh;
+    return {
+        label: saved ? '입력 환기량' : '추천 환기량',
+        value: cmh.toLocaleString('ko-KR', {maximumFractionDigits: 1}) + ' m³/h (' + rate + '%)'
+    };
+}
+root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, FAN_AIRFLOW, calculateWeight, calculateBatchCount, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides, minimumAirflowDisplay });
 if (typeof module === 'object' && module.exports) module.exports = root.FarmVentilation;
 })(globalThis);

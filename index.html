@@ -48,7 +48,7 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-        <script src="ventilation.js?v=20261027-pen-weighted-age"></script>
+        <script src="ventilation.js?v=20261102-group-airflow"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -328,6 +328,8 @@
             t4: opt.f800_2.t, max4: opt.f800_2.max, diff4: opt.f800_2.diff,
             roomType: opt.roomType,
             hasManualOverrides: opt.hasManualOverrides,
+            airflow1: ventilationSource.minimumAirflowDisplay(opt, 'f500_1'),
+            airflow2: ventilationSource.minimumAirflowDisplay(opt, 'f500_2'),
             minRequiredCMH: opt.minRequiredCMH, minSuppliedCMH: opt.minSuppliedCMH,
             minShortfallCMH: opt.minShortfallCMH, minimumStatus: opt.minimumStatus,
             msg: '* 환기량 앱 연동 · ' + message.textContent
@@ -355,10 +357,14 @@
 
     // 칸별 이유일과 두수로 앱의 배치 데이터를 환기 계산 입력에 맞춘다.
 
+    // The pen editor pads older documents with empty rows. Use the original pen
+    // data for ventilation so its count and age match the temp app.
+    const ventilationPenData = new WeakMap();
     function getVentilationBatchData(batch, stage) {
         const type = stage === 'weaning' ? '이유사' : '육성사';
-        const timing = ventilationSource.calculatePigAge(batch, type);
-        const count = ventilationSource.calculateBatchCount(batch);
+        const source = ventilationPenData.has(batch) ? {...batch, ...ventilationPenData.get(batch)} : batch;
+        const timing = ventilationSource.calculatePigAge(source, type);
+        const count = ventilationSource.calculateBatchCount(source);
         return { ...batch, avgAge: timing.age, age: timing.age, count, type, stockDiffDays: timing.stockDiffDays };
     }
 
@@ -369,8 +375,7 @@
     function getVentilationOptions(batchData, outdoorTempHistory = ventilationOutdoorHistory) {
         const age = getVentilationAge(batchData);
         const count = Number(batchData.count ?? batchData.pigs ?? batchData.totalPigs);
-        if (!Number.isFinite(age) || age < 0 || !Number.isFinite(count) || count <= 0) return null;
-        if (ventilationHistoryStatus !== 'ready' && outdoorTempHistory === ventilationOutdoorHistory) return null;
+        if (batchData.status === 'empty' || !Number.isFinite(age) || age < 0 || !Number.isFinite(count) || count <= 0) return null;
         return getStandaloneVentSettings(age, ventilationSource.calculateWeight(age), count,
             batchData.type || '육성사', batchData.stockDiffDays ?? null, batchData.ventilationOverrides,
             outdoorTempHistory === ventilationOutdoorHistory ? ventilationSource.recentOutdoorTemperatures(outdoorTempHistory) : outdoorTempHistory);
@@ -427,7 +432,12 @@
         const panel = document.getElementById('vent_integration_panel');
         if (!panel) return;
         const opt = getVentilationOptions(batchData, outdoorTempHistory);
-        document.getElementById('integ_source').textContent = opt?.hasManualOverrides ? '수정값 연동' : '계산값 연동';
+        document.getElementById('integ_source').textContent = !opt ? '적용값 없음' : opt.hasManualOverrides ? '입력값 연동' : '추천값 연동';
+        for (const n of [1, 2]) {
+            const airflow = opt?.['airflow' + n];
+            document.getElementById('integ_airflow_label_' + n).textContent = airflow?.label ?? '추천 환기량';
+            document.getElementById('integ_airflow_' + n).textContent = airflow?.value ?? '--';
+        }
         window.BatchTemperatureChart.render(batchData, opt, ventilationSensorHistory, ventilationHistoryStatus);
         const saveBtn = document.getElementById('integ_save_vent');
         if (saveBtn) {
@@ -448,7 +458,7 @@
         ['integ_g2_panel', 'integ_g3_panel', 'integ_g4_panel'].forEach(id => {
             document.getElementById(id).style.display = isWeaning ? 'none' : 'block';
         });
-        ['integ_t_1', 'integ_min_1', 'integ_min_2', 'integ_t_2', 'integ_t_3', 'integ_t_4', 'integ_max_4', 'integ_diff_1', 'integ_diff_2', 'integ_diff_3', 'integ_diff_4']
+        ['integ_t_1', 'integ_min_1', 'integ_min_2', 'integ_min_3', 'integ_t_2', 'integ_t_3', 'integ_t_4', 'integ_max_4', 'integ_diff_1', 'integ_diff_2', 'integ_diff_3', 'integ_diff_4']
             .forEach(id => document.getElementById(id).textContent = '--');
         if (!opt) {
             return;
@@ -460,6 +470,7 @@
             document.getElementById('integ_t_2').textContent = opt.t2;
             document.getElementById('integ_min_2').textContent = opt.min2;
             document.getElementById('integ_t_3').textContent = opt.t3;
+            document.getElementById('integ_min_3').textContent = opt.min3;
             document.getElementById('integ_t_4').textContent = opt.t4;
             document.getElementById('integ_max_4').textContent = opt.max4;
         }
@@ -490,6 +501,7 @@
         <!-- 1그룹 -->
         <div class="bg-blue-50/70 p-3 rounded-lg border border-blue-100 shadow-sm relative">
             <div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-1.5">1그룹 (500휀 2대)</div>
+            <div class="mb-2"><span id="integ_airflow_label_1" class="text-[10px] text-blue-800">추천 환기량</span><strong id="integ_airflow_1" class="block text-sm text-blue-900">--</strong></div>
             <div class="flex justify-between items-end mb-1">
                 <span class="text-[10px] text-slate-500">설정온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-blue-700" id="integ_t_1">--</span><span class="text-[10px] text-blue-600 mb-0.5">℃</span></div>
@@ -503,6 +515,7 @@
         <!-- 2그룹 -->
         <div class="bg-teal-50/70 p-3 rounded-lg border border-teal-100 shadow-sm" id="integ_g2_panel">
             <div class="text-[10px] sm:text-xs text-teal-800 font-bold mb-1.5">2그룹 (500휀 3대)</div>
+            <div class="mb-2"><span id="integ_airflow_label_2" class="text-[10px] text-teal-800">추천 환기량</span><strong id="integ_airflow_2" class="block text-sm text-teal-900">--</strong></div>
             <div class="flex justify-between items-end mb-1">
                 <span class="text-[10px] text-slate-500">개입온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-teal-700" id="integ_t_2">--</span><span class="text-[10px] text-teal-600 mb-0.5">℃</span></div>
@@ -522,7 +535,7 @@
             </div>
             <div class="flex justify-between items-end">
                 <span class="text-[10px] text-slate-500">환기범위</span>
-                <span class="text-[11px] sm:text-xs font-bold text-slate-700">0 ~ 100%</span>
+                <span class="text-[11px] sm:text-xs font-bold text-slate-700"><span id="integ_min_3">--</span> ~ 100%</span>
             </div>
 <div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-[11px]"><span class="text-slate-500">온도 편차</span><span class="font-bold text-slate-700"><span id="integ_diff_3">--</span>℃</span></div>
         </div>
@@ -604,6 +617,7 @@
                 normalizeBatch: (b, collectionName) => {
                     let pensCount = (collectionName.includes('grower') && b.id === 8) ? 7 : 10;
                     if (!b.penDetails || b.penDetails.length !== pensCount) {
+                        ventilationPenData.set(b, {penDetails: b.penDetails, penDates: b.penDates});
                         let oldDetails = b.penDetails || [];
                         b.penDetails = Array(pensCount).fill(0).map((v, i) => oldDetails[i] || 0);
                         b.penDates = Array(pensCount).fill('').map((v, i) => (b.penDates && b.penDates[i]) || '');
