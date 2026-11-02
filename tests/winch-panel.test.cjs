@@ -8,12 +8,12 @@ const response = (data,status=200) => ({ok:status===200,status,headers:{get:()=>
 test('locked monitoring shows batch state while all control actions remain disabled',async()=>{
   const f=fixture();await new Promise(resolve=>setImmediate(resolve));f.render();
   assert.equal(f.calls[0].action,'monitor');
-  assert.match(f.panels[1].message.textContent,/출력 OFF.*제어 잠김/);
+  assert.equal(f.panels[1].message.hidden,true);
   assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
   assert(f.panels.every(p=>p.autoButton.disabled));
   assert.match(source,/<details[^>]*><summary/);
   await f.login();f.nodes['winch-lock'].onclick();
-  assert.match(f.panels[1].message.textContent,/출력 OFF.*제어 잠김/);
+  assert.equal(f.panels[1].message.hidden,true);
 });
 function fixture() {
   const nodes = Object.fromEntries(['offset-form','offset-save','offset-load','offset-status','offset-up-1','offset-up-2','offset-up-3','offset-down-1','offset-down-2','offset-down-3','panel','login','password','connect','lock','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-up3','auto-down1','auto-down2','auto-down3','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,checkValidity(){return true;},showModal(){this.open=true;},close(){this.open=false;}}]));
@@ -44,7 +44,19 @@ test('cards distinguish an unresponsive batch from a missing HA report',async()=
     f.setReply(async()=>response({batches:{'1':{online:false,bridgeFresh},'2':{...healthy,online:bridgeFresh,bridgeFresh}}}));
     await f.nodes['winch-refresh'].onclick();
     assert.match(f.panels[0].message.textContent,bridgeFresh?/배치 응답 미확인/:/HA 상태 보고 지연/);
-    assert.match(f.panels[1].message.textContent,bridgeFresh?/출력 OFF/:/HA 상태 보고 지연/);
+    assert.equal(f.panels[1].message.textContent,bridgeFresh?'':'농장 HA 상태 보고 지연');
+    assert.equal(f.panels[1].message.hidden,bridgeFresh);
+  }
+});
+
+test('automatic monitoring is quiet while waiting and shows a delivery issue',async()=>{
+  const f=fixture();await f.login();
+  for(const [reason,hidden] of [['기준 온도 대기',true],['신호 전송 미확인 · 자동 감시 유지',false]]){
+    f.setReply(async()=>response({batches:{'2':{...healthy,auto:{enabled:true,paused:false,reason}}}}));
+    await f.nodes['winch-refresh'].onclick();
+    assert.equal(f.panels[1].autoMessage.hidden,hidden);
+    assert.equal(f.panels[1].autoMessage.textContent,hidden?'':reason);
+    assert.equal(f.panels[1].autoButton.textContent,'자동 운전 중');
   }
 });
 

@@ -81,16 +81,22 @@
     if (!state) return '상태 확인 중…';
     if (state.error) return state.error;
     if (!state.online) return state.bridgeFresh===false?'농장 HA 상태 보고 지연':'배치 응답 미확인';
-    const output=state.up === false && state.down === false ? '올림·내림 출력 OFF' :
+    const output=state.up === false && state.down === false ? '' :
       state.up === true && state.down === false ? '올림 출력 ON' :
       state.down === true && state.up === false ? '내림 출력 ON' : '출력 상태 불확실 · 현장 확인 필요';
     const issue=Array.isArray(state.safetyIssues)&&state.safetyIssues.length?state.safetyIssues.join(' / '):'안전 설정 미확인';
-    return (state.source==='ha-localtuya'?'HA 로컬 연결 · ':'온라인 · ')+output+(!state.enabled?' · 제어 활성화 대기':!state.safetyMatches?' · '+issue+' · 올림·내림 잠김':'');
+    const warning=!state.enabled?'제어 활성화 대기':!state.safetyMatches?issue+' · 올림·내림 잠김':'';
+    return [output,warning].filter(Boolean).join(' · ');
+  }
+  function showNote(element, text) {
+    element.textContent = text;
+    element.hidden = !text;
   }
   function render() {
     document.querySelectorAll('[data-winch-batch]').forEach(panel => {
       const id = panel.dataset.winchBatch, batch = batches.get(id);
-      panel.querySelector('[data-winch-message]').textContent = !batch ? (authenticated?'윈치 미등록 · 연결 예정':'상태 확인 중…') : (batch.message || describe(batch.state)) + (!authenticated ? ' · 제어 잠김' : '');
+      const note = batch ? batch.message || describe(batch.state) : authenticated ? '윈치 미등록 · 연결 예정' : '';
+      showNote(panel.querySelector('[data-winch-message]'), note);
       panel.querySelectorAll('[data-winch-action]').forEach(button => {
         const action = button.dataset.winchAction;
         button.disabled = action === 'stop' ? !authenticated || !batch : !canMove(batch);
@@ -105,7 +111,7 @@
         autoButton.onclick=event=>{event.stopPropagation();openAuto(id);};
       }
       const autoMessage=panel.querySelector('[data-winch-auto-message]');
-      if(autoMessage)autoMessage.textContent=batch?.state?.auto ? autoSummary(batch.state.auto) : batch?.state?.autoError || '';
+      if(autoMessage)showNote(autoMessage, batch?.state?.autoError || autoDetail(batch?.state?.auto));
     });
   }
   function cardHtml(id) {
@@ -115,9 +121,9 @@
         <button type="button" data-winch-action="up" aria-label="육성 ${id}배치 윈치 올림" disabled class="bg-blue-600 text-white rounded-lg py-2 px-1 text-xs font-bold disabled:opacity-35 disabled:cursor-not-allowed">▲ 올림</button>
         <button type="button" data-winch-action="stop" aria-label="육성 ${id}배치 윈치 정지" disabled class="bg-red-600 text-white rounded-lg py-2 px-1 text-xs font-bold disabled:opacity-35 disabled:cursor-not-allowed">■ 정지</button>
         <button type="button" data-winch-action="down" aria-label="육성 ${id}배치 윈치 내림" disabled class="bg-blue-600 text-white rounded-lg py-2 px-1 text-xs font-bold disabled:opacity-35 disabled:cursor-not-allowed">▼ 내림</button>
-      </div><p data-winch-message role="status" class="text-[10px] leading-snug text-slate-500 mt-2 break-keep">상단 비밀번호로 연결</p>
+      </div><p data-winch-message role="status" hidden class="text-[10px] leading-snug text-slate-500 mt-2 break-keep"></p>
       <button type="button" data-winch-auto disabled aria-label="육성 ${id}배치 자동 설정" class="mt-2 w-full border border-green-600 text-green-800 rounded py-1.5 text-xs font-bold disabled:opacity-35">자동 설정</button>
-      <p data-winch-auto-message class="text-[10px] leading-snug text-slate-500 mt-1 break-keep"></p></div>`;
+      <p data-winch-auto-message hidden class="text-[10px] leading-snug text-slate-500 mt-1 break-keep"></p></div>`;
   }
   async function api(action, batchId, extra={}) {
     const response = await fetch('/.netlify/functions/winch', {
@@ -199,9 +205,14 @@
       }
     }
   }
+  function autoDetail(auto){
+    const reason=auto?.reason;
+    if(!reason || ['기준 온도 대기','온도 변화 감시 대기','자동 운전 대기 · 5분 후부터 확인'].includes(reason))return '';
+    return reason;
+  }
   function autoSummary(auto){
-    const mode=auto.enabled?(auto.paused?'자동 보류':'자동 · 온도 변화 감시'):'자동 설정 대기';
-    return `${mode} · ${auto.reason||''}`;
+    const mode=auto.enabled?(auto.paused?'자동 보류':'자동 운전 중'):'자동 설정 대기';
+    return [mode,autoDetail(auto)].filter(Boolean).join(' · ');
   }
   function closeAuto(){autoView++;autoBatch=null;autoReady=false;autoBusy=false;$('auto-dialog').close();}
   function autoButtons(){
