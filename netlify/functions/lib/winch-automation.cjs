@@ -66,7 +66,7 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
       await store.write(id,{...intent,reason:'수동 신호 전송 미확인 · '+mode});
       throw error;
     }
-    const reason='수동 신호 전달 · '+mode;
+    const reason='수동 신호 요청 · '+mode;
     await store.write(id,{...intent,lastAction:action,reason});
     return {...result,message:reason};
   },id);
@@ -102,7 +102,7 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
       return;
     }
     await store.write(id,{...intent,lastAction:next.action,
-      reason:`${sample.temperature}℃ · ${next.action==='up'?'올림 5초':'내림 6초'} 신호 전달`});
+      reason:`${sample.temperature}℃ · ${next.action==='up'?'올림 5초':'내림 6초'} 신호 요청`});
   },id);
   return {status,probe,enable,manual,tick};
 }

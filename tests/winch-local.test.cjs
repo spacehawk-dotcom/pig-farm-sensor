@@ -1,6 +1,6 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
-const {stateFrom,workerApi,authenticated,createLocalControl}=require('../netlify/functions/lib/winch-local.cjs');
+const {stateFrom,workerApi,authenticated,createLocalControl,sign}=require('../netlify/functions/lib/winch-local.cjs');
 const {WINCHES}=require('../netlify/functions/lib/winch-control');
 const session='a'.repeat(64),ticket='b9b073e4-77bf-4c65-8e23-61240aaee7cd';
 function memory(){
@@ -9,7 +9,7 @@ function memory(){
   const db={doc,runTransaction:fn=>fn({get:r=>r.get(),update:(r,v)=>Object.assign(docs.get(r.key),v)})};
   return {db,docs};
 }
-test('unknown or stale HA outputs and missing safety values never enable movement',()=>{
+test('reports describe relay status separately from permission to submit signals',()=>{
   const id='2', cfg=WINCHES[id],now=Date.now(), env={[cfg.enabledEnv]:'true'};
   const report={receivedAt:now,states:{[id]:{online:true,up:false,down:false,timer:cfg.safety.switch_inching,interlock:null}}};
   const control=createLocalControl({env});
@@ -23,9 +23,24 @@ test('unknown or stale HA outputs and missing safety values never enable movemen
   control.ensureReady(stateFrom({...report,states:{[id]:{...report.states[id],interlock:"unused"}}},id,env,now));
   for(const change of [{timer:null},{up:null},{down:true},{online:false}]){
     const r={...report,states:{[id]:{...report.states[id],...change}}};
-    assert.throws(()=>control.ensureReady(stateFrom(r,id,env,now)));
+    control.ensureReady(stateFrom(r,id,env,now));
   }
-  assert.throws(()=>control.ensureReady(stateFrom(report,id,env,now+91000)));
+  control.ensureReady(stateFrom(report,id,env,now+91000));
+  assert.throws(()=>control.ensureReady(stateFrom(report,id,{},now)));
+});
+test('stale batch report permits one signed request without awaiting HA; missing session sends nothing',async()=>{
+  const {db,docs}=memory(), notices=[];
+  const control=()=>createLocalControl({database:()=>db,env:{WINCH_SAFETY_CONFIRMED:'true'},notify:async(id,data)=>notices.push(data)});
+  await assert.rejects(control().move('up','2'));
+  docs.set('winch_server_locks/ha_local_status',{session,receivedAt:Date.now()-120000,states:{}});
+  const result=await control().move('up','2');
+  assert.equal(result.accepted,true);
+  const message=docs.get('winch_server_locks/ha_command_2');
+  assert.equal(message.phase,'waiting');
+  assert.equal(notices[0].mac,sign(session,'2',message.ticket));
+  await assert.rejects(control().move('down','2'));
+  assert.equal(notices.length,1);
+  assert.equal(docs.get('winch_server_locks/ha_command_2').ticket,message.ticket);
 });
 test('private mailbox delivers once and rejects stale, wrong-session and wrong-batch claims',async()=>{
   const {db,docs}=memory();
@@ -41,6 +56,31 @@ test('private mailbox delivers once and rejects stale, wrong-session and wrong-b
   docs.set(address,{...docs.get(address),phase:'waiting',expires:Date.now()-1});
   assert.equal((await workerApi(db,msg)).command,null);
   assert(!authenticated(''));assert(!authenticated(session));
+});
+
+test('stop follows an outstanding ticket even if HA rejects that earlier signal',async()=>{
+  const {db,docs}=memory();
+  const key='winch_server_locks/ha_command_2';
+  docs.set('winch_server_locks/ha_local_status',{session});
+  docs.set(key,{session,ticket,expires:Date.now()+9000,phase:'claimed'});
+  let finish;
+  const subscribed=new Promise(resolve=>{
+    const doc=db.doc;
+    db.doc=path=>({...doc(path),onSnapshot(callback){
+      finish=()=>callback({data:()=>({ticket,phase:'done',ok:false})});
+      resolve();
+      return ()=>{};
+    }});
+  });
+  const notices=[];
+  const control=createLocalControl({database:()=>db,env:{},notify:async(id,data)=>notices.push(data)});
+  const stop=control.move('stop','2');
+  await subscribed;
+  assert.equal(notices.length,0);
+  finish();
+  await stop;
+  assert.equal(docs.get(key).action,'stop');
+  assert.equal(notices.length,1);
 });
 
 test('old and new HA reports give all seven batches timer-only readiness',async()=>{

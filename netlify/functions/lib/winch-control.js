@@ -108,7 +108,7 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
         await Promise.all(Object.keys(registry).map(async id=>{
           const config=registry[id];
           try{batches[id]=await getBatchState(id);}
-          catch(error){batches[id]={batchId:id,upSeconds:config.upSeconds,downSeconds:config.downSeconds,error:error.status?error.message:'장치 상태를 확인하지 못했습니다.'};}
+          catch(error){batches[id]={batchId:id,enabled:env[config.enabledEnv]==='true',upSeconds:config.upSeconds,downSeconds:config.downSeconds,error:error.status?error.message:'장치 상태를 확인하지 못했습니다.'};}
         }));
         return reply(200,{batches});
       }

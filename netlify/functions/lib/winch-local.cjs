@@ -36,20 +36,16 @@ function stateFrom(report,id,env,now=Date.now(),diagnostic=false){
 }
 function ensureReady(s){
   if(!s.enabled)throw fail('배치 제어가 활성화되지 않았습니다.');
-  if(!s.online)throw fail('HA 로컬 연결 또는 채널 상태를 확인할 수 없습니다.');
-  if(!s.safetyMatches)throw fail('HA에서 자동 꺼짐을 확인하지 못했습니다. 안전 설정을 확인하세요.');
-  if(s.up!==false||s.down!==false)throw fail('윈치가 동작 중이거나 상태가 불확실합니다.');
 }
 function waitResult(ref,ticket,timeout){
   return new Promise((resolve,reject)=>{
     const done=(fn,value)=>{clearTimeout(timer);unsubscribe();fn(value);};
     let unsubscribe=()=>{};
-    const timer=setTimeout(()=>done(reject,fail('HA 신호 전송 응답을 받지 못했습니다. 자동 재전송하지 않습니다.',504)),timeout);
+    const timer=setTimeout(()=>done(resolve,null),timeout);
     unsubscribe=ref.onSnapshot(doc=>{
       const m=doc.data();
       if(m?.ticket===ticket && m.phase==='done'){
-        if(m.ok)done(resolve,true);
-        else done(reject,fail('HA에서 신호 전송을 확인하지 못했습니다.'));
+        done(resolve,m.ok);
       }
     },()=>done(reject,fail('HA 명령 확인 연결이 끊겼습니다.',502)));
   });
@@ -62,13 +58,25 @@ function createLocalControl({database,env,notify}){
     if(!batchOK(id)||!['up','down','stop','check'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
     const r=await read(),s=stateFrom(r,id,env);
     if(['up','down'].includes(action))ensureReady(s);
-    if(!r?.session||Date.now()-r.receivedAt>=freshMs)throw fail('농장 HA 연결이 끊겼습니다.');
-    const ref=mailbox(database(),id),ticket=crypto.randomUUID(),expires=Date.now()+validMs;
+    if(!r?.session)throw fail('농장 HA에 등록된 신호 수신 세션이 없습니다.');
+    const ref=mailbox(database(),id);
+    // The caller holds the batch lock. Never overwrite a live, unconsumed ticket.
+    const previous=(await ref.get()).data();
+    if(previous?.session===r.session && previous.phase!=='done'){
+      const remaining=previous.expires+3500-Date.now();
+      if(remaining>0){
+        if(action!=='stop')throw fail('이 배치의 앞선 신호를 처리 중입니다.');
+        await waitResult(ref,previous.ticket,remaining);
+      }
+    }
+    const ticket=crypto.randomUUID(),expires=Date.now()+validMs;
     await ref.set({action,ticket,expires,session:r.session,phase:'waiting'});
     // This public RTDB leaf is only a signed wake-up. It cannot authorize a command.
     await notify(id,{ticket,mac:sign(r.session,id,ticket)});
-    await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500));
-    return {accepted:true,batchId:id,action,message:'HA 로컬 채널에 신호를 전달했습니다.'};
+    if(action==='check' && !await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500))){
+      throw fail('HA 연결 진단 응답을 받지 못했습니다.',504);
+    }
+    return {accepted:true,batchId:id,action,message:action==='check'?'HA 연결 진단 완료':'신호 요청을 보냈습니다.'};
   };
   return {source:'ha-localtuya/signals',getState,ensureReady,move,check:id=>move('check',id)};
 }

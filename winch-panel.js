@@ -14,7 +14,7 @@
     <p id="winch-status" role="status" class="text-sm text-slate-700 mt-3">상단에서 한 번 연결하면 등록된 육성 배치의 윈치를 사용할 수 있습니다.</p>
     <button id="winch-refresh" hidden class="text-sm underline mt-2">전체 상태 새로고침</button>
     <button id="winch-diagnose" hidden class="text-sm underline mt-2 ml-3">등록된 윈치 연결 진단</button><p id="winch-diagnostic" role="status" class="text-sm text-red-700 mt-2 whitespace-pre-line break-words"></p>
-    <p class="text-xs text-slate-500 mt-2">장치의 자동 꺼짐 설정을 사용합니다. 표시 상태는 릴레이 출력이며 실제 윈치 위치가 아닙니다. 화면 잠금·브라우저 종료 후에도 설정한 자동 운전은 계속됩니다.</p>
+    <p class="text-xs text-slate-500 mt-2">올림·내림 버튼은 해당 배치에 신호를 한 번 보냅니다. 화면을 닫아도 설정한 자동 운전은 계속됩니다.</p>
     <dialog id="winch-auto-dialog" aria-labelledby="winch-auto-title" class="rounded-2xl p-5 w-[min(94vw,480px)] max-h-[90vh] overflow-y-auto shadow-xl backdrop:bg-black/50">
       <div class="flex justify-between items-center gap-3"><h3 id="winch-auto-title" class="font-bold text-lg">자동 운전 설정</h3><button id="winch-auto-close" class="border rounded px-3 py-1">닫기</button></div>
       <p class="text-sm text-slate-600 mt-3">서버에서 <b>5분마다</b> 확인합니다. 기준 온도를 상승·하강 방향으로 통과할 때 한 번 작동합니다. 같은 온도에서는 반복하지 않습니다.</p>
@@ -72,22 +72,9 @@
   function connectionStatus(){
     const failed=[...batches.values()].filter(batch=>!batch.state||batch.state.error||batch.state.autoError).length;
     pollDelay=failed?ERROR_POLL_MS:STATUS_POLL_MS;
-    status(failed?`${authenticated?'로그인됨':'조회 모드'} · ${failed}개 배치 상태 확인 실패 · 5분 후 자동 재확인합니다. 각 배치의 오류를 확인하세요.`:
-      `${authenticated?'제어 연결됨':'조회 모드 · 제어 잠김'} · 등록된 윈치 ${batches.size}개 · 상태는 1분마다 갱신됩니다.`);
+    status(`${authenticated?'제어 연결됨':'조회 모드 · 제어 잠김'} · 등록된 윈치 ${batches.size}개`);
   }
-  const canMove = batch => authenticated && batch && !batch.busy && !batch.state?.error && batch.state?.online &&
-    batch.state?.enabled && batch.state?.safetyMatches && batch.state.up === false && batch.state.down === false;
-  function describe(state) {
-    if (!state) return '상태 확인 중…';
-    if (state.error) return state.error;
-    if (!state.online) return state.bridgeFresh===false?'농장 HA 상태 보고 지연':'배치 응답 미확인';
-    const output=state.up === false && state.down === false ? '' :
-      state.up === true && state.down === false ? '올림 출력 ON' :
-      state.down === true && state.up === false ? '내림 출력 ON' : '출력 상태 불확실 · 현장 확인 필요';
-    const issue=Array.isArray(state.safetyIssues)&&state.safetyIssues.length?state.safetyIssues.join(' / '):'안전 설정 미확인';
-    const warning=!state.enabled?'제어 활성화 대기':!state.safetyMatches?issue+' · 올림·내림 잠김':'';
-    return [output,warning].filter(Boolean).join(' · ');
-  }
+  const canMove = batch => authenticated && batch?.enabled && !batch.busy;
   function showNote(element, text) {
     element.textContent = text;
     element.hidden = !text;
@@ -95,7 +82,7 @@
   function render() {
     document.querySelectorAll('[data-winch-batch]').forEach(panel => {
       const id = panel.dataset.winchBatch, batch = batches.get(id);
-      const note = batch ? batch.message || describe(batch.state) : authenticated ? '윈치 미등록 · 연결 예정' : '';
+      const note = batch ? batch.message : authenticated ? '윈치 미등록 · 연결 예정' : '';
       showNote(panel.querySelector('[data-winch-message]'), note);
       panel.querySelectorAll('[data-winch-action]').forEach(button => {
         const action = button.dataset.winchAction;
@@ -110,8 +97,6 @@
         autoButton.textContent=batch?.state?.auto?.enabled?(batch.state.auto.paused?'자동 보류':'자동 운전 중'):'자동 설정';
         autoButton.onclick=event=>{event.stopPropagation();openAuto(id);};
       }
-      const autoMessage=panel.querySelector('[data-winch-auto-message]');
-      if(autoMessage)showNote(autoMessage, batch?.state?.autoError || autoDetail(batch?.state?.auto));
     });
   }
   function cardHtml(id) {
@@ -123,7 +108,7 @@
         <button type="button" data-winch-action="down" aria-label="육성 ${id}배치 윈치 내림" disabled class="bg-blue-600 text-white rounded-lg py-2 px-1 text-xs font-bold disabled:opacity-35 disabled:cursor-not-allowed">▼ 내림</button>
       </div><p data-winch-message role="status" hidden class="text-[10px] leading-snug text-slate-500 mt-2 break-keep"></p>
       <button type="button" data-winch-auto disabled aria-label="육성 ${id}배치 자동 설정" class="mt-2 w-full border border-green-600 text-green-800 rounded py-1.5 text-xs font-bold disabled:opacity-35">자동 설정</button>
-      <p data-winch-auto-message hidden class="text-[10px] leading-snug text-slate-500 mt-1 break-keep"></p></div>`;
+      </div>`;
   }
   async function api(action, batchId, extra={}) {
     const response = await fetch('/.netlify/functions/winch', {
@@ -141,7 +126,7 @@
       if (!/^[1-7]$/.test(id)) continue;
       const current = batches.get(id);
       if (current && (current.busy || current.version !== versions.get(id))) continue;
-      batches.set(id, { ...current, state, message: '', version: current?.version || 0,
+      batches.set(id, { ...current, state, enabled:state.enabled ?? current?.enabled, message: '', version: current?.version || 0,
         upSeconds: state.upSeconds, downSeconds: state.downSeconds });
     }
     for (const id of batches.keys()) if (!Object.hasOwn(data.batches, id)) batches.delete(id);
@@ -169,10 +154,6 @@
       if (ticket !== epoch || requestId !== refreshId) return;
       if (error.status === 401) { lock(error.message); return; }
       pollDelay=ERROR_POLL_MS;
-      for (const [id, batch] of batches) if (!batch.busy && batch.version === versions.get(id)) {
-        batch.state = null; batch.message = error.message;
-      }
-      status(error.message+' · 5분 후 자동 재확인합니다.');
     } finally { if(refreshingEpoch===ticket)refreshingEpoch=null; }
     render();
     if(ticket===epoch)poll();
@@ -189,7 +170,7 @@
     if (!authenticated || !batch || (action !== 'stop' && !canMove(batch))) return;
     if (action !== 'stop' && !window.confirm(`육성 ${id}배치 윈치를 ${batch[action + 'Seconds']}초 ${action === 'up' ? '올림' : '내림'} 신호를 보낼까요? 실제 움직임은 현장에서 판단합니다. 자동 운전 중이면 5분 뒤 새 온도부터 다시 감시합니다.`)) return;
     const ticket = epoch, version = ++batch.version;
-    batch.busy = true; batch.state = null; batch.message = '명령 전달 중…'; render();
+    batch.busy = true; batch.message = '신호 요청 중…'; render();
     try {
       const result = await api(action, id);
       if (ticket === epoch && version === batch.version) batch.message = result.message;
@@ -205,14 +186,8 @@
       }
     }
   }
-  function autoDetail(auto){
-    const reason=auto?.reason;
-    if(!reason || ['기준 온도 대기','온도 변화 감시 대기','자동 운전 대기 · 5분 후부터 확인'].includes(reason))return '';
-    return reason;
-  }
   function autoSummary(auto){
-    const mode=auto.enabled?(auto.paused?'자동 보류':'자동 운전 중'):'자동 설정 대기';
-    return [mode,autoDetail(auto)].filter(Boolean).join(' · ');
+    return auto.enabled?(auto.paused?'자동 보류':'자동 운전 중'):'자동 설정 대기';
   }
   function closeAuto(){autoView++;autoBatch=null;autoReady=false;autoBusy=false;$('auto-dialog').close();}
   function autoButtons(){

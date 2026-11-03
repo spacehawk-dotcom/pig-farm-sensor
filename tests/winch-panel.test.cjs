@@ -38,26 +38,20 @@ function fixture() {
   return {nodes,panels,calls,timers,render,login,click,setReply:fn=>{reply=fn;},context};
 }
 
-test('cards distinguish an unresponsive batch from a missing HA report',async()=>{
+test('authenticated signal controls remain usable without HA reports or status banners',async()=>{
   const f=fixture();await f.login();
   for(const bridgeFresh of [true,false]){
-    f.setReply(async()=>response({batches:{'1':{online:false,bridgeFresh},'2':{...healthy,online:bridgeFresh,bridgeFresh}}}));
+    f.setReply(async()=>response({batches:{'2':{...healthy,online:false,bridgeFresh,safetyMatches:false,
+      auto:{enabled:true,paused:false,reason:'신호 전송 미확인 · 자동 감시 유지'}}}}));
     await f.nodes['winch-refresh'].onclick();
-    assert.match(f.panels[0].message.textContent,bridgeFresh?/배치 응답 미확인/:/HA 상태 보고 지연/);
-    assert.equal(f.panels[1].message.textContent,bridgeFresh?'':'농장 HA 상태 보고 지연');
-    assert.equal(f.panels[1].message.hidden,bridgeFresh);
-  }
-});
-
-test('automatic monitoring is quiet while waiting and shows a delivery issue',async()=>{
-  const f=fixture();await f.login();
-  for(const [reason,hidden] of [['기준 온도 대기',true],['신호 전송 미확인 · 자동 감시 유지',false]]){
-    f.setReply(async()=>response({batches:{'2':{...healthy,auto:{enabled:true,paused:false,reason}}}}));
-    await f.nodes['winch-refresh'].onclick();
-    assert.equal(f.panels[1].autoMessage.hidden,hidden);
-    assert.equal(f.panels[1].autoMessage.textContent,hidden?'':reason);
+    assert.equal(f.panels[1].message.hidden,true);
     assert.equal(f.panels[1].autoButton.textContent,'자동 운전 중');
+    assert.equal(f.panels[1].buttons[0].disabled,false);
+    assert.equal(f.panels[1].buttons[2].disabled,false);
   }
+  f.setReply(async()=>response({message:'신호 요청을 보냈습니다.'}));
+  f.click(2,'up');await new Promise(r=>setImmediate(r));
+  assert.deepEqual(f.calls.filter(c=>c.action==='up'),[{action:'up',batchId:'2'}]);
 });
 
 test('stop refreshes the open popup and enables resume only after healthy paused status',async()=>{
@@ -88,8 +82,8 @@ test('healthy status polls once per minute and batch errors back off to five min
   f.setReply(async()=>response({batches:{'2':{error:'Firestore 사용량 한도 (8)',upSeconds:5,downSeconds:6}}}));
   await f.timers.at(-1).fn();
   assert.equal(f.timers.at(-1).ms,300000);
-  assert.match(f.nodes['winch-status'].textContent,/상태 확인 실패/);
-  assert.equal(f.panels[1].buttons[0].disabled,true);
+  assert.doesNotMatch(f.nodes['winch-status'].textContent,/상태 확인 실패/);
+  assert.equal(f.panels[1].buttons[0].disabled,false);
   f.setReply(async()=>response({batches:{'2':healthy}}));
   await f.nodes['winch-refresh'].onclick();
   assert.equal(f.timers.at(-1).ms,60000);
@@ -105,7 +99,7 @@ test('failed requests back off and concurrent refresh clicks share the in-flight
   await f.nodes['winch-refresh'].onclick();assert.equal(f.calls.length,before);
   resolve(response({error:'저장소 사용량 한도'},503));await pending;
   assert.equal(f.timers.at(-1).ms,300000);
-  assert.equal(f.panels[1].buttons[0].disabled,true);
+  assert.equal(f.panels[1].buttons[0].disabled,false);
 });
 
 test('hidden pages skip automatic status reads',async()=>{
@@ -128,7 +122,7 @@ test('one login unlocks only registered safe batches and survives sensor rerende
   f.setReply(async()=>response({accepted:true,message:'명령 전달됨'}));f.click(2,'up');
   await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(f.calls.at(-1),{action:'up',batchId:'2'});
-  assert.equal(f.panels[1].buttons[0].disabled,true);
+  assert.equal(f.panels[1].buttons[0].disabled,false);
   f.nodes['winch-lock'].onclick();assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
 });
 test('one login unlocks all seven registered batches and diagnostics never actuates',async()=>{
@@ -150,22 +144,22 @@ test('late login response cannot unlock after manual lock',async()=>{
   f.nodes['winch-lock'].onclick();resolve(response({batches:{'2':healthy}}));await pending;
   assert.equal(f.nodes['winch-login'].style.display,'');assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
 });
-test('stale polling response cannot re-enable a batch after a movement request',async()=>{
+test('stale polling response cannot clear a newer signal receipt',async()=>{
   const f=fixture();await f.login();let resolve;
   f.setReply(()=>new Promise(r=>{resolve=r;}));const pending=f.nodes['winch-refresh'].onclick();
   f.setReply(async()=>response({accepted:true,message:'명령 전달됨'}));f.click(2,'down');
   await new Promise(r=>setImmediate(r));resolve(response({batches:{'2':healthy}}));await pending;
-  assert.equal(f.panels[1].buttons[0].disabled,true);
-  assert.equal(f.panels[1].buttons[2].disabled,true);
+  assert.equal(f.panels[1].buttons[0].disabled,false);
+  assert.equal(f.panels[1].message.textContent,'명령 전달됨');
 });
 test('lost authentication relocks every batch',async()=>{
   const f=fixture();await f.login();f.setReply(async()=>response({error:'인증 실패'},401));await f.nodes['winch-refresh'].onclick();
   assert.equal(f.nodes['winch-login'].style.display,'');assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
 });
-test('offline or unsafe batches cannot move but retain stop',async()=>{
+test('only commissioned batches can submit movement signals; stop stays available',async()=>{
   for(const changes of [{online:false},{enabled:false},{safetyMatches:false},{up:true},{error:'연결 실패'}]){
     const f=fixture();f.setReply(async()=>response({batches:{'2':{...healthy,...changes}}}));await f.login();
-    assert.equal(f.panels[1].buttons[0].disabled,true);assert.equal(f.panels[1].buttons[1].disabled,false);assert.equal(f.panels[1].buttons[2].disabled,true);
+    assert.equal(f.panels[1].buttons[0].disabled,changes.enabled===false);assert.equal(f.panels[1].buttons[1].disabled,false);assert.equal(f.panels[1].buttons[2].disabled,changes.enabled===false);
   }
 });
 
