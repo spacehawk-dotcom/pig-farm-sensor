@@ -1,4 +1,3 @@
-const crypto = require('node:crypto');
 const DEVICE = 'bfb4be1d3b42f4b899zcv2';
 // Grower 2 read on 2026-10-22: channel 3 ON/5s, channel 2 ON/6s.
 // Confirmed Smart Life configuration snapshot; never rewrite these settings.
@@ -23,7 +22,6 @@ const WINCHES = Object.freeze({
   '7': {deviceId:'bf2fc7c86f8148ef80xom4',upChannel:'switch_1',downChannel:'switch_2',upSeconds:5,downSeconds:6,
     safety:CHANNEL_12_SAFETY,enabledEnv:'WINCH_7_SAFETY_CONFIRMED',haSensorKey:'육성_7배치'}
 });
-const digest = value => crypto.createHash('sha256').update(value).digest();
 const fail = (message, status=409) => Object.assign(new Error(message),{status});
 
 function createDeviceControl({env,request,registry=WINCHES,sleep=ms=>new Promise(r=>setTimeout(r,ms))}) {
@@ -83,10 +81,8 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
       }));
       return reply(200,{batches});
     }
-    const password=env.WINCH_CONTROL_PASSWORD || '';
-    if(password.length<10||!/[A-Za-z]/.test(password)||!/[0-9]/.test(password))return reply(503,{error:'서버의 윈치 제어 비밀번호는 영문과 숫자를 포함한 10자 이상이어야 합니다.'});
-    const supplied=event.headers?.['x-winch-password'] || '';
-    if(typeof supplied!=='string'||!crypto.timingSafeEqual(digest(supplied),digest(password)))return reply(401,{error:'제어 비밀번호를 확인하세요.'});
+    // The farm owner explicitly allows all site visitors to use these controls.
+    // HA worker authentication is separate and remains required.
     if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics','offsets_get','offsets_save'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
     // Preserve requests from the previous single-winch UI during deployment.
     if(batchId===undefined)batchId='2';

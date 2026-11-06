@@ -23,7 +23,9 @@ HA는 기기 ID와 채널의 LocalTuya 고유 ID로 스위치를 찾는다. 출�
 
 ## 서버와 자동 운전
 
-- 운영 환경에는 기존 `WINCH_CONTROL_PASSWORD`, `WINCH_FIREBASE_SERVICE_ACCOUNT`, 배치별 `WINCH_*SAFETY_CONFIRMED`가 필요하다. 2배치는 `WINCH_SAFETY_CONFIRMED`, 나머지는 `WINCH_N_SAFETY_CONFIRMED`다.
+- 농장 소유자의 요청으로 사이트 방문자 모두 비밀번호 없이 수동 제어와 자동 운전 설정을 사용할 수 있다. `WINCH_CONTROL_PASSWORD`는 더 이상 사용하지 않는다. HA 전용 연결 키와 명령 서명 검증은 유지한다.
+
+- 운영 환경에는 `WINCH_FIREBASE_SERVICE_ACCOUNT`, 배치별 `WINCH_*SAFETY_CONFIRMED`가 필요하다. 2배치는 `WINCH_SAFETY_CONFIRMED`, 나머지는 `WINCH_N_SAFETY_CONFIRMED`다.
 - Firestore의 `winch_server_locks`와 그 하위 경로는 클라이언트 읽기·쓰기를 차단해야 한다. 공개 RTDB의 `winch_local_wakeup`에는 일회성 알림만 올라간다. HA는 세션 서명을 검증한 후 전용 HTTPS 함수에서 명령을 한 번만 수령한다. 10초가 지난 명령은 실행하지 않으며 결과가 불확실한 명령은 재전송하지 않는다. 90초가 지난 HA 상태는 오프라인이다.
 - 설정 온도는 각 배치 1그룹 값, 편차는 서버에 저장한 올림 3개·내림 3개를 사용한다. HA가 올린 온도는 센서 수신 시각이 15분 이상 지나면 사용하지 않는다. 시작·재개와 제어 경로 전환 후 첫 정상 측정은 기준 온도로만 기록한다.
 - 자동 운전 중 수동 올림·내림을 하면 5분 후 온도 판단을 재개한다. 수동 정지는 자동 운전을 보류한다. 브라우저를 닫아도 서버에서 5분마다 확인한다. 전송 응답을 받지 못해도 자동 운전은 유지된다. 같은 온도에서 재전송하지 않고 다음 기준 통과를 감시한다. 변경 전에 보류된 배치는 그대로 유지되며 사용자가 재개할 수 있다.

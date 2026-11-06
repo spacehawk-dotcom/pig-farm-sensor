@@ -35,14 +35,12 @@ test('offset store persists atomically and rejects stale saves without overwriti
   await assert.rejects(()=>store.save({up:[1,2,3],down:[-1,-2,-3]},0),/다른 화면/);
   assert.deepEqual(saved.offsets,valid);assert(paths.every(path=>path==='winch_server_locks/temperature_offsets'));
 });
-test('offset APIs authenticate every read and save and never contact a device',async()=>{
+test('public offset APIs read and save without contacting a device',async()=>{
   const calls=[];
   const handler=createHandler({env:{WINCH_CONTROL_PASSWORD:'Abcde12345'},request:async()=>{throw Error('device must not be contacted');},
     offsetStore:{read:async()=>{calls.push('read');return {configured:false,revision:0};},
       save:async(offsets,revision)=>{calls.push({offsets,revision});return {configured:true,revision:1};}}});
-  const send=(action,password='Abcde12345')=>handler({httpMethod:'POST',headers:{'x-winch-password':password},body:JSON.stringify({action,offsets:valid,revision:0})});
-  for(const action of ['offsets_get','offsets_save'])assert.equal((await send(action,'wrong')).statusCode,401);
-  assert.equal(calls.length,0);
+  const send=action=>handler({httpMethod:'POST',body:JSON.stringify({action,offsets:valid,revision:0})});
   assert.equal((await send('offsets_get')).statusCode,200);
   assert.equal((await send('offsets_save')).statusCode,200);
   assert.deepEqual(calls,['read',{offsets:valid,revision:0}]);

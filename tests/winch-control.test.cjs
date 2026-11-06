@@ -24,26 +24,27 @@ function fixture(overrides={}){
   const send=(action,password=env.WINCH_CONTROL_PASSWORD,batchId)=>handler({httpMethod:'POST',headers:{'x-winch-password':password},body:JSON.stringify({action,batchId})});
   return {calls,send,env};
 }
-test('unauthorized requests never contact device',async()=>{const f=fixture();assert.equal((await f.send('up','wrong')).statusCode,401);assert.equal(f.calls.length,0);});
+test('all supported controls are public without a password or configured password',async()=>{
+  const calls=[];
+  const handler=createHandler({env:{},withLock:async(_,fn)=>fn(),
+    control:{getState:async()=>({enabled:true}),move:async(action,id)=>{calls.push(action);return {accepted:true};},check:async()=>{}},
+    automation:{status:async()=>({enabled:true}),probe:async()=>({}),enable:async()=>{calls.push('auto_on');return {};},
+      manual:async(action)=>{calls.push(action);return {accepted:true};}},
+    offsetStore:{read:async()=>({revision:0}),save:async()=>({revision:1})}});
+  for(const action of ['monitor','status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics','offsets_get','offsets_save']){
+    const result=await handler({httpMethod:'POST',body:JSON.stringify({action,batchId:'2'})});
+    assert.equal(result.statusCode,200,action);
+  }
+  assert.deepEqual(calls,['up','down','stop','auto_on','stop']);
+});
 test('monitor without password reads states but never sends device commands',async()=>{
   const f=fixture();const result=await f.send('monitor','');
   assert.equal(result.statusCode,200);
   assert.equal(JSON.parse(result.body).batches['2'].up,false);
   assert(f.calls.every(call=>call.method==='GET'));
   assert(!result.body.includes('deviceId'));
-  for(const action of ['up','down','stop','auto_on','auto_off','offsets_save','diagnostics']){
-    const before=f.calls.length;
-    assert.equal((await f.send(action,'')).statusCode,401);
-    assert.equal(f.calls.length,before);
-  }
 });
-test('password policy accepts ten mixed characters and rejects weak configuration',async()=>{
-  const valid=fixture();assert.equal((await valid.send('status')).statusCode,200);
-  for(const password of ['Abcd12345','abcdefghij','1234567890','']){
-    const f=fixture();f.env.WINCH_CONTROL_PASSWORD=password;
-    assert.equal((await f.send('status')).statusCode,503);assert.equal(f.calls.length,0);
-  }
-});
+
 test('up/down use confirmed Tuya channels after OFF and status check',async()=>{
   for(const [action,channel] of [['up','switch_3'],['down','switch_2']]){
     const f=fixture();assert.equal((await f.send(action)).statusCode,200);
@@ -56,10 +57,8 @@ test('changed safety or moving relay blocks movement',async()=>{for(const value 
 test('disabled commissioning blocks movement but permits stop',async()=>{const f=fixture();f.env.WINCH_SAFETY_CONFIRMED='false';assert.equal((await f.send('down')).statusCode,409);assert.equal((await f.send('stop')).statusCode,200);assert(f.calls.filter(c=>c.method==='POST').every(c=>c.body.commands.every(x=>x.value===false)));});
 test('invalid action never contacts device',async()=>{const f=fixture();assert.equal((await f.send('all_on')).statusCode,400);assert.equal(f.calls.length,0);});
 
-test('one authenticated status request returns registered batches without commands',async()=>{
+test('one public status request returns registered batches without commands',async()=>{
   const f=fixture();
-  assert.equal((await f.send('status_all','wrong')).statusCode,401);
-  assert.equal(f.calls.length,0);
   const response=await f.send('status_all');
   assert.equal(response.statusCode,200);
   const {batches}=JSON.parse(response.body);
@@ -81,10 +80,8 @@ test('unregistered or malformed batch IDs never reach any device',async()=>{
   }
 });
 
-test('automatic setup and diagnostics require authentication and diagnostics never issues commands',async()=>{
+test('public diagnostics never issues commands',async()=>{
   const f=fixture();
-  for(const action of ['auto_status','auto_on','auto_off','diagnostics'])assert.equal((await f.send(action,'wrong','2')).statusCode,401);
-  assert.equal(f.calls.length,0);
   const result=await f.send('diagnostics',f.env.WINCH_CONTROL_PASSWORD,'2');
   assert.equal(result.statusCode,200);assert(f.calls.every(c=>c.method==='GET'));
 });

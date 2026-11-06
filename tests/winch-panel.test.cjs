@@ -5,23 +5,14 @@ const vm = require('node:vm');
 const source = fs.readFileSync(require.resolve('../winch-panel.js'), 'utf8');
 const healthy = {online:true,enabled:true,safetyMatches:true,up:false,down:false,upSeconds:5,downSeconds:6};
 const response = (data,status=200) => ({ok:status===200,status,headers:{get:()=> 'application/json'},json:async()=>data});
-test('locked monitoring shows batch state while all control actions remain disabled',async()=>{
-  const f=fixture();await new Promise(resolve=>setImmediate(resolve));f.render();
-  assert.equal(f.calls[0].action,'monitor');
-  assert.equal(f.panels[1].message.hidden,true);
-  assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
-  assert(f.panels.every(p=>p.autoButton.disabled));
-  assert.match(source,/<details[^>]*><summary/);
-  await f.login();f.nodes['winch-lock'].onclick();
-  assert.equal(f.panels[1].message.hidden,true);
-});
+
 test('cards show persistent request history and omit the four removed instructions',async()=>{
   const f=fixture();
   f.setReply(async()=>response({batches:{'2':{...healthy,signalHistory:[
     {at:Date.parse('2026-11-06T03:00:00Z'),action:'up',mode:'auto',temperature:26,status:'sent'},
     {at:Date.parse('2026-11-06T02:00:00Z'),action:'stop',mode:'manual',status:'registered'}
   ]}}}));
-  await f.login();f.render();
+  await f.ready();f.render();
   assert.match(f.panels[1].history.textContent,/자동 올림 5초 · 26℃ · 신호 요청/);
   assert.match(f.panels[1].history.textContent,/수동 정지 · 요청 등록/);
   assert.match(f.panels[1].history.textContent,/12:00:00/);
@@ -31,7 +22,7 @@ test('cards show persistent request history and omit the four removed instructio
   }
 });
 function fixture() {
-  const nodes = Object.fromEntries(['offset-form','offset-save','offset-load','offset-status','offset-up-1','offset-up-2','offset-up-3','offset-down-1','offset-down-2','offset-down-3','panel','login','password','connect','lock','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-up3','auto-down1','auto-down2','auto-down3','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,checkValidity(){return true;},showModal(){this.open=true;},close(){this.open=false;}}]));
+  const nodes = Object.fromEntries(['offset-form','offset-save','offset-load','offset-status','offset-up-1','offset-up-2','offset-up-3','offset-down-1','offset-down-2','offset-down-3','panel','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-up3','auto-down1','auto-down2','auto-down3','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,checkValidity(){return true;},showModal(){this.open=true;},close(){this.open=false;}}]));
   const panels = Array.from({length:7},(_,i)=>{
     const message = {textContent:''};
     const buttons = ['up','stop','down'].map(action=>({dataset:{winchAction:action},disabled:true}));
@@ -48,13 +39,13 @@ function fixture() {
   });
   vm.runInContext(source,context);
   const render=()=>context.window.FarmWinch.render();
-  const login=async()=>{nodes['winch-password'].value='not-a-real-password';await nodes['winch-login'].onsubmit({preventDefault(){}});};
+  const ready=async()=>{await new Promise(resolve=>setImmediate(resolve));await nodes['winch-refresh'].onclick();};
   const click=(id,action)=>panels[id-1].buttons.find(b=>b.dataset.winchAction===action).onclick({stopPropagation(){}});
-  return {nodes,panels,calls,timers,render,login,click,setReply:fn=>{reply=fn;},context};
+  return {nodes,panels,calls,timers,render,ready,click,setReply:fn=>{reply=fn;},context};
 }
 
-test('authenticated signal controls remain usable without HA reports or status banners',async()=>{
-  const f=fixture();await f.login();
+test('public signal controls remain usable without HA reports or status banners',async()=>{
+  const f=fixture();await f.ready();
   for(const bridgeFresh of [true,false]){
     f.setReply(async()=>response({batches:{'2':{...healthy,online:false,bridgeFresh,safetyMatches:false,
       auto:{enabled:true,paused:false,reason:'신호 전송 미확인 · 자동 감시 유지'}}}}));
@@ -71,7 +62,7 @@ test('authenticated signal controls remain usable without HA reports or status b
 
 test('stop refreshes the open popup and enables resume only after healthy paused status',async()=>{
   for(const sensorError of [undefined,'센서 갱신 지연']){
-    const f=fixture();await f.login();
+    const f=fixture();await f.ready();
     const settings={targetTemperature:24,up:[24.3,25.5,27],down:[23.7,22.5,21]};
     const sample={temperature:24,measuredAt:1800000000000};
     f.setReply(async()=>response({auto:{enabled:true,paused:false},settings,sample}));
@@ -93,7 +84,7 @@ test('stop refreshes the open popup and enables resume only after healthy paused
 });
 
 test('healthy status polls once per minute and batch errors back off to five minutes',async()=>{
-  const f=fixture();await f.login();assert.equal(f.timers.at(-1).ms,60000);
+  const f=fixture();await f.ready();assert.equal(f.timers.at(-1).ms,60000);
   f.setReply(async()=>response({batches:{'2':{error:'Firestore 사용량 한도 (8)',upSeconds:5,downSeconds:6}}}));
   await f.timers.at(-1).fn();
   assert.equal(f.timers.at(-1).ms,300000);
@@ -107,7 +98,7 @@ test('healthy status polls once per minute and batch errors back off to five min
 });
 
 test('failed requests back off and concurrent refresh clicks share the in-flight request',async()=>{
-  const f=fixture();await f.login();let resolve;
+  const f=fixture();await f.ready();let resolve;
   f.setReply(()=>new Promise(r=>{resolve=r;}));
   const pending=f.nodes['winch-refresh'].onclick();
   const before=f.calls.length;
@@ -118,19 +109,13 @@ test('failed requests back off and concurrent refresh clicks share the in-flight
 });
 
 test('hidden pages skip automatic status reads',async()=>{
-  const f=fixture();await f.login();f.context.document.hidden=true;
+  const f=fixture();await f.ready();f.context.document.hidden=true;
   const before=f.calls.length;await f.timers.at(-1).fn();
   assert.equal(f.calls.length,before);
 });
-test('failed authentication keeps login visible and all batch controls locked',async()=>{
-  const f=fixture();f.setReply(async()=>response({error:'제어 비밀번호를 확인하세요.'},401));await f.login();
-  assert.equal(f.nodes['winch-login'].style.display,'');
-  assert.equal(f.nodes['winch-password'].value,'');
-  assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
-});
-test('one login unlocks only registered safe batches and survives sensor rerender',async()=>{
-  const f=fixture();await f.login();f.render();
-  assert.equal(f.nodes['winch-login'].style.display,'');
+
+test('page load enables only registered safe batches and survives sensor rerender',async()=>{
+  const f=fixture();await f.ready();f.render();
   assert(f.panels[1].buttons.every(b=>!b.disabled));
   for(const i of [0,2,3,4,5,6])assert(f.panels[i].buttons.every(b=>b.disabled));
   assert.match(f.panels[0].message.textContent,/미등록/);
@@ -138,48 +123,39 @@ test('one login unlocks only registered safe batches and survives sensor rerende
   await new Promise(resolve=>setImmediate(resolve));
   assert.deepEqual(f.calls.at(-1),{action:'up',batchId:'2'});
   assert.equal(f.panels[1].buttons[0].disabled,false);
-  f.nodes['winch-lock'].onclick();assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
 });
-test('one login unlocks all seven registered batches and diagnostics never actuates',async()=>{
+test('page load enables all seven registered batches and diagnostics never actuates',async()=>{
   const f=fixture();
   const batches=Object.fromEntries(['1','2','3','4','5','6','7'].map(id=>[id,{...healthy}]));
-  f.setReply(async()=>response({batches}));await f.login();f.render();
+  f.setReply(async()=>response({batches}));await f.ready();f.render();
   for(const panel of f.panels)assert(panel.buttons.every(b=>!b.disabled));
   f.setReply(async()=>response({state:{...healthy},message:'진단 정상'}));
   await f.nodes['winch-diagnose'].onclick();
   const diagnosticCalls=f.calls.filter(c=>c.action==='diagnostics');
-  assert.deepEqual(diagnosticCalls.map(c=>c.batchId),['1','2','3','4','5','6','7']);
+  assert.deepEqual(diagnosticCalls.map(c=>c.batchId).sort(),['1','2','3','4','5','6','7']);
   assert(f.calls.every(c=>['monitor','status_all','offsets_get','diagnostics'].includes(c.action)));
   assert.match(f.nodes['winch-diagnostic'].textContent,/육성 1배치: 진단 정상/);
   assert.match(f.nodes['winch-diagnostic'].textContent,/육성 7배치: 진단 정상/);
 });
-test('late login response cannot unlock after manual lock',async()=>{
-  const f=fixture();let resolve;
-  f.setReply(()=>new Promise(r=>{resolve=r;}));const pending=f.login();
-  f.nodes['winch-lock'].onclick();resolve(response({batches:{'2':healthy}}));await pending;
-  assert.equal(f.nodes['winch-login'].style.display,'');assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
-});
+
 test('stale polling response cannot clear a newer signal receipt',async()=>{
-  const f=fixture();await f.login();let resolve;
+  const f=fixture();await f.ready();let resolve;
   f.setReply(()=>new Promise(r=>{resolve=r;}));const pending=f.nodes['winch-refresh'].onclick();
   f.setReply(async()=>response({accepted:true,message:'명령 전달됨'}));f.click(2,'down');
   await new Promise(r=>setImmediate(r));resolve(response({batches:{'2':healthy}}));await pending;
   assert.equal(f.panels[1].buttons[0].disabled,false);
   assert.equal(f.panels[1].message.textContent,'명령 전달됨');
 });
-test('lost authentication relocks every batch',async()=>{
-  const f=fixture();await f.login();f.setReply(async()=>response({error:'인증 실패'},401));await f.nodes['winch-refresh'].onclick();
-  assert.equal(f.nodes['winch-login'].style.display,'');assert(f.panels.every(p=>p.buttons.every(b=>b.disabled)));
-});
+
 test('only commissioned batches can submit movement signals; stop stays available',async()=>{
   for(const changes of [{online:false},{enabled:false},{safetyMatches:false},{up:true},{error:'연결 실패'}]){
-    const f=fixture();f.setReply(async()=>response({batches:{'2':{...healthy,...changes}}}));await f.login();
+    const f=fixture();f.setReply(async()=>response({batches:{'2':{...healthy,...changes}}}));await f.ready();
     assert.equal(f.panels[1].buttons[0].disabled,changes.enabled===false);assert.equal(f.panels[1].buttons[1].disabled,false);assert.equal(f.panels[1].buttons[2].disabled,changes.enabled===false);
   }
 });
 
 test('auto popup starts without a stage and opening never actuates',async()=>{
-  const f=fixture();await f.login();
+  const f=fixture();await f.ready();
   f.setReply(async()=>response({auto:{enabled:false,stage:null,reason:'수동'},settings:{targetTemperature:26,up:[26.3,27.5,29],down:[25.7,24.5,23]},sample:{temperature:24,measuredAt:1800000000000}}));
   f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
   assert.equal(f.nodes['winch-auto-dialog'].open,true);assert.equal(f.calls.at(-1).action,'auto_status');
@@ -197,14 +173,14 @@ test('sensor errors and already enabled automatic mode block start',async()=>{
     {auto:{enabled:false},sample:{temperature:24,measuredAt:1800000000000},settingsError:'설정값 없음'},
     {auto:{enabled:false},sample:{temperature:24,measuredAt:1800000000000}},
     {auto:{enabled:true,stage:1},settings:{targetTemperature:24,up:[24.3,25.5,27],down:[23.7,22.5,21]},sample:{temperature:24,measuredAt:1800000000000}}]){
-    const f=fixture();await f.login();f.setReply(async()=>response(data));
+    const f=fixture();await f.ready();f.setReply(async()=>response(data));
     f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
     assert.equal(f.nodes['winch-auto-start'].disabled,true);
   }
 });
 
 test('paused automatic mode can resume without entering a position',async()=>{
-  const f=fixture();await f.login();
+  const f=fixture();await f.ready();
   f.setReply(async()=>response({auto:{enabled:true,paused:true,stage:null,reason:'현재 단계 확인'},
     settings:{targetTemperature:23,up:[23.3,24.5,26],down:[22.7,21.5,20]},sample:{temperature:24,measuredAt:1800000000000}}));
   f.panels[1].autoButton.onclick({stopPropagation(){}});await new Promise(r=>setImmediate(r));
@@ -214,13 +190,10 @@ test('paused automatic mode can resume without entering a position',async()=>{
   assert(f.calls.every(c=>['monitor','status_all','offsets_get','auto_status'].includes(c.action)));
 });
 
-test('screen lock closes dialog and never cancels running server automation',async()=>{
-  const f=fixture();await f.login();const count=f.calls.length;f.nodes['winch-lock'].onclick();
-  assert.equal(f.nodes['winch-auto-dialog'].open,false);assert.equal(f.calls.length,count);
-});
+
 
 test('six offset inputs save signed values without enabling or moving a winch',async()=>{
-  const f=fixture();await f.login();
+  const f=fixture();await f.ready();
   assert.equal(f.nodes['winch-offset-save'].disabled,false);
   const offsets={up:[0.3,1.5,3],down:[-0.3,-1.5,-3]};
   for(const direction of ['up','down'])offsets[direction].forEach((value,i)=>f.nodes[`winch-offset-${direction}-${i+1}`].value=String(value));
@@ -229,16 +202,21 @@ test('six offset inputs save signed values without enabling or moving a winch',a
   assert.deepEqual(f.calls.at(-1),{action:'offsets_save',offsets,revision:0});
   assert(f.calls.every(c=>['monitor','status_all','offsets_get','offsets_save'].includes(c.action)));
   assert.match(f.nodes['winch-offset-status'].textContent,/저장 완료/);
-  f.nodes['winch-lock'].onclick();assert.equal(f.nodes['winch-offset-save'].disabled,true);
-  assert.equal(f.nodes['winch-offset-up-1'].value,'');
 });
 
-test('empty offsets never save and a late save response cannot unlock the editor',async()=>{
-  const f=fixture();await f.login();const count=f.calls.length;
-  await f.nodes['winch-offset-form'].onsubmit({preventDefault(){}});assert.equal(f.calls.length,count);
-  for(const direction of ['up','down'])for(let i=1;i<=3;i++)f.nodes[`winch-offset-${direction}-${i}`].value=String(direction==='up'?i:-i);
-  let resolve;f.setReply(()=>new Promise(r=>resolve=r));
-  const pending=f.nodes['winch-offset-form'].onsubmit({preventDefault(){}});
-  f.nodes['winch-lock'].onclick();resolve(response({configured:true,revision:1,offsets:{up:[1,2,3],down:[-1,-2,-3]}}));
-  await pending;assert.equal(f.nodes['winch-offset-save'].disabled,true);assert.equal(f.nodes['winch-offset-up-1'].value,'');
+
+
+test('page load enables registered controls without login or password headers and never actuates',async()=>{
+  const f=fixture();await new Promise(resolve=>setImmediate(resolve));f.render();
+  assert.equal(f.calls[0].action,'status_all');
+  assert(f.panels[1].buttons.every(button=>!button.disabled));
+  assert(!f.panels[1].autoButton.disabled);
+  assert.equal(f.nodes['winch-offset-save'].disabled,false);
+  assert(f.calls.every(c=>['status_all','offsets_get'].includes(c.action)));
+  assert.doesNotMatch(source,/winch-password|winch-login|winch-lock|X-Winch-Password|제어 비밀번호/);
+});
+test('empty offsets never save',async()=>{
+  const f=fixture();await f.ready();const count=f.calls.length;
+  await f.nodes['winch-offset-form'].onsubmit({preventDefault(){}});
+  assert.equal(f.calls.length,count);
 });
