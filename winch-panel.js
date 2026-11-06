@@ -22,6 +22,7 @@
         ${[1,2,3].map(n=>`<tr><td class="py-1">내림 ${n}차</td><td id="winch-auto-down${n}">내림 ${n}차 편차</td><td>내림 6초</td></tr>`).join('')}</tbody></table>
       <p id="winch-auto-state" role="status" class="bg-slate-50 rounded p-3 text-sm break-words"></p>
       <p id="winch-auto-sensor" class="text-sm mt-2 break-words"></p>
+      <section class="mt-4 border-t border-slate-200 pt-3" aria-labelledby="winch-auto-history-title"><h4 id="winch-auto-history-title" class="text-sm font-bold">신호 요청 기록 · 최근 20건</h4><div id="winch-auto-history" class="max-h-32 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-slate-600 mt-2">신호 기록 없음</div></section>
       <div class="flex flex-wrap gap-2 mt-4"><button id="winch-auto-start" disabled class="bg-green-700 text-white rounded px-4 py-2 disabled:opacity-40">자동 시작·재개</button><button id="winch-auto-stop" class="bg-red-600 text-white rounded px-4 py-2 disabled:opacity-40">자동 보류·정지</button><button id="winch-auto-check" class="border rounded px-3 py-2 disabled:opacity-40">상태 확인</button></div>
     </dialog>`;
   const $ = id => document.getElementById('winch-' + id);
@@ -103,9 +104,8 @@
         autoButton.textContent=batch?.state?.auto?.enabled?(batch.state.auto.paused?'자동 보류':'자동 운전 중'):'자동 설정';
         autoButton.onclick=event=>{event.stopPropagation();openAuto(id);};
       }
-      const history=panel.querySelector('[data-winch-history]');
-      if(history)history.textContent=historyText(batch?.state?.signalHistory);
     });
+    if(autoBatch)$('auto-history').textContent=historyText(batches.get(autoBatch)?.state?.signalHistory);
   }
   function cardHtml(id) {
     if (!/^[1-7]$/.test(String(id))) return '';
@@ -116,7 +116,6 @@
         <button type="button" data-winch-action="down" aria-label="육성 ${id}배치 윈치 내림" disabled class="bg-blue-600 text-white rounded-lg py-2 px-1 text-xs font-bold disabled:opacity-35 disabled:cursor-not-allowed">▼ 내림</button>
       </div><p data-winch-message role="status" hidden class="text-[10px] leading-snug text-slate-500 mt-2 break-keep"></p>
       <button type="button" data-winch-auto disabled aria-label="육성 ${id}배치 자동 설정" class="mt-2 w-full border border-green-600 text-green-800 rounded py-1.5 text-xs font-bold disabled:opacity-35">자동 설정</button>
-      <div class="mt-2 border-t border-slate-100 pt-2"><p class="text-[10px] font-bold text-slate-600">신호 요청 기록 · 최근 20건</p><div data-winch-history aria-label="육성 ${id}배치 신호 요청 기록" class="max-h-32 overflow-y-auto whitespace-pre-line text-[10px] leading-snug text-slate-500 mt-1">신호 기록 없음</div></div>
       </div>`;
   }
   async function api(action, batchId, extra={}) {
@@ -225,6 +224,7 @@
   async function openAuto(id){
     if(!controlsReady||!batches.has(id))return;
     autoBatch=id;$('auto-title').textContent=`육성 ${id}배치 자동 운전`;
+    render();
     $('auto-state').textContent='상태 확인 중…';$('auto-dialog').showModal();await checkAuto();
   }
   async function changeAuto(action){

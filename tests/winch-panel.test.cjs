@@ -6,23 +6,26 @@ const source = fs.readFileSync(require.resolve('../winch-panel.js'), 'utf8');
 const healthy = {online:true,enabled:true,safetyMatches:true,up:false,down:false,upSeconds:5,downSeconds:6};
 const response = (data,status=200) => ({ok:status===200,status,headers:{get:()=> 'application/json'},json:async()=>data});
 
-test('cards show persistent request history and omit the four removed instructions',async()=>{
+test('automatic popup shows batch history above its buttons and omits the removed instructions',async()=>{
   const f=fixture();
   f.setReply(async()=>response({batches:{'2':{...healthy,signalHistory:[
     {at:Date.parse('2026-11-06T03:00:00Z'),action:'up',mode:'auto',temperature:26,status:'sent'},
     {at:Date.parse('2026-11-06T02:00:00Z'),action:'stop',mode:'manual',status:'registered'}
   ]}}}));
   await f.ready();f.render();
-  assert.match(f.panels[1].history.textContent,/자동 올림 5초 · 26℃ · 신호 요청/);
-  assert.match(f.panels[1].history.textContent,/수동 정지 · 요청 등록/);
-  assert.match(f.panels[1].history.textContent,/12:00:00/);
+  f.panels[1].autoButton.onclick({stopPropagation(){}});
+  assert(!f.context.window.FarmWinch.cardHtml('2').includes('신호 요청 기록'));
+  assert(source.indexOf('id="winch-auto-history"')<source.indexOf('id="winch-auto-start"'));
+  assert.match(f.nodes['winch-auto-history'].textContent,/자동 올림 5초 · 26℃ · 신호 요청/);
+  assert.match(f.nodes['winch-auto-history'].textContent,/수동 정지 · 요청 등록/);
+  assert.match(f.nodes['winch-auto-history'].textContent,/12:00:00/);
   for(const text of ['서버에서 <b>5분마다','온도앱에서 저장한 1그룹 설정온도를 5분마다',
     '현재 단계 입력 없이 온도 변화를 감시합니다.','수동 올림·내림 후에는 5분 뒤 새 온도부터']){
     assert(!source.includes(text));
   }
 });
 function fixture() {
-  const nodes = Object.fromEntries(['offset-form','offset-save','offset-load','offset-status','offset-up-1','offset-up-2','offset-up-3','offset-down-1','offset-down-2','offset-down-3','panel','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-up3','auto-down1','auto-down2','auto-down3','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,checkValidity(){return true;},showModal(){this.open=true;},close(){this.open=false;}}]));
+  const nodes = Object.fromEntries(['offset-form','offset-save','offset-load','offset-status','offset-up-1','offset-up-2','offset-up-3','offset-down-1','offset-down-2','offset-down-3','panel','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-up3','auto-down1','auto-down2','auto-down3','auto-sensor','auto-history','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,checkValidity(){return true;},showModal(){this.open=true;},close(){this.open=false;}}]));
   const panels = Array.from({length:7},(_,i)=>{
     const message = {textContent:''};
     const buttons = ['up','stop','down'].map(action=>({dataset:{winchAction:action},disabled:true}));
