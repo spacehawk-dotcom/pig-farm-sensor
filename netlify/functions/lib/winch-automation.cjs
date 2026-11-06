@@ -96,7 +96,7 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
     // Write the intent BEFORE I/O. A timeout/crash must never replay a movement.
     const intent={...auto,pending:null,lastActionAt:now(),reason:'자동 신호 전송 시도'};
     await store.write(id,intent);
-    try{await control.move(next.action,id);}
+    try{await control.move(next.action,id,{mode:'auto',temperature:sample.temperature});}
     catch(error){
       await store.write(id,{...intent,reason:(error.status?error.message:'신호 전송 미확인')+' · 자동 감시 유지'});
       return;

@@ -15,13 +15,28 @@ test('locked monitoring shows batch state while all control actions remain disab
   await f.login();f.nodes['winch-lock'].onclick();
   assert.equal(f.panels[1].message.hidden,true);
 });
+test('cards show persistent request history and omit the four removed instructions',async()=>{
+  const f=fixture();
+  f.setReply(async()=>response({batches:{'2':{...healthy,signalHistory:[
+    {at:Date.parse('2026-11-06T03:00:00Z'),action:'up',mode:'auto',temperature:26,status:'sent'},
+    {at:Date.parse('2026-11-06T02:00:00Z'),action:'stop',mode:'manual',status:'registered'}
+  ]}}}));
+  await f.login();f.render();
+  assert.match(f.panels[1].history.textContent,/자동 올림 5초 · 26℃ · 신호 요청/);
+  assert.match(f.panels[1].history.textContent,/수동 정지 · 요청 등록/);
+  assert.match(f.panels[1].history.textContent,/12:00:00/);
+  for(const text of ['서버에서 <b>5분마다','온도앱에서 저장한 1그룹 설정온도를 5분마다',
+    '현재 단계 입력 없이 온도 변화를 감시합니다.','수동 올림·내림 후에는 5분 뒤 새 온도부터']){
+    assert(!source.includes(text));
+  }
+});
 function fixture() {
   const nodes = Object.fromEntries(['offset-form','offset-save','offset-load','offset-status','offset-up-1','offset-up-2','offset-up-3','offset-down-1','offset-down-2','offset-down-3','panel','login','password','connect','lock','status','refresh','diagnose','diagnostic','auto-dialog','auto-title','auto-close','auto-state','auto-settings','auto-up1','auto-up2','auto-up3','auto-down1','auto-down2','auto-down3','auto-sensor','auto-stage','auto-start','auto-stop','auto-check'].map(id=>['winch-'+id,{style:{},disabled:false,value:'',hidden:false,checkValidity(){return true;},showModal(){this.open=true;},close(){this.open=false;}}]));
   const panels = Array.from({length:7},(_,i)=>{
     const message = {textContent:''};
     const buttons = ['up','stop','down'].map(action=>({dataset:{winchAction:action},disabled:true}));
-    const autoButton={},autoMessage={};
-    return {dataset:{winchBatch:String(i+1)},message,buttons,autoButton,autoMessage,querySelector:selector=>selector==='[data-winch-auto]'?autoButton:selector==='[data-winch-auto-message]'?autoMessage:message,querySelectorAll:()=>buttons};
+    const autoButton={},autoMessage={},history={};
+    return {dataset:{winchBatch:String(i+1)},message,buttons,autoButton,autoMessage,history,querySelector:selector=>selector==='[data-winch-history]'?history:selector==='[data-winch-auto]'?autoButton:selector==='[data-winch-auto-message]'?autoMessage:message,querySelectorAll:()=>buttons};
   });
   const calls=[],timers=[];
   let reply=async()=>response({batches:{'2':healthy}});

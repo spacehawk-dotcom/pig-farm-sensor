@@ -26,16 +26,31 @@ class BridgeMovementTest(unittest.IsolatedAsyncioTestCase):
         self.b.relay = AsyncMock()
         self.cmd = dict(action="up", expires=time.time()*1000+10000)
 
-    async def test_dispatches_one_pulse_without_interlock_or_post_command_read(self):
-        await self.b.execute("2",self.cmd)
-        self.assertEqual(self.b.live.await_count,2)
-        self.assertEqual([c.args for c in self.b.relay.await_args_list],
-                         [("turn_off","switch.channel3"),("turn_off","switch.channel2"),("turn_on","switch.channel3")])
+    async def test_both_off_then_600ms_then_on_without_status_queries(self):
+        for action, channel in [("up","switch.channel3"),("down","switch.channel2")]:
+            calls = []
+            async def relay(service, entity):
+                calls.append((service,entity))
+            async def delay(seconds):
+                calls.append(("wait",seconds))
+            self.b.relay = relay
+            self.b.live.side_effect = TimeoutError("status unavailable")
+            with patch.object(bridge.asyncio,"sleep",side_effect=delay):
+                await self.b.execute("2",self.cmd | {"action":action})
+            self.b.live.assert_not_awaited()
+            self.assertEqual(calls,[("turn_off","switch.channel3"),("turn_off","switch.channel2"),
+                                    ("wait",0.6),("turn_on",channel)])
 
-    async def test_changed_timer_blocks_pulse(self):
-        self.b.live.side_effect=[self.idle,self.idle|{"timer":None}]
-        with self.assertRaises(ValueError):
+    async def test_failed_off_never_sends_on(self):
+        self.b.relay.side_effect=TimeoutError("OFF delivery failed")
+        with self.assertRaises(TimeoutError):
             await self.b.execute("2",self.cmd)
+        self.assertTrue(all(c.args[0]=="turn_off" for c in self.b.relay.await_args_list))
+
+    async def test_expired_during_direction_delay_never_sends_on(self):
+        with patch.object(bridge.time,"time",side_effect=[time.time(),self.cmd["expires"]/1000+1]):
+            with self.assertRaisesRegex(ValueError,"expired"):
+                await self.b.execute("2",self.cmd)
         self.assertTrue(all(c.args[0]=="turn_off" for c in self.b.relay.await_args_list))
 
     async def test_stop_requests_both_off_without_post_command_read(self):

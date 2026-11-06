@@ -17,17 +17,13 @@
     <p class="text-xs text-slate-500 mt-2">올림·내림 버튼은 해당 배치에 신호를 한 번 보냅니다. 화면을 닫아도 설정한 자동 운전은 계속됩니다.</p>
     <dialog id="winch-auto-dialog" aria-labelledby="winch-auto-title" class="rounded-2xl p-5 w-[min(94vw,480px)] max-h-[90vh] overflow-y-auto shadow-xl backdrop:bg-black/50">
       <div class="flex justify-between items-center gap-3"><h3 id="winch-auto-title" class="font-bold text-lg">자동 운전 설정</h3><button id="winch-auto-close" class="border rounded px-3 py-1">닫기</button></div>
-      <p class="text-sm text-slate-600 mt-3">서버에서 <b>5분마다</b> 확인합니다. 기준 온도를 상승·하강 방향으로 통과할 때 한 번 작동합니다. 같은 온도에서는 반복하지 않습니다.</p>
       <p id="winch-auto-settings" role="status" class="text-sm mt-3 font-bold"></p>
       <table class="w-full text-sm my-4 text-left"><thead><tr class="border-b"><th class="py-2">온도 기준</th><th>온도</th><th>작동</th></tr></thead><tbody>
         ${[1,2,3].map(n=>`<tr><td class="py-1">올림 ${n}차</td><td id="winch-auto-up${n}">올림 ${n}차 편차</td><td>올림 5초</td></tr>`).join('')}
         ${[1,2,3].map(n=>`<tr><td class="py-1">내림 ${n}차</td><td id="winch-auto-down${n}">내림 ${n}차 편차</td><td>내림 6초</td></tr>`).join('')}</tbody></table>
-      <p class="text-xs text-slate-500">온도앱에서 저장한 1그룹 설정온도를 5분마다 다시 읽습니다. 변경값은 다음 서버 확인부터 적용됩니다.</p>
       <p id="winch-auto-state" role="status" class="bg-slate-50 rounded p-3 text-sm break-words"></p>
       <p id="winch-auto-sensor" class="text-sm mt-2 break-words"></p>
-      <p class="text-xs text-slate-500 mt-2">현재 단계 입력 없이 온도 변화를 감시합니다. 시작·재개 시 현재 온도를 기준으로 삼으며, 여러 기준을 한 번에 넘어도 한 번만 작동합니다. 센서 갱신이 15분 이상 지연되면 대기합니다.</p>
       <div class="flex flex-wrap gap-2 mt-4"><button id="winch-auto-start" disabled class="bg-green-700 text-white rounded px-4 py-2 disabled:opacity-40">자동 시작·재개</button><button id="winch-auto-stop" class="bg-red-600 text-white rounded px-4 py-2 disabled:opacity-40">자동 보류·정지</button><button id="winch-auto-check" class="border rounded px-3 py-2 disabled:opacity-40">상태 확인</button></div>
-      <p class="text-xs text-slate-500 mt-3">수동 올림·내림 후에는 5분 뒤 새 온도부터 다시 감시합니다. 신호 전송 응답이 없어도 자동 감시는 유지됩니다. 실제 작동 여부는 사용자가 판단하며, 정지를 누르면 자동을 보류합니다. 시작·재개 및 온도 기준 변경 직후에는 새 기준을 기록하고 이후 온도 변화를 판단합니다.</p>
     </dialog>`;
   const $ = id => document.getElementById('winch-' + id);
   let password = '', authenticated = false, epoch = 0, refreshId = 0, timer;
@@ -79,6 +75,17 @@
     element.textContent = text;
     element.hidden = !text;
   }
+  function historyText(history) {
+    if(!Array.isArray(history) || !history.length)return '신호 기록 없음';
+    return history.slice(0,20).map(event=>{
+      const direction={up:'올림 5초',down:'내림 6초',stop:'정지'}[event.action];
+      if(!direction || !Number.isFinite(event.at))return '';
+      const at=new Date(event.at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',
+        hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+      const temperature=Number.isFinite(event.temperature)?` · ${event.temperature}℃`:'';
+      return `${at}\n${event.mode==='auto'?'자동':'수동'} ${direction}${temperature} · ${event.status==='sent'?'신호 요청':'요청 등록'}`;
+    }).filter(Boolean).join('\n\n');
+  }
   function render() {
     document.querySelectorAll('[data-winch-batch]').forEach(panel => {
       const id = panel.dataset.winchBatch, batch = batches.get(id);
@@ -97,6 +104,8 @@
         autoButton.textContent=batch?.state?.auto?.enabled?(batch.state.auto.paused?'자동 보류':'자동 운전 중'):'자동 설정';
         autoButton.onclick=event=>{event.stopPropagation();openAuto(id);};
       }
+      const history=panel.querySelector('[data-winch-history]');
+      if(history)history.textContent=historyText(batch?.state?.signalHistory);
     });
   }
   function cardHtml(id) {
@@ -108,6 +117,7 @@
         <button type="button" data-winch-action="down" aria-label="육성 ${id}배치 윈치 내림" disabled class="bg-blue-600 text-white rounded-lg py-2 px-1 text-xs font-bold disabled:opacity-35 disabled:cursor-not-allowed">▼ 내림</button>
       </div><p data-winch-message role="status" hidden class="text-[10px] leading-snug text-slate-500 mt-2 break-keep"></p>
       <button type="button" data-winch-auto disabled aria-label="육성 ${id}배치 자동 설정" class="mt-2 w-full border border-green-600 text-green-800 rounded py-1.5 text-xs font-bold disabled:opacity-35">자동 설정</button>
+      <div class="mt-2 border-t border-slate-100 pt-2"><p class="text-[10px] font-bold text-slate-600">신호 요청 기록 · 최근 20건</p><div data-winch-history aria-label="육성 ${id}배치 신호 요청 기록" class="max-h-32 overflow-y-auto whitespace-pre-line text-[10px] leading-snug text-slate-500 mt-1">신호 기록 없음</div></div>
       </div>`;
   }
   async function api(action, batchId, extra={}) {
@@ -173,7 +183,10 @@
     batch.busy = true; batch.message = '신호 요청 중…'; render();
     try {
       const result = await api(action, id);
-      if (ticket === epoch && version === batch.version) batch.message = result.message;
+      if (ticket === epoch && version === batch.version) {
+        batch.message = result.message;
+        if(result.signalHistory)batch.state={...batch.state,signalHistory:result.signalHistory};
+      }
     } catch (error) {
       if (ticket !== epoch || version !== batch.version) return;
       if (error.status === 401) { lock(error.message); return; }

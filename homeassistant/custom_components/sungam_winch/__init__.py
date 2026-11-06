@@ -138,16 +138,9 @@ class Bridge:
             return
         if action not in ("up", "down"):
             raise ValueError("unknown action")
-        def ready(s):
-            if not s["online"] or s["up"] is not False or s["down"] is not False or s["timer"] != (TIMER_2 if batch=="2" else TIMER):
-                raise ValueError("relay or safety mismatch")
-        async def checked():
-            ready(await self.live(batch))
-        await checked()
         for entity in entities:
             await self.relay("turn_off", entity)
         await asyncio.sleep(0.6)
-        await checked()
         fresh()
         await self.relay("turn_on", entities[0 if action=="up" else 1])
 

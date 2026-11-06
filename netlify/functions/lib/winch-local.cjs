@@ -9,6 +9,7 @@ const authenticated=token=>typeof token==='string' && crypto.timingSafeEqual(
 const sign=(session,id,ticket)=>crypto.createHmac('sha256',session).update(id+':'+ticket).digest('hex');
 const mailbox=(db,id)=>db.doc('winch_server_locks/ha_command_'+id);
 const worker=db=>db.doc('winch_server_locks/ha_local_status');
+const signalHistory=message=>Array.isArray(message?.history)?message.history.slice(0,20):[];
 
 function timerDetail(raw,cfg){
   if(typeof raw!=='string')return '';
@@ -53,8 +54,11 @@ function waitResult(ref,ticket,timeout){
 function createLocalControl({database,env,notify}){
   let report;
   const read=()=>report??=worker(database()).get().then(d=>d.data());
-  const getState=async(id,diagnostic=false)=>stateFrom(await read(),id,env,Date.now(),diagnostic);
-  const move=async(action,id)=>{
+  const getState=async(id,diagnostic=false)=>{
+    const [status,commands]=await Promise.all([read(),mailbox(database(),id).get()]);
+    return {...stateFrom(status,id,env,Date.now(),diagnostic),signalHistory:signalHistory(commands.data())};
+  };
+  const move=async(action,id,context={})=>{
     if(!batchOK(id)||!['up','down','stop','check'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
     const r=await read(),s=stateFrom(r,id,env);
     if(['up','down'].includes(action))ensureReady(s);
@@ -70,13 +74,23 @@ function createLocalControl({database,env,notify}){
       }
     }
     const ticket=crypto.randomUUID(),expires=Date.now()+validMs;
-    await ref.set({action,ticket,expires,session:r.session,phase:'waiting'});
+    const priorHistory=signalHistory(previous);
+    const event={at:Date.now(),action,mode:context.mode==='auto'?'auto':'manual',status:'registered',
+      ...(Number.isFinite(context.temperature)?{temperature:context.temperature}:{})};
+    const history=action==='check'?priorHistory:[event,...priorHistory].slice(0,20);
+    await ref.set({action,ticket,expires,session:r.session,phase:'waiting',history});
     // This public RTDB leaf is only a signed wake-up. It cannot authorize a command.
     await notify(id,{ticket,mac:sign(r.session,id,ticket)});
+    if(action!=='check'){
+      event.status='sent';
+      // Updating only history preserves any concurrent HA claim or acknowledgement.
+      await ref.update({history});
+    }
     if(action==='check' && !await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500))){
       throw fail('HA 연결 진단 응답을 받지 못했습니다.',504);
     }
-    return {accepted:true,batchId:id,action,message:action==='check'?'HA 연결 진단 완료':'신호 요청을 보냈습니다.'};
+    return {accepted:true,batchId:id,action,signalHistory:history,
+      message:action==='check'?'HA 연결 진단 완료':'신호 요청을 보냈습니다.'};
   };
   return {source:'ha-localtuya/signals',getState,ensureReady,move,check:id=>move('check',id)};
 }

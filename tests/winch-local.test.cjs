@@ -5,7 +5,7 @@ const {WINCHES}=require('../netlify/functions/lib/winch-control');
 const session='a'.repeat(64),ticket='b9b073e4-77bf-4c65-8e23-61240aaee7cd';
 function memory(){
   const docs=new Map();
-  const doc=key=>({key,get:async()=>({data:()=>docs.get(key)}),set:v=>docs.set(key,v)});
+  const doc=key=>({key,get:async()=>({data:()=>docs.get(key)}),set:v=>docs.set(key,v),update:v=>Object.assign(docs.get(key),v)});
   const db={doc,runTransaction:fn=>fn({get:r=>r.get(),update:(r,v)=>Object.assign(docs.get(r.key),v)})};
   return {db,docs};
 }
@@ -56,6 +56,29 @@ test('private mailbox delivers once and rejects stale, wrong-session and wrong-b
   docs.set(address,{...docs.get(address),phase:'waiting',expires:Date.now()-1});
   assert.equal((await workerApi(db,msg)).command,null);
   assert(!authenticated(''));assert(!authenticated(session));
+});
+test('signal history survives new requests and HA acknowledgements and keeps the latest 20',async()=>{
+  const {db,docs}=memory();
+  const key='winch_server_locks/ha_command_2';
+  docs.set('winch_server_locks/ha_local_status',{session});
+  for(let index=0;index<22;index++){
+    const control=createLocalControl({database:()=>db,env:{WINCH_SAFETY_CONFIRMED:'true'},notify:async()=>{
+      docs.get(key).phase='done';
+      docs.get(key).ok=true;
+    }});
+    await control.move(index%2?'down':'up','2',index%2?{}:{mode:'auto',temperature:26});
+  }
+  assert.equal(docs.get(key).phase,'done');
+  const control=createLocalControl({database:()=>db,env:{}});
+  const state=await control.getState('2');
+  assert.equal(state.signalHistory.length,20);
+  assert.equal(state.signalHistory[0].mode,'manual');
+  assert.equal(state.signalHistory[1].temperature,26);
+  assert(state.signalHistory.every(entry=>entry.status==='sent'));
+  const failing=createLocalControl({database:()=>db,env:{},notify:async()=>{throw Error('network');}});
+  await assert.rejects(failing.move('stop','2'));
+  assert.equal(docs.get(key).history[0].status,'registered');
+  assert.equal(docs.get(key).history[0].action,'stop');
 });
 
 test('stop follows an outstanding ticket even if HA rejects that earlier signal',async()=>{
