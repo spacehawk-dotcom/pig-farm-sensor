@@ -38,6 +38,7 @@
 
   <div id="root"></div>
 
+  <script src="/gestation-week.js?v=20261107"></script>
   <!-- 여기서부터 React 코드를 브라우저가 실시간으로 해석합니다 -->
   <script type="text/babel" data-presets="env,react">
     /** @jsx React.createElement */
@@ -158,6 +159,18 @@
     }
 
     function App() {
+      const [managementMonday, setManagementMonday] = useState(() => window.FarmGestationWeek.currentMonday());
+      useEffect(() => {
+        const updateWeek = () => setManagementMonday(window.FarmGestationWeek.currentMonday());
+        const timer = setInterval(updateWeek, 60000);
+        document.addEventListener('visibilitychange', updateWeek);
+        window.addEventListener('pageshow', updateWeek);
+        return () => {
+          clearInterval(timer);
+          document.removeEventListener('visibilitychange', updateWeek);
+          window.removeEventListener('pageshow', updateWeek);
+        };
+      }, []);
       const [user, setUser] = useState(null);
       const [sows, setSows] = useState([]);
       const [farmSettings, setFarmSettings] = useState({ avgSowCount: 0 }); 
@@ -630,8 +643,7 @@
       // 💡 주간 예상 분만 복수 로직 (새롭게 추가된 부분)
       const expectedFarrowingStats = useMemo(() => {
         const statsMap = {};
-        const todayStr = formatDate(new Date());
-        const currentMonday = getMonday(todayStr);
+        const currentMonday = managementMonday;
         // 과거 데이터 정리를 위해 2주 전까지만 표시
         const twoWeeksAgo = subtractDays(currentMonday, 14);
 
@@ -646,7 +658,7 @@
               
               if (weekKey && weekKey >= twoWeeksAgo) {
                 if (!statsMap[weekKey]) {
-                  statsMap[weekKey] = { date: weekKey, count: 0, sows: [] };
+                  statsMap[weekKey] = { date: weekKey, count: 0, sows: [], stage: window.FarmGestationWeek.classify(weekKey, managementMonday) };
                 }
                 statsMap[weekKey].count += 1;
                 statsMap[weekKey].sows.push(s);
@@ -656,7 +668,7 @@
         });
 
         return Object.values(statsMap).sort((a, b) => String((a || {}).date || '').localeCompare(String((b || {}).date || '')));
-      }, [sows]);
+      }, [sows, managementMonday]);
 
       // 20일령(이유) 도래 복수
       const weeklyWeaning20DaysStats = useMemo(() => {
@@ -1359,6 +1371,12 @@
                             <span className="text-[10px] text-rose-600 font-bold ml-1 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 hidden sm:inline">터치 시 기록 확인</span>
                         </h2>
                     </div>
+                    <p className="text-xs text-slate-600 px-1 mb-2">이번 주 관리 기준: {managementMonday.replaceAll('-', '. ')} (월) · 매주 월요일 갱신</p>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold px-1 mb-3" aria-label="주간 임신 단계 색상">
+                        <span className="text-blue-700">● 초기 · 30일 이하</span>
+                        <span className="text-emerald-700">● 유지·체형 조절 · 31~89일</span>
+                        <span className="text-orange-700">● 태아 성장 · 90일 이상</span>
+                    </div>
                     <div 
                         ref={expectedFarrowingScrollRef}
                         className="flex overflow-x-auto gap-3 pb-2 no-scrollbar"
@@ -1370,14 +1388,16 @@
                                 <div 
                                     key={stat.date} 
                                     onClick={() => openFilteredList('expectedFarrowingWeek', stat.date)} 
-                                    className="w-[110px] bg-white p-4 rounded-2xl border border-rose-100 shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform"
+                                    title="분만 예정 주 목요일을 대표일로 계산한 주간 관리 단계입니다."
+                                    className={`w-[140px] p-4 rounded-2xl border shadow-sm cursor-pointer active:scale-95 flex flex-col justify-between relative overflow-hidden shrink-0 transition-transform ${stat.stage.card}`}
                                 >
-                                    <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-400"></div>
+                                    <div className={`absolute top-0 left-0 w-1.5 h-full ${stat.stage.stripe}`}></div>
                                     <p className="text-[13px] font-black text-slate-500 mb-2 pl-1 leading-tight">{getWeekOfMonthString(stat.date)}</p>
                                     <div className="flex items-end justify-between pl-1">
-                                        <p className="text-3xl font-black text-rose-600">{stat.count}<span className="text-sm font-bold text-rose-400 ml-1">복</span></p>
-                                        <ChevronRight className="w-4 h-4 text-rose-200 mb-1" />
+                                        <p className={`text-3xl font-black ${stat.stage.text}`}>{stat.count}<span className="text-sm font-bold ml-1">복</span></p>
+                                        <ChevronRight className={`w-4 h-4 mb-1 ${stat.stage.text}`} />
                                     </div>
+                                    <p className={`text-xs font-bold pl-1 mt-2 ${stat.stage.text}`}>{stat.stage.label}</p>
                                 </div>
                             ))
                         )}
