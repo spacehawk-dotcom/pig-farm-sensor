@@ -1372,10 +1372,9 @@
                         </h2>
                     </div>
                     <p className="text-xs text-slate-600 px-1 mb-2">이번 주 관리 기준: {managementMonday.replaceAll('-', '. ')} (월) · 매주 월요일 갱신</p>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold px-1 mb-3" aria-label="주간 임신 단계 색상">
-                        <span className="text-blue-700">● 초기 · 30일 이하</span>
-                        <span className="text-emerald-700">● 유지·체형 조절 · 31~89일</span>
-                        <span className="text-orange-700">● 태아 성장 · 90일 이상</span>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-bold px-1 mb-3" aria-label="중기·말기 산차별 안내">
+                        <span className="text-emerald-700">● 중기 (1/2산 - H, 3/4/5/6 - J)</span>
+                        <span className="text-orange-700">· 말기 (1/2산 - N, 3/4/5/6 - S)</span>
                     </div>
                     <div 
                         ref={expectedFarrowingScrollRef}
@@ -1397,7 +1396,6 @@
                                         <p className={`text-3xl font-black ${stat.stage.text}`}>{stat.count}<span className="text-sm font-bold ml-1">복</span></p>
                                         <ChevronRight className={`w-4 h-4 mb-1 ${stat.stage.text}`} />
                                     </div>
-                                    <p className={`text-xs font-bold pl-1 mt-2 ${stat.stage.text}`}>{stat.stage.label}</p>
                                 </div>
                             ))
                         )}
