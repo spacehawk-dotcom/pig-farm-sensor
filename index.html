@@ -48,7 +48,7 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-        <script src="ventilation.js?v=20261102-group-airflow"></script>
+        <script src="ventilation.js?v=20261108-recommended-airflow"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -328,8 +328,8 @@
             t4: opt.f800_2.t, max4: opt.f800_2.max, diff4: opt.f800_2.diff,
             roomType: opt.roomType,
             hasManualOverrides: opt.hasManualOverrides,
-            airflow1: ventilationSource.minimumAirflowDisplay(opt, 'f500_1'),
-            airflow2: ventilationSource.minimumAirflowDisplay(opt, 'f500_2'),
+            airflow1: ventilationSource.minimumAirflowDisplay(opt, 'f500_1', {recommendedOnly: roomType === '육성사'}),
+            airflow2: ventilationSource.minimumAirflowDisplay(opt, 'f500_2', {recommendedOnly: roomType === '육성사'}),
             minRequiredCMH: opt.minRequiredCMH, minSuppliedCMH: opt.minSuppliedCMH,
             minShortfallCMH: opt.minShortfallCMH, minimumStatus: opt.minimumStatus,
             msg: '* 환기량 앱 연동 · ' + message.textContent
