@@ -239,11 +239,11 @@ function applyOverrides(calculated, overrides) {
 function recentOutdoorTemperatures(readings, now = Date.now()) {
     return readings.filter(r => r.time > now - 48 * 60 * 60 * 1000 && r.time <= now && Number.isFinite(r.temp)).map(r => r.temp);
 }
-function minimumAirflowDisplay(opt, group) {
+function minimumAirflowDisplay(opt, group, {recommendedOnly = false} = {}) {
     const recommendation = opt.recommendedMinimum[group];
     const capacity = group === 'f500_1' ? opt.caps.c1 : opt.caps.c2;
     if (!capacity) return null;
-    const saved = opt.manualFields.includes(group + '.min');
+    const saved = !recommendedOnly && opt.manualFields.includes(group + '.min');
     const rate = saved ? opt[group].min : recommendation.rate;
     const cmh = saved ? capacity * rate / 100 : recommendation.cmh;
     return {

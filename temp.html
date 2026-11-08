@@ -303,7 +303,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="simulation-core.js?v=20261003-weight-cap110"></script>
-    <script src="ventilation.js?v=20261102-group-airflow"></script>
+    <script src="ventilation.js?v=20261108-recommended-airflow"></script>
     <script src="ventilation-setting-record.js?v=20261027-pen-weighted-age"></script>
     <script type="module">
         import { createHistoryCharts } from "./ventilation-history-charts.js";
@@ -639,7 +639,7 @@
 
                 const opt = calculateOptimalSettings(batch.age, weight, batch.count, historyStats, batch.type, batch.stockDiffDays, outTempHist, batch.sourceData.ventilationOverrides);
                 function airflowRow(group) {
-                    const airflow = window.FarmVentilation.minimumAirflowDisplay(opt, group);
+                    const airflow = window.FarmVentilation.minimumAirflowDisplay(opt, group, {recommendedOnly: true});
                     return `<div class="mb-1"><span class="text-slate-600">${airflow.label}</span><br><strong>${airflow.value}</strong></div>`;
                 }
 

@@ -34,6 +34,12 @@ test('current airflow display uses the saved minimum per group, including zero',
     const edited = calculate({f500_1:{min:35},f500_2:{min:40}});
     assert.equal(V.minimumAirflowDisplay(edited,'f500_1').value,'4,872 m³/h (35%)');
     assert.equal(V.minimumAirflowDisplay(edited,'f500_2').value,'8,352 m³/h (40%)');
+    for (const settings of [opt, edited]) {
+        assert.deepEqual(V.minimumAirflowDisplay(settings,'f500_1',{recommendedOnly:true}),
+            {label:'추천 환기량',value:'3,897.6 m³/h (28%)'});
+        assert.deepEqual(V.minimumAirflowDisplay(settings,'f500_2',{recommendedOnly:true}),
+            {label:'추천 환기량',value:'5,846.4 m³/h (28%)'});
+    }
 });
 
 test('volume floor, weaning groups and maximum capacity still apply', () => {
