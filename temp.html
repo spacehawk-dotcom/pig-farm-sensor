@@ -303,7 +303,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="simulation-core.js?v=20261003-weight-cap110"></script>
-    <script src="ventilation.js?v=20261108-recommended-airflow"></script>
+    <script src="ventilation.js?v=20261108-single-group"></script>
     <script src="ventilation-setting-record.js?v=20261027-pen-weighted-age"></script>
     <script type="module">
         import { createHistoryCharts } from "./ventilation-history-charts.js";
@@ -862,7 +862,9 @@
             document.getElementById('res_ventilation_coefficient').textContent=opt.coefficient;
             for(const [n,key] of [[1,'f500_1'],[2,'f500_2']]) {
                 const recommendation=opt.recommendedMinimum[key];
-                document.getElementById(`recommended_min_${n}`).textContent=`추천 환기량: ${recommendation.cmh.toLocaleString('ko-KR',{maximumFractionDigits:1})} m³/h (${recommendation.rate}%)`;
+                document.getElementById(`recommended_min_${n}`).textContent=recommendation.off
+                    ? '추천 환기량: OFF (1그룹만 사용)'
+                    : `추천 환기량: ${recommendation.cmh.toLocaleString('ko-KR',{maximumFractionDigits:1})} m³/h (${recommendation.rate}%)`;
             }
             if (!editorDirty) {
                 ['f500_1','f500_2','f800_1','f800_2'].forEach((group,index) => {

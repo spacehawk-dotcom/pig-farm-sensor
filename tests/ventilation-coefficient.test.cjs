@@ -27,6 +27,32 @@ test('saved group inputs do not replace independent recommendations', () => {
     assert.equal(opt.recommendedMinimum.f500_2.rate,28);
 });
 
+test('combined recommendations at or below 10 percent use group 1 alone without losing required airflow', () => {
+    for (const [weight,count,rate] of [[87,90,23],[87,100,25],[7,10,8]]) {
+        const opt=calculate({coefficient:0.4},weight,count);
+        assert.equal(opt.recommendedMinimum.f500_1.rate,rate);
+        assert.equal(opt.recommendedMinimum.f500_2.rate,0);
+        assert.equal(opt.recommendedMinimum.f500_2.cmh,0);
+        assert.equal(opt.recommendedMinimum.f500_2.off,true);
+        assert.equal(opt.f500_2.min,0);
+        assert.ok(opt.recommendedMinimum.f500_1.cmh>=opt.minRequiredCMH);
+        assert.equal(opt.minSuppliedCMH,opt.recommendedMinimum.f500_1.cmh);
+        assert.equal(opt.minShortfallCMH,0);
+        assert.match(opt.minimumStatus,/2그룹 OFF/);
+    }
+    const above=calculate({coefficient:0.4},87.01,100);
+    assert.equal(above.recommendedMinimum.f500_1.rate,11);
+    assert.equal(above.recommendedMinimum.f500_2.rate,11);
+    assert.equal(above.recommendedMinimum.f500_2.off,false);
+    const edited=calculate({coefficient:0.4,f500_1:{min:12},f500_2:{min:15}},87,100);
+    assert.equal(edited.f500_1.min,12);
+    assert.equal(edited.f500_2.min,15);
+    assert.deepEqual(V.minimumAirflowDisplay(edited,'f500_1',{recommendedOnly:true}),
+        {label:'추천 환기량',value:'3,480 m³/h (25%)'});
+    assert.deepEqual(V.minimumAirflowDisplay(edited,'f500_2',{recommendedOnly:true}),
+        {label:'추천 환기량',value:'OFF (1그룹만 사용)'});
+});
+
 test('current airflow display uses the saved minimum per group, including zero', () => {
     const opt = calculate({f500_1:{min:0}, f500_2:{t:25}});
     assert.deepEqual(V.minimumAirflowDisplay(opt,'f500_1'), {label:'입력 환기량', value:'0 m³/h (0%)'});

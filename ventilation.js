@@ -165,8 +165,12 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             // 요구 환기량을 충족하는 가동률을 1%p 단위로 올림한다. 이유사는 1그룹만 계산한다.
             const minimumFanCapacity = fan_500_1_cap + fan_500_2_cap;
             const minimumRate = Math.min(100, Math.ceil(baseMinVentCMH * 100 / minimumFanCapacity));
-            const min_500_1 = minimumRate;
-            const min_500_2 = fan_500_2_cap > 0 ? minimumRate : 0;
+            // Decide once from the combined recommendation, before reallocating to group 1.
+            const group2Off = fan_500_2_cap > 0 && minimumRate <= 10;
+            const min_500_1 = group2Off
+                ? Math.min(100, Math.ceil(baseMinVentCMH * 100 / fan_500_1_cap))
+                : minimumRate;
+            const min_500_2 = fan_500_2_cap > 0 && !group2Off ? minimumRate : 0;
             let max_800_2 = Math.round(Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))));
 
             let historyMsg = `<li><strong>기본 기준 ${BASE_TEMPERATURE}℃ · 조건별 자동 적용</strong>: 일령에 따른 기준 ${Math.round(Math.max(BASE_TEMPERATURE, Math.min(32, t_500_1_raw)))}℃에 입식 경과일을 반영합니다.</li>`;
@@ -178,7 +182,9 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             const minimumGroups = roomType === '이유사' ? '1그룹' : '1·2그룹 각각';
             const minimumStatus = minShortfallCMH > 0
                 ? `${minimumGroups} 100% 적용. 최소 요구량 대비 ${Math.ceil(minShortfallCMH).toLocaleString()} m³/h 부족합니다.`
-                : `${minimumGroups} 계산 가동률 ${minimumRate}% 적용. 최소 요구량을 충족하도록 1%p 단위로 올림한 값입니다.`;
+                : group2Off
+                    ? `1·2그룹 기준 추천 가동률 ${minimumRate}%로 10% 이하입니다. 2그룹 OFF, 1그룹만 ${min_500_1}%로 계산하여 최소 요구량을 충족합니다.`
+                    : `${minimumGroups} 계산 가동률 ${minimumRate}% 적용. 최소 요구량을 충족하도록 1%p 단위로 올림한 값입니다.`;
             let min_velocity = min_cmh / 3600 / crossSectionArea;
             let max_cmh = fan_500_1_cap + fan_500_2_cap + fan_800_1_cap + (fan_800_2_cap * (max_800_2 / 100));
             let max_velocity = max_cmh / 3600 / crossSectionArea;
@@ -204,7 +210,7 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
                 coefficient,
                 recommendedMinimum: {
                     f500_1: { rate: min_500_1, cmh: fan_500_1_cap * min_500_1 / 100 },
-                    f500_2: { rate: min_500_2, cmh: fan_500_2_cap * min_500_2 / 100 }
+                    f500_2: { rate: min_500_2, cmh: fan_500_2_cap * min_500_2 / 100, off: group2Off }
                 },
                 optMaxVel: optimal_max_vel, inletArea: inletGapArea, inletMaxVel: inletMaxVel, roomType: roomType,
                 caps: { c1: fan_500_1_cap, c2: fan_500_2_cap, c3: fan_800_1_cap, c4: fan_800_2_cap },
@@ -244,6 +250,7 @@ function minimumAirflowDisplay(opt, group, {recommendedOnly = false} = {}) {
     const capacity = group === 'f500_1' ? opt.caps.c1 : opt.caps.c2;
     if (!capacity) return null;
     const saved = !recommendedOnly && opt.manualFields.includes(group + '.min');
+    if (!saved && recommendation.off) return {label:'추천 환기량', value:'OFF (1그룹만 사용)'};
     const rate = saved ? opt[group].min : recommendation.rate;
     const cmh = saved ? capacity * rate / 100 : recommendation.cmh;
     return {
