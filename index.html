@@ -436,11 +436,6 @@
         const opt = getVentilationOptions(batchData, outdoorTempHistory);
         document.getElementById('integ_title').textContent = batchData.type === '이유사' ? '4단계 환기 현재 적용 설정' : '4단계 환기 추천 설정';
         document.getElementById('integ_source').textContent = !opt ? '적용값 없음' : batchData.type === '육성사' ? '추천 환기량 연동' : opt.hasManualOverrides ? '입력값 연동' : '추천값 연동';
-        for (const n of [1, 2]) {
-            const airflow = opt?.['airflow' + n];
-            document.getElementById('integ_airflow_label_' + n).textContent = airflow?.label ?? '추천 환기량';
-            document.getElementById('integ_airflow_' + n).textContent = airflow?.value ?? '--';
-        }
         window.BatchTemperatureChart.render(batchData, opt, ventilationSensorHistory, ventilationHistoryStatus);
         const saveBtn = document.getElementById('integ_save_vent');
         if (saveBtn) {
@@ -503,8 +498,7 @@
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3" id="vent_integration_panel">
         <!-- 1그룹 -->
         <div class="bg-blue-50/70 p-3 rounded-lg border border-blue-100 shadow-sm relative">
-            <div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-1.5">1그룹 (500휀 2대)</div>
-            <div class="mb-2"><span id="integ_airflow_label_1" class="text-[10px] text-blue-800">추천 환기량</span><strong id="integ_airflow_1" class="block text-sm text-blue-900">--</strong></div>
+            <div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-1.5">1그룹</div>
             <div class="flex justify-between items-end mb-1">
                 <span class="text-[10px] text-slate-500">설정온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-blue-700" id="integ_t_1">--</span><span class="text-[10px] text-blue-600 mb-0.5">℃</span></div>
@@ -517,8 +511,7 @@
         </div>
         <!-- 2그룹 -->
         <div class="bg-teal-50/70 p-3 rounded-lg border border-teal-100 shadow-sm" id="integ_g2_panel">
-            <div class="text-[10px] sm:text-xs text-teal-800 font-bold mb-1.5">2그룹 (500휀 3대)</div>
-            <div class="mb-2"><span id="integ_airflow_label_2" class="text-[10px] text-teal-800">추천 환기량</span><strong id="integ_airflow_2" class="block text-sm text-teal-900">--</strong></div>
+            <div class="text-[10px] sm:text-xs text-teal-800 font-bold mb-1.5">2그룹</div>
             <div class="flex justify-between items-end mb-1">
                 <span class="text-[10px] text-slate-500">개입온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-teal-700" id="integ_t_2">--</span><span class="text-[10px] text-teal-600 mb-0.5">℃</span></div>
@@ -531,7 +524,7 @@
         </div>
         <!-- 3그룹 -->
         <div class="bg-orange-50/70 p-3 rounded-lg border border-orange-100 shadow-sm" id="integ_g3_panel">
-            <div class="text-[10px] sm:text-xs text-orange-800 font-bold mb-1.5">3그룹 (800휀 2대)</div>
+            <div class="text-[10px] sm:text-xs text-orange-800 font-bold mb-1.5">3그룹</div>
             <div class="flex justify-between items-end mb-1">
                 <span class="text-[10px] text-slate-500">개입온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-orange-700" id="integ_t_3">--</span><span class="text-[10px] text-orange-600 mb-0.5">℃</span></div>
@@ -544,7 +537,7 @@
         </div>
         <!-- 4그룹 -->
         <div class="bg-rose-50/70 p-3 rounded-lg border border-rose-100 shadow-sm" id="integ_g4_panel">
-            <div class="text-[10px] sm:text-xs text-rose-800 font-bold mb-1.5">4그룹 (800휀 2대 극한)</div>
+            <div class="text-[10px] sm:text-xs text-rose-800 font-bold mb-1.5">4그룹</div>
             <div class="flex justify-between items-end mb-1">
                 <span class="text-[10px] text-slate-500">극한온도</span>
                 <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-rose-700" id="integ_t_4">--</span><span class="text-[10px] text-rose-600 mb-0.5">℃</span></div>
@@ -558,7 +551,7 @@
     </div>
 
 </div>
-<button id="integ_save_vent" type="button" disabled class="w-full bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-black py-2.5 rounded-lg disabled:opacity-40">환기량 수정</button>`;
+<button id="integ_save_vent" type="button" disabled class="w-full bg-slate-50 border border-slate-200 text-red-600 text-lg font-black py-3 rounded-lg disabled:opacity-40">환기량 수정</button>`;
 
             const ventilationChartHtml = `    <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
