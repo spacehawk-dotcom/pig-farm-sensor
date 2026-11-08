@@ -106,6 +106,7 @@
       }
     });
     if(autoBatch)$('auto-history').textContent=historyText(batches.get(autoBatch)?.state?.signalHistory);
+    document.dispatchEvent(new Event('winch-history-updated'));
   }
   function cardHtml(id) {
     if (!/^[1-7]$/.test(String(id))) return '';
@@ -277,7 +278,7 @@
   };
   $('refresh').onclick = refresh;
   window.addEventListener('pagehide', () => { epoch++; clearTimeout(timer); closeAuto(); });
-  window.FarmWinch = { cardHtml, render };
+  window.FarmWinch = { cardHtml, render, getSignalHistory: id => batches.get(String(id))?.state?.signalHistory ?? null };
   document.dispatchEvent(new Event('winch-ready'));
   $('refresh').hidden=false;
   refresh();
