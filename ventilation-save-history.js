@@ -33,7 +33,7 @@
             const group = record.settings?.[key] || {};
             const number = field => Number.isFinite(group[field]) ? group[field] : '--';
             const range = i===1 && group.min===0 ? '최소환기 OFF' : i===3 ? `최대 ${number('max')}%` : `${number('min')}~${number('max')}%`;
-            return `<div class="rounded bg-slate-50 p-2 text-center"><p class="text-[10px] text-slate-500">${i+1}그룹</p><p class="text-sm font-bold ${colors[i]}">${number('t')}℃</p><p class="text-[10px] text-slate-600">편차 ${number('diff')}℃ · ${range}</p></div>`;
+            return `<div class="rounded bg-slate-50 p-2 text-center"><div class="flex items-center justify-between gap-1 mb-1"><p class="text-[10px] text-slate-500 whitespace-nowrap">${i+1}그룹</p><p class="text-sm font-bold whitespace-nowrap ${colors[i]}">${number('t')}℃</p></div><p class="text-[10px] text-slate-600">편차 ${number('diff')}℃ · ${range}</p></div>`;
         }).join('')}</div></details>`;
     }
     function mount(container, batchRef, latest, localRecords) {

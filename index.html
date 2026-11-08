@@ -49,7 +49,7 @@
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
         <script src="ventilation.js?v=20261108-single-group"></script>
-        <script src="ventilation-save-history.js?v=20261108"></script>
+        <script src="ventilation-save-history.js?v=20261109-inline-temperature"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -495,58 +495,62 @@
         <span id="integ_source" class="text-[10px] sm:text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full font-medium">환기량 앱 연동</span>
     </div>
     
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3" id="vent_integration_panel">
-        <!-- 1그룹 -->
-        <div class="bg-blue-50/70 p-3 rounded-lg border border-blue-100 shadow-sm relative">
-            <div class="text-[10px] sm:text-xs text-blue-800 font-bold mb-1.5">1그룹</div>
-            <div class="flex justify-between items-end mb-1">
-                <span class="text-[10px] text-slate-500">설정온도</span>
-                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-blue-700" id="integ_t_1">--</span><span class="text-[10px] text-blue-600 mb-0.5">℃</span></div>
+    <div class="grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr))" id="vent_integration_panel">
+        <div class="bg-blue-50/70 px-4 py-2 rounded-2xl border border-blue-100 shadow-sm min-w-0">
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-2 shrink-0"><i data-lucide="layout-grid" aria-hidden="true" class="w-4 h-4 text-blue-600"></i><h4 class="text-lg font-black text-slate-800">1그룹</h4></div>
+                <div class="text-blue-600 whitespace-nowrap leading-none"><span class="sr-only">설정온도 </span><span class="text-3xl font-black tracking-tight" id="integ_t_1">--</span><span class="text-base font-bold ml-1">℃</span></div>
             </div>
-            <div class="flex justify-between items-end">
-                <span class="text-[10px] text-slate-500">최소환기</span>
-                <div class="flex items-end gap-0.5"><span class="text-sm font-bold text-slate-700" id="integ_min_1">--</span><span class="text-[10px] text-slate-500 mb-0.5">%</span></div>
+            <div class="flex items-center justify-between gap-2 min-h-8">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-500 whitespace-nowrap"><i data-lucide="fan" aria-hidden="true" class="w-4 h-4 shrink-0"></i>최소환기</span>
+                <div class="text-slate-800 whitespace-nowrap"><span id="integ_min_1" class="text-2xl font-black">--</span><span class="text-sm text-slate-400 ml-1">%</span></div>
             </div>
-<div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-[11px]"><span class="text-slate-500">온도 편차</span><span class="font-bold text-slate-700"><span id="integ_diff_1">--</span>℃</span></div>
+            <div class="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-slate-200">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-400"><i data-lucide="arrow-up-down" aria-hidden="true" class="w-4 h-4"></i>온도 편차</span>
+                <span class="bg-slate-100 text-slate-700 text-base font-black px-3 py-0.5 rounded-lg whitespace-nowrap"><span id="integ_diff_1">--</span>℃</span>
+            </div>
         </div>
-        <!-- 2그룹 -->
-        <div class="bg-teal-50/70 p-3 rounded-lg border border-teal-100 shadow-sm" id="integ_g2_panel">
-            <div class="text-[10px] sm:text-xs text-teal-800 font-bold mb-1.5">2그룹</div>
-            <div class="flex justify-between items-end mb-1">
-                <span class="text-[10px] text-slate-500">개입온도</span>
-                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-teal-700" id="integ_t_2">--</span><span class="text-[10px] text-teal-600 mb-0.5">℃</span></div>
+        <div class="bg-teal-50/70 px-4 py-2 rounded-2xl border border-teal-100 shadow-sm min-w-0" id="integ_g2_panel">
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-2 shrink-0"><i data-lucide="layout-grid" aria-hidden="true" class="w-4 h-4 text-teal-600"></i><h4 class="text-lg font-black text-slate-800">2그룹</h4></div>
+                <div class="text-teal-600 whitespace-nowrap leading-none"><span class="sr-only">개입온도 </span><span class="text-3xl font-black tracking-tight" id="integ_t_2">--</span><span class="text-base font-bold ml-1">℃</span></div>
             </div>
-            <div class="flex justify-between items-end">
-                <span class="text-[10px] text-slate-500">환기범위</span>
-                <span class="text-[11px] sm:text-xs font-bold text-slate-700" id="integ_min_2">--</span>
+            <div class="flex items-center justify-between gap-2 min-h-8">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-500 whitespace-nowrap"><i data-lucide="fan" aria-hidden="true" class="w-4 h-4 shrink-0"></i>환기범위</span>
+                <div class="text-slate-800 whitespace-nowrap"><span id="integ_min_2" class="text-base font-black">--</span></div>
             </div>
-<div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-[11px]"><span class="text-slate-500">온도 편차</span><span class="font-bold text-slate-700"><span id="integ_diff_2">--</span>℃</span></div>
+            <div class="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-slate-200">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-400"><i data-lucide="arrow-up-down" aria-hidden="true" class="w-4 h-4"></i>온도 편차</span>
+                <span class="bg-slate-100 text-slate-700 text-base font-black px-3 py-0.5 rounded-lg whitespace-nowrap"><span id="integ_diff_2">--</span>℃</span>
+            </div>
         </div>
-        <!-- 3그룹 -->
-        <div class="bg-orange-50/70 p-3 rounded-lg border border-orange-100 shadow-sm" id="integ_g3_panel">
-            <div class="text-[10px] sm:text-xs text-orange-800 font-bold mb-1.5">3그룹</div>
-            <div class="flex justify-between items-end mb-1">
-                <span class="text-[10px] text-slate-500">개입온도</span>
-                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-orange-700" id="integ_t_3">--</span><span class="text-[10px] text-orange-600 mb-0.5">℃</span></div>
+        <div class="bg-orange-50/70 px-4 py-2 rounded-2xl border border-orange-100 shadow-sm min-w-0" id="integ_g3_panel">
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-2 shrink-0"><i data-lucide="layout-grid" aria-hidden="true" class="w-4 h-4 text-orange-600"></i><h4 class="text-lg font-black text-slate-800">3그룹</h4></div>
+                <div class="text-orange-600 whitespace-nowrap leading-none"><span class="sr-only">개입온도 </span><span class="text-3xl font-black tracking-tight" id="integ_t_3">--</span><span class="text-base font-bold ml-1">℃</span></div>
             </div>
-            <div class="flex justify-between items-end">
-                <span class="text-[10px] text-slate-500">환기범위</span>
-                <span class="text-[11px] sm:text-xs font-bold text-slate-700"><span id="integ_min_3">--</span> ~ 100%</span>
+            <div class="flex items-center justify-between gap-2 min-h-8">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-500 whitespace-nowrap"><i data-lucide="fan" aria-hidden="true" class="w-4 h-4 shrink-0"></i>환기범위</span>
+                <div class="text-slate-800 whitespace-nowrap"><span class="text-base font-black"><span id="integ_min_3">--</span> ~ 100%</span></div>
             </div>
-<div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-[11px]"><span class="text-slate-500">온도 편차</span><span class="font-bold text-slate-700"><span id="integ_diff_3">--</span>℃</span></div>
+            <div class="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-slate-200">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-400"><i data-lucide="arrow-up-down" aria-hidden="true" class="w-4 h-4"></i>온도 편차</span>
+                <span class="bg-slate-100 text-slate-700 text-base font-black px-3 py-0.5 rounded-lg whitespace-nowrap"><span id="integ_diff_3">--</span>℃</span>
+            </div>
         </div>
-        <!-- 4그룹 -->
-        <div class="bg-rose-50/70 p-3 rounded-lg border border-rose-100 shadow-sm" id="integ_g4_panel">
-            <div class="text-[10px] sm:text-xs text-rose-800 font-bold mb-1.5">4그룹</div>
-            <div class="flex justify-between items-end mb-1">
-                <span class="text-[10px] text-slate-500">극한온도</span>
-                <div class="flex items-end gap-0.5"><span class="text-base sm:text-lg font-bold text-rose-700" id="integ_t_4">--</span><span class="text-[10px] text-rose-600 mb-0.5">℃</span></div>
+        <div class="bg-rose-50/70 px-4 py-2 rounded-2xl border border-rose-100 shadow-sm min-w-0" id="integ_g4_panel">
+            <div class="flex items-center justify-between gap-2 mb-1">
+                <div class="flex items-center gap-2 shrink-0"><i data-lucide="layout-grid" aria-hidden="true" class="w-4 h-4 text-rose-600"></i><h4 class="text-lg font-black text-slate-800">4그룹</h4></div>
+                <div class="text-rose-600 whitespace-nowrap leading-none"><span class="sr-only">극한온도 </span><span class="text-3xl font-black tracking-tight" id="integ_t_4">--</span><span class="text-base font-bold ml-1">℃</span></div>
             </div>
-            <div class="flex justify-between items-end">
-                <span class="text-[10px] text-slate-500">최대제한</span>
-                <div class="flex items-end gap-0.5"><span class="text-sm font-bold text-rose-600" id="integ_max_4">--</span><span class="text-[10px] text-rose-500 mb-0.5">%</span></div>
+            <div class="flex items-center justify-between gap-2 min-h-8">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-500 whitespace-nowrap"><i data-lucide="fan" aria-hidden="true" class="w-4 h-4 shrink-0"></i>최대제한</span>
+                <div class="text-slate-800 whitespace-nowrap"><span id="integ_max_4" class="text-2xl font-black">--</span><span class="text-sm text-slate-400 ml-1">%</span></div>
             </div>
-<div class="flex justify-between items-center mt-2 pt-2 border-t border-slate-200 text-[11px]"><span class="text-slate-500">온도 편차</span><span class="font-bold text-slate-700"><span id="integ_diff_4">--</span>℃</span></div>
+            <div class="flex items-center justify-between gap-2 mt-1 pt-1 border-t border-slate-200">
+                <span class="flex items-center gap-1.5 text-xs font-bold text-slate-400"><i data-lucide="arrow-up-down" aria-hidden="true" class="w-4 h-4"></i>온도 편차</span>
+                <span class="bg-slate-100 text-slate-700 text-base font-black px-3 py-0.5 rounded-lg whitespace-nowrap"><span id="integ_diff_4">--</span>℃</span>
+            </div>
         </div>
     </div>
 
