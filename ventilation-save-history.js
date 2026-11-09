@@ -32,7 +32,8 @@
         return `<details class="rounded-lg border border-slate-200 bg-white p-2.5" ${open?'open':''}><summary class="cursor-pointer text-xs font-bold text-slate-700">${escape(stamp)}</summary><div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">${keys.map((key,i)=>{
             const group = record.settings?.[key] || {};
             const number = field => Number.isFinite(group[field]) ? group[field] : '--';
-            const range = i===1 && group.min===0 ? '최소환기 OFF' : i===3 ? `최대 ${number('max')}%` : `${number('min')}~${number('max')}%`;
+            const minimum = i < 2 ? `<strong class="text-xs font-extrabold ${colors[i]}">${number('min')}</strong>` : number('min');
+            const range = i===1 && group.min===0 ? '최소환기 OFF' : i===3 ? `최대 ${number('max')}%` : `${minimum}~${number('max')}%`;
             return `<div class="rounded bg-slate-50 p-2 text-center"><div class="flex items-center justify-between gap-1 mb-1"><p class="text-[10px] text-slate-500 whitespace-nowrap">${i+1}그룹</p><p class="text-sm font-bold whitespace-nowrap ${colors[i]}">${number('t')}℃</p></div><p class="text-[10px] text-slate-600">편차 ${number('diff')}℃ · ${range}</p></div>`;
         }).join('')}</div></details>`;
     }
