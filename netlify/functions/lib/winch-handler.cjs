@@ -11,6 +11,7 @@ const env=process.env;
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 
 const {createLocalControl,workerApi,authenticated}=require('./winch-local.cjs');
+const {createHaOwner}=require('./winch-ha-owner.cjs');
 const wakeRoot='https://sungamfarm-default-rtdb.firebaseio.com/winch_local_wakeup';
 async function notify(id,payload){
   const r=await fetch(wakeRoot+'/'+id+'.json',{method:'PUT',body:JSON.stringify(payload),headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(3500)});
@@ -59,7 +60,10 @@ function runtime(){
   const readTemperature=createHaTemperatureReader({registry:WINCHES});
   const offsetStore=createOffsetStore({database});
   const readSettings=createSetpointReader({database,registry:WINCHES,readOffsets:offsetStore.read});
-  const automation=createAutomation({readTemperature,readSettings,control,withLock,store});
+  const legacy=createAutomation({readTemperature,readSettings,control,withLock,store});
+  const automation=createHaOwner({legacy,store,control,withLock,readSettings,env,registry:WINCHES,
+    readMailbox:async id=>(await database().doc('winch_server_locks/ha_command_'+id).get()).data(),
+    readReport:async()=>(await database().doc('winch_server_locks/ha_local_status').get()).data()});
   return {control,automation,offsetStore};
 }
 exports.handler=async event=>{
@@ -77,6 +81,11 @@ exports.scheduled=async()=>{
 
 exports.worker=async(token,body)=>{
   if(!authenticated(token))throw Object.assign(new Error('Unauthorized'),{status:401});
+  if(body.op==='configure'){
+    if(!Array.isArray(body.batches)||body.batches.length>7||body.batches.some(id=>typeof id!=='string'||!Object.hasOwn(WINCHES,id)))
+      throw Object.assign(new Error('Invalid batches'),{status:400});
+    return runtime().automation.configure(body.batches);
+  }
   if(body.op==='self_check'){
     if(typeof body.id!=='string'||!Object.hasOwn(WINCHES,body.id))throw Object.assign(new Error('Invalid batch'),{status:400});
     const {control}=runtime();

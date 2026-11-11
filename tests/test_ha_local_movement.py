@@ -4,14 +4,17 @@ import asyncio
 from pathlib import Path
 import sys
 import time
+import json
+import hmac
+import hashlib
 import unittest
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 root = Path(__file__).resolve().parents[1] / "homeassistant/custom_components/sungam_winch"
-spec = importlib.util.spec_from_file_location("bridge_under_test", root / "__init__.py")
+spec = importlib.util.spec_from_file_location("bridge_under_test", root / "__init__.py", submodule_search_locations=[str(root)])
 bridge = importlib.util.module_from_spec(spec)
 imports = ["aiohttp", "homeassistant", "homeassistant.const", "homeassistant.helpers",
-           "homeassistant.helpers.aiohttp_client", "custom_components.localtuya.core.pytuya"]
+           "homeassistant.helpers.aiohttp_client", "homeassistant.helpers.storage", "custom_components.localtuya.core.pytuya"]
 with patch.dict(sys.modules, {**{s:MagicMock() for s in imports}, spec.name:bridge}):
     spec.loader.exec_module(bridge)
 
@@ -71,6 +74,26 @@ class BridgeMovementTest(unittest.IsolatedAsyncioTestCase):
 
 
 class BridgeReportingTest(unittest.IsolatedAsyncioTestCase):
+    async def test_inline_command_no_claim_rejects_tampering_replay_and_expiry(self):
+        b=bridge.Bridge(Mock(), 'test')
+        b.controller=Mock()
+        b.controller.command=AsyncMock()
+        b.post=AsyncMock()
+        def message(ticket, expires=None):
+            raw=json.dumps(dict(v=2,id='1',ticket=ticket,action='up',expires=expires or time.time()*1000+10000))
+            return dict(payload=raw,mac=hmac.new(b.session.encode(),raw.encode(),hashlib.sha256).hexdigest())
+        first=message('a'*36)
+        b.wake('1',first)
+        await asyncio.gather(*list(b.jobs.values()))
+        second=message('b'*36)
+        b.wake('1',second)
+        await asyncio.gather(*list(b.jobs.values()))
+        b.wake('1',first)
+        b.wake('1',{**second,'payload':second['payload'].replace('up','down')})
+        b.wake('1',message('c'*36,time.time()*1000-1))
+        self.assertEqual(b.controller.command.await_count,2)
+        self.assertTrue(all(call.args[0]=='ack' for call in b.post.await_args_list))
+
     async def test_one_cancelled_device_is_unknown_then_recovers_on_next_report(self):
         b = bridge.Bridge(Mock(), "test")
         healthy = dict(online=True, up=False, down=False, timer=bridge.TIMER)

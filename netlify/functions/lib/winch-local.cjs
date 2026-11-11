@@ -7,6 +7,7 @@ const workerHash='3d81e6a1f5008de48759d660bbb1aaea053fdf7a0a00e6cebf35bdf9fde473
 const authenticated=token=>typeof token==='string' && crypto.timingSafeEqual(
   crypto.createHash('sha256').update(token).digest(),Buffer.from(workerHash,'hex'));
 const sign=(session,id,ticket)=>crypto.createHmac('sha256',session).update(id+':'+ticket).digest('hex');
+const signPayload=(session,payload)=>crypto.createHmac('sha256',session).update(payload).digest('hex');
 const mailbox=(db,id)=>db.doc('winch_server_locks/ha_command_'+id);
 const worker=db=>db.doc('winch_server_locks/ha_local_status');
 const signalHistory=message=>Array.isArray(message?.history)?message.history.slice(0,20):[];
@@ -56,12 +57,15 @@ function createLocalControl({database,env,notify}){
   const read=()=>report??=worker(database()).get().then(d=>d.data());
   const getState=async(id,diagnostic=false)=>{
     const [status,commands]=await Promise.all([read(),mailbox(database(),id).get()]);
-    return {...stateFrom(status,id,env,Date.now(),diagnostic),signalHistory:signalHistory(commands.data())};
+    const history=[...signalHistory(commands.data()),...signalHistory({history:status?.autoHistory?.[id]})]
+      .sort((a,b)=>b.at-a.at).slice(0,20);
+    return {...stateFrom(status,id,env,Date.now(),diagnostic),signalHistory:history};
   };
   const move=async(action,id,context={})=>{
-    if(!batchOK(id)||!['up','down','stop','check'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
+    if(!batchOK(id)||!['up','down','stop','check','resume'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
     const r=await read(),s=stateFrom(r,id,env);
-    if(['up','down'].includes(action))ensureReady(s);
+    if(['up','down','resume'].includes(action))ensureReady(s);
+    if(action==='resume' && r?.protocol!==2)throw fail('HA 자동 운전 업데이트가 필요합니다.');
     if(!r?.session)throw fail('농장 HA에 등록된 신호 수신 세션이 없습니다.');
     const ref=mailbox(database(),id);
     // The caller holds the batch lock. Never overwrite a live, unconsumed ticket.
@@ -77,17 +81,21 @@ function createLocalControl({database,env,notify}){
     const priorHistory=signalHistory(previous);
     const event={at:Date.now(),action,mode:context.mode==='auto'?'auto':'manual',status:'registered',
       ...(Number.isFinite(context.temperature)?{temperature:context.temperature}:{})};
-    const history=action==='check'?priorHistory:[event,...priorHistory].slice(0,20);
-    await ref.set({action,ticket,expires,session:r.session,phase:'waiting',history});
+    const history=['check','resume'].includes(action)?priorHistory:[event,...priorHistory].slice(0,20);
+    await ref.set({action,ticket,expires,session:r.session,phase:'waiting',history,protocol:r.protocol===2?2:1});
     // This public RTDB leaf is only a signed wake-up. It cannot authorize a command.
-    await notify(id,{ticket,mac:sign(r.session,id,ticket)});
-    if(action!=='check'){
+    if(r.protocol===2){
+      const payload=JSON.stringify({v:2,id,ticket,action,expires,...(context.settings?{settings:context.settings}:{})});
+      await notify(id,{payload,mac:signPayload(r.session,payload)});
+    }else await notify(id,{ticket,mac:sign(r.session,id,ticket)});
+    if(!['check','resume'].includes(action)){
       event.status='sent';
       // Updating only history preserves any concurrent HA claim or acknowledgement.
       await ref.update({history});
     }
-    if(action==='check' && !await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500))){
-      throw fail('HA 연결 진단 응답을 받지 못했습니다.',504);
+    if((action==='check'||r.protocol===2&&['resume','stop'].includes(action)) &&
+       !await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500))){
+      throw fail(action==='check'?'HA 연결 진단 응답을 받지 못했습니다.':'HA 설정 요청 응답을 받지 못했습니다. 상태를 다시 확인하세요.',504);
     }
     return {accepted:true,batchId:id,action,signalHistory:history,
       message:action==='check'?'HA 연결 진단 완료':'신호 요청을 보냈습니다.'};
@@ -105,7 +113,9 @@ async function workerApi(db,body){
         (s.timer!==null&&(typeof s.timer!=='string'||s.timer.length>128)))throw fail('invalid state',400);
       states[id]={online:s.online,up:s.up,down:s.down,timer:s.timer};
     }
-    await worker(db).set({session,states,receivedAt:Date.now()});
+    const extra=body.protocol===2?{protocol:2,autos:body.autos||{},autoHistory:body.autoHistory||{},temperatures:body.temperatures||{}}:{};
+    if(JSON.stringify(extra).length>48000)throw fail('report too large',400);
+    await worker(db).set({session,states,receivedAt:Date.now(),...extra});
     return {ok:true};
   }
   if(!batchOK(id)||typeof ticket!=='string'||!/^[a-f0-9-]{36}$/.test(ticket)||!['claim','ack'].includes(op))throw fail('invalid message',400);
@@ -118,8 +128,9 @@ async function workerApi(db,body){
       tx.update(ref,{phase:'claimed'});
       return {command:{action:m.action,expires:m.expires}};
     }
-    if(m.phase==='claimed' && typeof body.ok==='boolean')tx.update(ref,{phase:'done',ok:body.ok});
+    if((m.phase==='claimed'||m.protocol===2&&m.phase==='waiting') && typeof body.ok==='boolean')
+      tx.update(ref,{phase:'done',ok:body.ok,...(m.protocol===2&&body.auto&&JSON.stringify(body.auto).length<4096?{auto:body.auto}:{})});
     return {ok:true};
   });
 }
-module.exports={createLocalControl,workerApi,authenticated,stateFrom,sign};
+module.exports={createLocalControl,workerApi,authenticated,stateFrom,sign,signPayload};

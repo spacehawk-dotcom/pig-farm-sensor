@@ -2,6 +2,7 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const {stateFrom,workerApi,authenticated,createLocalControl,sign}=require('../netlify/functions/lib/winch-local.cjs');
 const {WINCHES}=require('../netlify/functions/lib/winch-control');
+const {signPayload}=require('../netlify/functions/lib/winch-local.cjs');
 const session='a'.repeat(64),ticket='b9b073e4-77bf-4c65-8e23-61240aaee7cd';
 function memory(){
   const docs=new Map();
@@ -9,6 +10,20 @@ function memory(){
   const db={doc,runTransaction:fn=>fn({get:r=>r.get(),update:(r,v)=>Object.assign(docs.get(r.key),v)})};
   return {db,docs};
 }
+
+test('protocol 2 sends authenticated command inline and accepts acknowledgement without claim',async()=>{
+  const {db,docs}=memory(),notices=[];
+  docs.set('winch_server_locks/ha_local_status',{session,protocol:2});
+  const control=createLocalControl({database:()=>db,env:{WINCH_SAFETY_CONFIRMED:'true'},notify:async(id,data)=>notices.push(data)});
+  await control.move('up','2');
+  const {payload,mac}=notices[0],command=JSON.parse(payload);
+  assert.equal(command.action,'up');assert.equal(command.id,'2');assert.equal(command.v,2);
+  assert.equal(mac,signPayload(session,payload));
+  assert.notEqual(mac,signPayload(session,payload.replace('"up"','"down"')));
+  assert(!payload.includes(session));
+  await workerApi(db,{op:'ack',id:'2',ticket:command.ticket,session,ok:true});
+  assert.equal(docs.get('winch_server_locks/ha_command_2').phase,'done');
+});
 test('reports describe relay status separately from permission to submit signals',()=>{
   const id='2', cfg=WINCHES[id],now=Date.now(), env={[cfg.enabledEnv]:'true'};
   const report={receivedAt:now,states:{[id]:{online:true,up:false,down:false,timer:cfg.safety.switch_inching,interlock:null}}};

@@ -5,7 +5,7 @@ export default async function(request){
   if(request.method!=='POST')return json({error:'POST required'},405);
   try{
     const body=await request.text();
-    if(body.length>8192)return json({error:'Too large'},413);
+    if(body.length>65536)return json({error:'Too large'},413);
     return json(await winch.worker(request.headers.get('x-ha-bridge'),JSON.parse(body)),200);
   }catch(e){return json({error:e.status===401?'Unauthorized':'Bridge request failed'},e.status||502);}
 }

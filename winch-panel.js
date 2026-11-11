@@ -210,7 +210,7 @@
       const data=await api('auto_status',id);
       if(ticket!==epoch||view!==autoView)return;
       $('auto-state').textContent=autoSummary(data.auto);
-      $('auto-sensor').textContent=data.sensorError||`${data.sample.source==='ha'?'HA 온도':'자동 운전용 센서'} ${data.sample.temperature}℃ · 센서 수신 ${new Date(data.sample.measuredAt).toLocaleString('ko-KR')}`;
+      $('auto-sensor').textContent=data.sensorError||`${data.sample?.source?.startsWith('ha')?'HA 온도':'자동 운전용 센서'} ${data.sample?.temperature??'--'}℃ · 센서 수신 ${data.sample?new Date(data.sample.measuredAt).toLocaleString('ko-KR'):'대기 중'}`;
       const settings=data.settings;
       $('auto-settings').textContent=data.settingsError||(!settings?'1그룹 설정온도를 확인하지 못했습니다.':`이 배치의 1그룹 설정온도: ${settings.targetTemperature}℃`);
       for(const direction of ['up','down'])for(let n=1;n<=3;n++)$('auto-'+direction+n).textContent=settings?`${settings[direction][n-1]}℃ ${direction==='up'?'이상':'이하'}`:'설정값 확인 필요';

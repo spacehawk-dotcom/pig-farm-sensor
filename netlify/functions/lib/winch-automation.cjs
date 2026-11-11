@@ -32,6 +32,7 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
   const enable=async(id)=>{
     return withLock('auto_on',async()=>{
       const old=await status(id);
+      if(old.owner==='ha')throw fail('HA 제어로 전환되었습니다. 다시 요청하세요.');
       if(old.enabled&&!old.paused)throw fail('이미 자동 운전 중입니다.');
       control.ensureReady(await control.getState(id));
       const sample=await readTemperature(id);
@@ -44,6 +45,7 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
   };
   const manual=(action,id)=>withLock(action,async()=>{
     if(!['up','down','stop'].includes(action))throw fail('지원하지 않는 수동 동작입니다.');
+    if((await status(id)).owner==='ha')throw fail('HA 제어로 전환되었습니다. 다시 요청하세요.');
     const pausedState=reason=>({enabled:true,paused:true,schemaVersion:SCHEMA_VERSION,
       referenceTemperature:null,pending:null,reason,checkedAt:now(),lastActionAt:now()});
     if(action==='stop'){
@@ -72,6 +74,8 @@ function createAutomation({readTemperature,readSettings,control,withLock,store,n
   },id);
   const tick=id=>withLock('automatic',async()=>{
     let auto=await status(id);
+    // Ownership is durable: a missing HA heartbeat must never start a second controller.
+    if(auto.owner==='ha')return;
     if(auto.pending){
       // Discard an old in-flight ticket without replaying it or changing the operator's mode.
       await store.write(id,{...auto,referenceTemperature:null,pending:null,
