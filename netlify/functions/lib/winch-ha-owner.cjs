@@ -34,7 +34,8 @@ function createHaOwner({legacy,store,control,withLock,readSettings,readReport,re
       if(!Object.hasOwn(registry,id))return;
       const allowed=env[registry[id].enabledEnv]==='true';
       try{
-        const settings=await readSettings(id);
+        let settings=null;
+        try{settings=await readSettings(id);}catch{ /* Manual control does not require an automatic setpoint. */ }
         batches[id]=await withLock('handover',async()=>{
           const initial=await legacy.status(id);
           const message=await readMailbox(id);

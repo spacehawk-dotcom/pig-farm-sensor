@@ -108,6 +108,15 @@ class LocalControlTest(unittest.IsolatedAsyncioTestCase):
         await self.engine.configure({'2':dict(settings=SETTINGS,allowed=True,initial=dict(enabled=True,paused=False))})
         self.assertTrue(self.engine.batches['2']['paused'])
 
+    async def test_missing_setpoint_allows_manual_but_not_auto(self):
+        await self.engine.configure({'4':dict(settings=None,allowed=True,initial=dict(enabled=True,paused=True))})
+        await self.engine.command('4',dict(action='up',expires=self.now+10000))
+        self.assertEqual(self.execute.await_count,1)
+        self.engine.batches['4']['paused']=False
+        self.now+=300000
+        await self.engine.tick('4')
+        self.assertEqual(self.execute.await_count,1)
+
 
 if __name__=='__main__':
     unittest.main()

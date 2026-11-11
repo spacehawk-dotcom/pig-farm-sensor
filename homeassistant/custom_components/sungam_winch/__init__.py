@@ -309,7 +309,7 @@ class Bridge:
             if states != previous:
                 self.hass.states.async_set("sensor.sungam_winch_bridge",sum(s["online"] for s in states.values()),{
                     "friendly_name":"LocalTuya winches", "command_mode":"signal_only",
-                    "version":"2.0.0", "automation_owner":"ha" if self.controller else "server",
+                    "version":"2.0.1", "automation_owner":"ha" if self.controller else "server",
                     "timer_received":[b for b,s in states.items() if s["timer"]],
                     "verified":[b for b,s in states.items() if s["timer"]==(TIMER_2 if b=="2" else TIMER)]})
             if states != previous or auto_snapshot != previous_auto or time.monotonic()-last>55 or self.changed.is_set():

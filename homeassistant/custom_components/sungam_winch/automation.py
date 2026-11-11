@@ -64,8 +64,7 @@ class LocalAutomation:
             if batch not in self.locks:
                 continue
             async with self.locks[batch]:
-                if 'settings' not in config or not valid_settings(config['settings']):
-                    # Retain the last good thresholds but disable new movement on a failed config.
+                if 'initial' not in config and 'settings' not in config:
                     if batch in self.batches:
                         self.batches[batch]['allowed'] = False
                     continue
@@ -127,6 +126,8 @@ class LocalAutomation:
         async with self.locks[batch]:
             state = self.batches[batch]
             if not state.get('allowed') or not state.get('enabled') or state.get('paused'):
+                return
+            if not valid_settings(state.get('settings')):
                 return
             if self.now()-state.get('lastActionAt', 0) < INTERVAL:
                 return
