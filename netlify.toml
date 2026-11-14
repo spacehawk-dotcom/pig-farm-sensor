@@ -7,3 +7,6 @@
 
 [functions."winch*"]
   included_files = ["node_modules/**"]
+
+[functions."feeders"]
+  included_files = ["node_modules/**"]

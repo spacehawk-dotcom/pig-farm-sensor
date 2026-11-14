@@ -1,0 +1,51 @@
+(function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.FeederCore=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
+  'use strict';
+  const TOTAL=72,STALE_MS=15*60*1000;
+  const dayFormat=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'});
+  function koreanDay(time=Date.now()){return dayFormat.format(new Date(time));}
+  function timestamp(value){
+    if(typeof value!=='string')return NaN;
+    let s=value.trim();
+    if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s))s=s.replace(' ','T')+'+09:00';
+    return Date.parse(s);
+  }
+  function normalize(raw){
+    const deviceId=Number(raw.device_id??raw.deviceId);
+    const sowId=String(raw.sow_id??raw.sowId??'').trim();
+    const rawTarget=raw.target_amount??raw.target,rawAmount=raw.dispensed_amount??raw.amount;
+    const numeric=v=>(typeof v==='number'||typeof v==='string'&&v.trim()!=='')&&Number.isFinite(Number(v));
+    if(!numeric(rawTarget)||!numeric(rawAmount))throw new Error('급이량이 누락되었습니다.');
+    const target=Number(rawTarget),amount=Number(rawAmount);
+    const measuredAt=typeof raw.measuredAt==='number'?raw.measuredAt:timestamp(raw.update_time);
+    if(!Number.isInteger(deviceId)||deviceId<1||deviceId>TOTAL||!sowId||sowId.length>80||
+      !Number.isFinite(target)||!Number.isFinite(amount)||target<0||amount<0||target>1000000||amount>1000000||!Number.isFinite(measuredAt))throw new Error('급이기 데이터 형식이 올바르지 않습니다.');
+    return {deviceId,sowId,target,amount,measuredAt,active:!['0','-','*'].includes(sowId),percent:target>0?Math.floor(amount/target*100):null};
+  }
+  function parseLog(text,deviceId){
+    const rows=[],lines=text.replace(/^\uFEFF/,'').split(/\r?\n/);
+    for(let i=0;i<lines.length-3;i++){
+      const header=lines[i].match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s*:\s*\[RESPONSE\]/);
+      if(!header||lines[i+1].trim()!=='EATLOG')continue;
+      const parts=lines[i+2].trim().split(/\s+/);
+      if(parts.length!==16||!parts.every(x=>/^\d+$/.test(x)))continue;
+      try{rows.push(normalize({device_id:deviceId,sow_id:lines[i+3].trim(),target_amount:parts[6],dispensed_amount:parts[5],update_time:header[1]}));}catch{}
+    }
+    return rows.sort((a,b)=>a.measuredAt-b.measuredAt);
+  }
+  function status(row,{archive=false,now=Date.now()}={}){
+    if(!row)return 'missing';
+    if(!archive&&(now-row.measuredAt>STALE_MS||row.measuredAt>now+60000||koreanDay(row.measuredAt)!==koreanDay(now)))return 'stale';
+    if(!row.active)return 'empty';
+    if(row.target===0)return 'unset';
+    if(row.amount>=row.target)return 'complete';
+    if(row.amount/row.target<0.5)return 'low';
+    return 'partial';
+  }
+  function summary(rows,options={}){
+    const result={registered:TOTAL,received:rows.length,active:0,complete:0,low:0,partial:0,stale:0,empty:0,unset:0,missing:TOTAL-rows.length,target:0,amount:0};
+    for(const row of rows){const s=status(row,options);result[s]++;if(row.active&&s!=='stale'){result.active++;result.target+=row.target;result.amount+=row.amount;}}
+    result.percent=result.target?Math.floor(result.amount/result.target*100):0;return result;
+  }
+  function merge(rows,incoming){const map=new Map(rows.map(r=>[r.deviceId,r]));for(const raw of incoming){const r=normalize(raw),old=map.get(r.deviceId);if(!old||r.measuredAt>=old.measuredAt)map.set(r.deviceId,r);}return [...map.values()].sort((a,b)=>a.deviceId-b.deviceId);}
+  return {TOTAL,STALE_MS,koreanDay,timestamp,normalize,parseLog,status,summary,merge};
+});
