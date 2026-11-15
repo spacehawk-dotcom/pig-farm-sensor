@@ -1,8 +1,33 @@
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.FeederCore=api;})(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
   const TOTAL=72,STALE_MS=15*60*1000;
+  const BATCH_SIZE=24;
+  function batches(cleaningDevices=[]){
+    const cleaning=new Set(cleaningDevices);
+    return Array.from({length:TOTAL/BATCH_SIZE},(_,i)=>{
+      const start=i*BATCH_SIZE+1,end=(i+1)*BATCH_SIZE;
+      const devices=Array.from({length:BATCH_SIZE},(_,j)=>start+j);
+      const cleaningCount=devices.filter(id=>cleaning.has(id)).length;
+      return {id:i+1,label:`${i+1}배치`,start,end,devices,cleaningCount,state:cleaningCount===0?'operating':cleaningCount===BATCH_SIZE?'cleaning':'mixed'};
+    });
+  }
+  function cleaningFromBatches(batchIds){
+    if(!Array.isArray(batchIds)||batchIds.some(id=>!Number.isInteger(id)||id<1||id>TOTAL/BATCH_SIZE))throw new Error('올바른 배치를 선택하세요.');
+    const selected=new Set(batchIds);
+    return batches().filter(batch=>selected.has(batch.id)).flatMap(batch=>batch.devices);
+  }
   const dayFormat=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'});
   function koreanDay(time=Date.now()){return dayFormat.format(new Date(time));}
+  const FEEDING_TIMES=[{label:'07:00',minute:420},{label:'11:30',minute:690},{label:'17:00',minute:1020}];
+  function feedingPlan(target,measuredAt){
+    const start=Date.parse(koreanDay(measuredAt)+'T00:00:00+09:00');
+    return FEEDING_TIMES.map((slot,i)=>({...slot,round:i+1,at:start+slot.minute*60000,amount:target/3,cumulative:target*(i+1)/3}));
+  }
+  function chartHistory(history,row){
+    if(!row?.active)return [];
+    const points=history.filter(x=>x.deviceId===row.deviceId&&x.sowId===row.sowId&&koreanDay(x.measuredAt)===koreanDay(row.measuredAt)&&x.measuredAt<=row.measuredAt);
+    return [...new Map([...points,row].map(x=>[x.measuredAt,x])).values()].sort((a,b)=>a.measuredAt-b.measuredAt);
+  }
   function timestamp(value){
     if(typeof value!=='string')return NaN;
     let s=value.trim();
@@ -58,5 +83,5 @@
     result.percent=result.target?Math.floor(result.amount/result.target*100):0;return result;
   }
   function merge(rows,incoming){const map=new Map(rows.map(r=>[r.deviceId,r]));for(const raw of incoming){const r=normalize(raw),old=map.get(r.deviceId);if(!old||r.measuredAt>=old.measuredAt)map.set(r.deviceId,r);}return [...map.values()].sort((a,b)=>a.deviceId-b.deviceId);}
-  return {TOTAL,STALE_MS,koreanDay,timestamp,normalize,parseLog,status,summary,merge};
+  return {TOTAL,BATCH_SIZE,batches,cleaningFromBatches,FEEDING_TIMES,feedingPlan,chartHistory,STALE_MS,koreanDay,timestamp,normalize,parseLog,status,summary,merge};
 });
