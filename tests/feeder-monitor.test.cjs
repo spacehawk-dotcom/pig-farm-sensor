@@ -54,3 +54,40 @@ test('cloud report persists last readings through partial heartbeat and rejects 
   await acceptReport(db,{rows:[r]},now+3000);
   assert.equal((await readReport(db)).rows[0].amount,2000);assert.equal((await readReport(db)).receivedAt,now+3000);
 });
+
+test('24 planned offline feeders are excluded while the 48 operating feeders remain monitored',()=>{
+  const cleaningDevices=Array.from({length:24},(_,i)=>i+1),now=row().measuredAt;
+  const rows=Array.from({length:48},(_,i)=>row(i+25));
+  const stats=C.summary(rows,{cleaningDevices,now});
+  assert.equal(stats.cleaning,24);assert.equal(stats.expected,48);assert.equal(stats.received,48);
+  assert.equal(stats.missing,0);assert.equal(stats.stale,0);assert.equal(stats.amount,48*1800);
+  assert.equal(C.status(undefined,{deviceId:1,cleaningDevices,now}),'cleaning');
+  assert.equal(C.summary(rows.slice(1),{cleaningDevices,now}).missing,1);
+});
+
+test('planned shutdown excludes old amounts, reports resumed messages, and can be cleared',()=>{
+  const r=row(1),now=r.measuredAt,cleaningDevices=[1];
+  const fresh=C.summary([r],{cleaningDevices,now});
+  assert.equal(fresh.amount,0);assert.equal(fresh.cleaningReceived,1);assert.equal(fresh.active,0);
+  const old=C.summary([r],{cleaningDevices,now:now+16*60000});
+  assert.equal(old.cleaningReceived,0);assert.equal(old.stale,0);assert.equal(old.cleaning,1);
+  assert.equal(C.status(r,{cleaningDevices:[],now}),'partial');
+  assert.equal(C.status(undefined,{deviceId:1,cleaningDevices:[],now}),'missing');
+});
+
+test('current cleaning plan does not rewrite historical logs',()=>{
+  const stats=C.summary([row(1)],{archive:true,cleaningDevices:[1,2]});
+  assert.equal(stats.cleaning,0);assert.equal(stats.received,1);assert.equal(stats.amount,1800);
+  assert.equal(stats.expected,72);assert.equal(stats.missing,71);
+});
+
+test('MQTT reader verifies topic, index [5], original time, and rejects oversized messages',()=>{
+  const {parseMessage}=require('../scripts/feeder-live/index.cjs');
+  const body={device_id:31,sow_id:'6-189',dispensed_amount:1800,target_amount:2000,update_time:stamp,raw_data:'2026 11 14 22 16 1800 2000 90 10 2000 90 0 1 1 1 0'};
+  const topic='farm/koca/device/31/eatlog',now=row().measuredAt;
+  assert.equal(parseMessage(topic,JSON.stringify(body),now).amount,1800);
+  assert.throws(()=>parseMessage(topic.replace('/31/','/30/'),JSON.stringify(body),now));
+  assert.throws(()=>parseMessage(topic,JSON.stringify({...body,dispensed_amount:10}),now));
+  assert.throws(()=>parseMessage(topic,JSON.stringify(body),now-120000));
+  assert.throws(()=>parseMessage(topic,' '.repeat(17000),now));
+});

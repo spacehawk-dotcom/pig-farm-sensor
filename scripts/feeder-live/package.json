@@ -1,0 +1,5 @@
+{
+  "name": "sungam-feeder-local-reader",
+  "private": true,
+  "dependencies": { "mqtt": "^5.0.0" }
+}

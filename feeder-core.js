@@ -32,7 +32,8 @@
     }
     return rows.sort((a,b)=>a.measuredAt-b.measuredAt);
   }
-  function status(row,{archive=false,now=Date.now()}={}){
+  function status(row,{archive=false,now=Date.now(),deviceId=row?.deviceId,cleaningDevices=[]}={}){
+    if(!archive&&cleaningDevices.includes(deviceId))return 'cleaning';
     if(!row)return 'missing';
     if(!archive&&(now-row.measuredAt>STALE_MS||row.measuredAt>now+60000||koreanDay(row.measuredAt)!==koreanDay(now)))return 'stale';
     if(!row.active)return 'empty';
@@ -42,8 +43,18 @@
     return 'partial';
   }
   function summary(rows,options={}){
-    const result={registered:TOTAL,received:rows.length,active:0,complete:0,low:0,partial:0,stale:0,empty:0,unset:0,missing:TOTAL-rows.length,target:0,amount:0};
-    for(const row of rows){const s=status(row,options);result[s]++;if(row.active&&s!=='stale'){result.active++;result.target+=row.target;result.amount+=row.amount;}}
+    const result={registered:TOTAL,received:0,active:0,complete:0,low:0,partial:0,stale:0,empty:0,unset:0,missing:0,cleaning:0,cleaningReceived:0,target:0,amount:0};
+    const map=new Map(rows.map(row=>[row.deviceId,row]));
+    for(let id=1;id<=TOTAL;id++){
+      const row=map.get(id),s=status(row,{...options,deviceId:id});result[s]++;
+      if(s==='cleaning'){
+        if(row&&status(row,{...options,cleaningDevices:[]})!=='stale')result.cleaningReceived++;
+        continue;
+      }
+      if(row)result.received++;
+      if(row?.active&&s!=='stale'){result.active++;result.target+=row.target;result.amount+=row.amount;}
+    }
+    result.expected=TOTAL-result.cleaning;
     result.percent=result.target?Math.floor(result.amount/result.target*100):0;return result;
   }
   function merge(rows,incoming){const map=new Map(rows.map(r=>[r.deviceId,r]));for(const raw of incoming){const r=normalize(raw),old=map.get(r.deviceId);if(!old||r.measuredAt>=old.measuredAt)map.set(r.deviceId,r);}return [...map.values()].sort((a,b)=>a.deviceId-b.deviceId);}
