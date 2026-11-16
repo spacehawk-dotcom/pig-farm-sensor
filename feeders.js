@@ -5,16 +5,15 @@
   const operationKey='sungam.feeder.operations.v1',config=window.FeederConfig;
   let cleaningDevices=[...config.cleaningDevices];
   try{const saved=JSON.parse(localStorage.getItem(operationKey));if(saved?.version===config.version&&Array.isArray(saved.cleaningDevices)&&saved.cleaningDevices.every(id=>Number.isInteger(id)&&id>=1&&id<=C.TOTAL))cleaningDevices=[...new Set(saved.cleaningDevices)];}catch{}
-  const state={mode:new URLSearchParams(location.search).get('view')==='records'?'archive':'live',rows:[],histories:{},archive:null,filter:'all',query:'',sort:'device',connection:'연결 확인 중',busy:false,generation:0,selected:null};
+  const state={rows:[],histories:{},filter:'all',query:'',sort:'device',connection:'연결 확인 중',busy:false,generation:0,selected:null};
   const time=ms=>new Date(ms).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour12:false,hour:'2-digit',minute:'2-digit'});
   const date=ms=>new Date(ms).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'long',day:'numeric'});
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const kg=n=>new Intl.NumberFormat('ko-KR',{maximumFractionDigits:2}).format(n/1000)+' kg';
   function toast(text){$('toast').textContent=text;$('toast').hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').hidden=true,5000);}
-  function options(id){return {archive:state.mode==='archive',deviceId:id,cleaningDevices:Date.now()>=Date.parse(config.effectiveFrom)?cleaningDevices:[]};}
+  function options(id){return {deviceId:id,cleaningDevices:Date.now()>=Date.parse(config.effectiveFrom)?cleaningDevices:[]};}
   function operatingNote(stats){
-    const note=$('operatingNotice');note.hidden=state.mode==='archive'||stats.cleaning===0;
-    document.querySelector('[data-filter="cleaning"]').hidden=state.mode==='archive';
+    const note=$('operatingNotice');note.hidden=stats.cleaning===0;
     const waiting=C.batches(cleaningDevices).filter(b=>b.cleaningCount>0).map(b=>b.label).join('·');
     $('cleaningSummary').textContent=`${waiting} 청소·입식 대기 ${stats.cleaning}대 · 운영 대상 ${stats.expected}대`;
     $('cleaningDescription').textContent=stats.cleaningReceived?`청소로 지정한 ${stats.cleaningReceived}대에서 데이터가 들어오고 있습니다. 입식했다면 운영 상태를 변경하세요.`:'전원을 끈 청소 구간은 미수신·수신 지연·급이량 확인 집계에서 제외합니다.';
@@ -22,19 +21,14 @@
   }
   function render(){
     const stats=C.summary(state.rows,options()),latest=state.rows.length?Math.max(...state.rows.map(r=>r.measuredAt)):null;
-    $('liveMode').classList.toggle('active',state.mode==='live');$('archiveMode').classList.toggle('active',state.mode==='archive');
-    $('recordDate').textContent=latest?date(latest)+(state.mode==='archive'?' · 저장 기록':' · 최근 기록'):'수신된 데이터 없음';
+    $('recordDate').textContent=latest?date(latest)+' · 최근 기록':'수신된 데이터 없음';
     $('totalPercent').textContent=stats.target?stats.percent:'—';$('overallBar').style.width=Math.min(stats.percent,100)+'%';
     $('totalAmount').textContent=stats.active?kg(stats.amount):'—';$('totalTarget').textContent=stats.active?kg(stats.target):'—';
     $('coverage').textContent=`모돈 등록 ${stats.active}대 기준`;
-    $('completeCount').textContent=stats.complete;$('lowCount').textContent=stats.low;$('receivedCount').textContent=stats.received;
-    $('expectedCount').textContent=`/ ${stats.expected}대`;
-    $('dataBreakdown').textContent=`미수신 ${stats.missing} · 지연 ${stats.stale} · 빈 칸 ${stats.empty}`;
     operatingNote(stats);
     const banner=$('sourceBanner');banner.className='source-banner';
-    if(state.mode==='archive')banner.innerHTML=`<span>▤</span><span><strong>저장 기록을 보고 있습니다.</strong> ${latest?`${date(latest)} ${time(latest)}까지 · ${stats.received}대의 실제 KOCA 로그`:'로그 파일을 가져오면 급이 현황을 확인할 수 있습니다.'} · 실시간 연결 아님</span>`;
-    else {banner.classList.add(state.connection.startsWith('연결됨')?'live':'error');banner.textContent=state.connection+(latest?` · 마지막 원본 기록 ${date(latest)} ${time(latest)}`:'');}
-    $('connectionStatus').textContent=state.mode==='archive'?'현재 저장 기록 열람 중입니다. 실시간 연결 확인을 누르면 HA 전달 서버를 조회합니다.':state.connection;
+    banner.classList.add(state.connection.startsWith('연결됨')?'live':'error');banner.textContent=state.connection+(latest?` · 마지막 원본 기록 ${date(latest)} ${time(latest)}`:'');
+    $('connectionStatus').textContent=state.connection;
     document.querySelectorAll('.filters button').forEach(b=>{b.classList.toggle('active',b.dataset.filter===state.filter);b.setAttribute('aria-pressed',String(b.dataset.filter===state.filter));});
     const map=new Map(state.rows.map(r=>[r.deviceId,r]));
     let cards=Array.from({length:C.TOTAL},(_,i)=>({id:i+1,row:map.get(i+1)}));
@@ -56,7 +50,6 @@
       if(s==='cleaning')return `<button class="feeder-card cleaning" data-device="${id}" aria-label="${id}번 급이기 청소·입식 대기 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">청소 중</span></div><div class="cleaning-title">입식 대기</div><p class="cleaning-reason">청소를 위해 전원을 꺼두었습니다.</p><div class="cleaning-state">${r&&C.status(r,{})!=='stale'?'데이터 수신 중 · 운영 복귀 확인':'계획된 전원 차단 · 장애 아님'}</div><div class="card-bottom"><span>통신·급이량 확인 집계 제외</span><span>상세 보기 ↗</span></div></button>`;
       return `<button class="feeder-card ${s}" data-device="${id}" aria-label="${id}번 급이기 ${escape(occupied?r.sowId:names[s])}, ${names[s]} 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">${names[s]}</span></div><div class="sow-number"><strong>${escape(occupied?r.sowId:r?'빈 칸':'—')}</strong><span>모돈</span></div><div class="card-amount"><span><b>${occupied?fmt(r.amount):'—'}</b><small>${occupied?`/ ${fmt(r.target)} g`:'데이터 없음'}</small></span><span class="percent">${pct===null?'—':pct+'%'}</span></div><div class="progress"><div style="width:${Math.min(pct||0,100)}%"></div></div><div class="card-bottom"><span>${r?`◷ ${time(r.measuredAt)} 기록`:'수신 대기'}</span><span>상세 보기 ↗</span></div></button>`;
     }).join('');
-    $('exportButton').disabled=!state.rows.length&&!stats.cleaning;
   }
   function showDetail(id){
     state.selected=id;
@@ -69,7 +62,7 @@
     }
     const history=C.chartHistory(state.histories[id]||[],r);
     const changes=history.filter((x,i)=>i===0||x.amount!==history[i-1].amount||x.target!==history[i-1].target||x.sowId!==history[i-1].sowId);
-    $('detailContent').innerHTML=`<div class="detail-title"><h2>${String(id).padStart(2,'0')}번 급이기</h2><span>${r?.active?`모돈 ${escape(r.sowId)}`:names[s]}</span></div><p class="detail-source">${state.mode==='archive'?'저장 기록':'실시간 수신'} · ${names[s]}${r?` · ${date(r.measuredAt)} ${time(r.measuredAt)}`:''}</p><div class="detail-metrics"><div>누적 급이량<b>${r?.active?fmt(r.amount)+' g':'—'}</b></div><div>하루 목표량<b>${r?.active?fmt(r.target)+' g':'—'}</b></div><div>하루 달성률<b>${r?.active&&r.percent!==null?r.percent+'%':'—'}</b></div></div>${feedingChart(r,history)}<h3>급이량 변경 기록 <small>최근 12건</small></h3><table class="timeline"><thead><tr><th>기록 시각</th><th>모돈 번호</th><th>누적 급이량</th><th>달성률</th></tr></thead><tbody>${changes.slice(-12).reverse().map(x=>`<tr><td>${time(x.measuredAt)}</td><td>${escape(x.sowId)}</td><td>${fmt(x.amount)} g</td><td>${x.percent===null?'—':x.percent+'%'}</td></tr>`).join('')||'<tr><td colspan="4">추가 기록 없음</td></tr>'}</tbody></table><p class="help-note">급이량은 KOCA 로그의 누적값입니다. 모돈의 실제 섭취 여부나 모터 작동 상태를 뜻하지 않습니다.</p>`;
+    $('detailContent').innerHTML=`<div class="detail-title"><h2>${String(id).padStart(2,'0')}번 급이기</h2><span>${r?.active?`모돈 ${escape(r.sowId)}`:names[s]}</span></div><p class="detail-source">실시간 수신 · ${names[s]}${r?` · ${date(r.measuredAt)} ${time(r.measuredAt)}`:''}</p><div class="detail-metrics"><div>누적 급이량<b>${r?.active?fmt(r.amount)+' g':'—'}</b></div><div>하루 목표량<b>${r?.active?fmt(r.target)+' g':'—'}</b></div><div>하루 달성률<b>${r?.active&&r.percent!==null?r.percent+'%':'—'}</b></div></div>${feedingChart(r,history)}<h3>급이량 변경 기록 <small>최근 12건</small></h3><table class="timeline"><thead><tr><th>기록 시각</th><th>모돈 번호</th><th>누적 급이량</th><th>달성률</th></tr></thead><tbody>${changes.slice(-12).reverse().map(x=>`<tr><td>${time(x.measuredAt)}</td><td>${escape(x.sowId)}</td><td>${fmt(x.amount)} g</td><td>${x.percent===null?'—':x.percent+'%'}</td></tr>`).join('')||'<tr><td colspan="4">추가 기록 없음</td></tr>'}</tbody></table><p class="help-note">급이량은 KOCA 로그의 누적값입니다. 모돈의 실제 섭취 여부나 모터 작동 상태를 뜻하지 않습니다.</p>`;
     if(!$('detailDialog').open)$('detailDialog').showModal();
   }
   function feedingChart(row,history){
@@ -80,20 +73,10 @@
     let planned=`M52 ${y(0)}`,actual='';
     plan.forEach(slot=>{planned+=` H${x(slot.minute)} V${y(slot.cumulative)}`;});planned+=' H476';
     history.forEach((r,i)=>{const previous=history[i-1],gap=!previous||r.measuredAt-previous.measuredAt>C.STALE_MS||r.amount<previous.amount;actual+=gap?` M${at(r.measuredAt)} ${y(r.amount)}`:` H${at(r.measuredAt)} V${y(r.amount)}`;});
-    return `<h3>하루 3회 급이 · 시간대별 누적량</h3><div class="feeding-rounds">${plan.map(slot=>`<div><span>${slot.round}차 · ${slot.label} 시작</span><strong>${row.target?amount(slot.amount)+' g':'목표 미설정'}</strong><small>하루 목표의 1/3</small></div>`).join('')}</div><div class="chart-key"><span><i class="actual-key"></i>실제 누적 급이량</span><span><i class="plan-key"></i>누적 배정량 (1/3 → 2/3 → 전체)</span></div><svg class="chart feeding-chart" viewBox="0 0 500 226" role="img" aria-label="${row.deviceId}번 급이기, 하루 목표 ${fmt(row.target)}그램. 07시, 11시 30분, 17시 각각 3분의 1 배정 계획과 실제 누적 급이량"><text x="8" y="16" class="axis-label">누적량 (g)</text>${[0,1/3,2/3,1].map(ratio=>`<path d="M52 ${y(max*ratio)}H476" class="chart-grid"/><text x="45" y="${y(max*ratio)+4}" text-anchor="end" class="axis-label">${amount(max*ratio)}</text>`).join('')}${plan.map(slot=>`<path d="M${x(slot.minute)} 26V180" class="meal-marker"/><text x="${x(slot.minute)}" y="20" text-anchor="middle" class="meal-label">${slot.round}차</text>`).join('')}${row.target?`<path d="${planned}" class="planned-line"/>`:''}<path d="${actual}" class="actual-line"/>${history.map(r=>`<circle cx="${at(r.measuredAt)}" cy="${y(r.amount)}" r="2" fill="#477958"><title>${time(r.measuredAt)} · ${fmt(r.amount)} g</title></circle>`).join('')}${[{minute:0,label:'00:00'},...C.FEEDING_TIMES,{minute:1440,label:'24:00'}].map(slot=>`<text x="${x(slot.minute)}" y="205" text-anchor="middle" class="axis-label">${slot.label}</text>`).join('')}</svg><div class="chart-caption"><span>${date(row.measuredAt)} · 한국 시간</span><span>실제 기록 ${history.length}건</span></div><p class="schedule-note">점선은 급이 시작 시각에 배정되는 계획량이며, 해당 시각까지 먹어야 하는 완료 기준은 아닙니다. 실선은 수신된 실제 누적값만 표시합니다.</p>${history.length<2?'<p class="schedule-note">현재 실제 기록 1건을 점으로 표시했습니다. 다음 기록부터 변화가 표시됩니다.</p>':''}${history.some((r,i)=>i&&r.target!==history[i-1].target)?'<p class="schedule-note">하루 목표량이 변경된 기록이 있습니다. 배정 계획은 마지막 기록의 목표량 기준입니다.</p>':''}<p class="help-note">회차별 계획량은 소수 첫째 자리까지 표시합니다. 15분 넘는 수신 공백이나 누적량 초기화 구간은 선을 연결하지 않습니다.</p>`;
-  }
-  async function loadArchive(){
-    const generation=++state.generation;state.mode='archive';state.rows=[];state.histories={};if(state.filter==='cleaning')state.filter='all';render();
-    if(state.archive){state.rows=state.archive.rows;state.histories=state.archive.histories;render();return;}
-    try{
-      const response=await fetch('/api/feeder-archive',{signal:AbortSignal.timeout(20000),cache:'no-store'});if(!response.ok)throw new Error('missing');
-      const data=await response.json();if(generation!==state.generation)return;
-      const rows=C.merge([],data.rows);const histories={};for(const [id,list] of Object.entries(data.histories||{}))histories[id]=list.map(C.normalize);
-      state.archive={rows,histories};state.rows=rows;state.histories=histories;render();
-    }catch{if(generation===state.generation)toast('저장 기록을 보려면 로그 가져오기로 파일을 선택하세요.');}
+    return `<h3>하루 3회 급이 · 시간대별 누적량</h3><div class="feeding-rounds">${plan.map(slot=>`<div><span>${slot.round}차 · ${slot.label} 시작</span><strong>${row.target?amount(slot.amount)+' g':'목표 미설정'}</strong><small>하루 목표의 1/3</small></div>`).join('')}</div><div class="chart-key"><span><i class="actual-key"></i>실제 누적 급이량</span><span><i class="plan-key"></i>누적 배정량 (1/3 → 2/3 → 전체)</span></div><svg class="chart feeding-chart" viewBox="0 0 500 226" role="img" aria-label="${row.deviceId}번 급이기, 하루 목표 ${fmt(row.target)}그램. 07시, 11시 30분, 17시 각각 3분의 1 배정 계획과 실제 누적 급이량"><text x="8" y="16" class="axis-label">누적량 (g)</text>${[0,1/3,2/3,1].map(ratio=>`<path d="M52 ${y(max*ratio)}H476" class="chart-grid"/><text x="45" y="${y(max*ratio)+4}" text-anchor="end" class="axis-label">${amount(max*ratio)}</text>`).join('')}${plan.map(slot=>`<path d="M${x(slot.minute)} 26V180" class="meal-marker"/><text x="${x(slot.minute)}" y="20" text-anchor="middle" class="meal-label">${slot.round}차</text>`).join('')}${row.target?`<path d="${planned}" class="planned-line"/>`:''}<path d="${actual}" class="actual-line"/>${history.map(r=>`<circle cx="${at(r.measuredAt)}" cy="${y(r.amount)}" r="2" fill="#477958"><title>${time(r.measuredAt)} · ${fmt(r.amount)} g</title></circle>`).join('')}${[{minute:0,label:'00:00'},...C.FEEDING_TIMES,{minute:1440,label:'24:00'}].map(slot=>`<text x="${x(slot.minute)}" y="205" text-anchor="middle" class="axis-label">${slot.label}</text>`).join('')}</svg><div class="chart-caption"><span>${date(row.measuredAt)} · 한국 시간</span><span>실제 기록 ${history.length}건</span></div>${history.length<2?'<p class="schedule-note">현재 실제 기록 1건을 점으로 표시했습니다. 다음 기록부터 변화가 표시됩니다.</p>':''}${history.some((r,i)=>i&&r.target!==history[i-1].target)?'<p class="schedule-note">하루 목표량이 변경된 기록이 있습니다. 배정 계획은 마지막 기록의 목표량 기준입니다.</p>':''}`;
   }
   async function poll(){
-    if(state.mode!=='live'||state.busy)return;state.busy=true;const generation=state.generation;
+    if(state.busy)return;state.busy=true;const generation=state.generation;
     try{
       const response=await fetch('/.netlify/functions/feeders',{signal:AbortSignal.timeout(12000),cache:'no-store'});
       if(!response.ok)throw new Error('서버 연결 준비가 필요합니다.');
@@ -109,31 +92,7 @@
     }catch(error){if(generation===state.generation)state.connection='연결 대기 · HA 전달 모듈과 서버 설정을 확인하세요. '+(state.rows.length?'마지막 수신값을 유지합니다.':'');}
     finally{state.busy=false;if(generation===state.generation){render();if($('detailDialog').open&&state.selected)showDetail(state.selected);}}
   }
-  function live(){state.generation++;state.mode='live';state.rows=[];state.histories={};state.connection='연결 확인 중 · HA 전달 서버를 조회하고 있습니다.';render();poll();}
-  async function importFiles(files){
-    if(!files.length)return;
-    const generation=++state.generation;state.mode='archive';let skipped=0,rows=[],histories={};
-    for(const file of files){
-      const match=file.name.match(/^(\d{8})_(\d{1,2})(?:\.(?:txt|log))?$/i);if(!match||file.size>20*1024*1024){skipped++;continue;}
-      const text=new TextDecoder('utf-8').decode(await file.arrayBuffer()),parsed=C.parseLog(text,Number(match[2]));
-      if(!parsed.length){skipped++;continue;}
-      const id=Number(match[2]);histories[id]=(histories[id]||[]).concat(parsed).sort((a,b)=>a.measuredAt-b.measuredAt);
-    }
-    if(generation!==state.generation)return;
-    for(const list of Object.values(histories))rows.push(list.at(-1));
-    if(!rows.length){toast('읽을 수 있는 EATLOG 기록이 없습니다. 날짜_기기번호 파일을 선택하세요.');render();return;}
-    const latestDay=C.koreanDay(Math.max(...rows.map(r=>r.measuredAt)));rows=rows.filter(r=>C.koreanDay(r.measuredAt)===latestDay);
-    histories=Object.fromEntries(rows.map(r=>[r.deviceId,histories[r.deviceId].filter(x=>C.koreanDay(x.measuredAt)===latestDay)]));
-    state.archive={rows,histories};state.rows=rows;state.histories=histories;state.filter='all';state.query='';$('search').value='';
-    render();toast(`${rows.length}대의 ${latestDay} 기록을 가져왔습니다.${skipped?` 제외된 파일 ${skipped}개`:''}`);
-  }
-  function exportCsv(){
-    const cell=v=>'"'+String(v).replace(/^[=+@\-]/,"'$&").replace(/"/g,'""')+'"';
-    const map=new Map(state.rows.map(r=>[r.deviceId,r]));
-    const lines=[['기기번호','모돈번호','목표량(g)','급이량(g)','달성률(%)','원본수신시각(KST)','상태','데이터구분'],...Array.from({length:C.TOTAL},(_,i)=>{const id=i+1,r=map.get(id);return [id,r?.sowId??'',r?.target??'',r?.amount??'',r?.percent??'',r?new Date(r.measuredAt+9*3600000).toISOString().slice(0,19).replace('T',' '):'',names[C.status(r,options(id))],state.mode==='archive'?'저장 기록':'실시간'];})];
-    const url=URL.createObjectURL(new Blob(['\uFEFF'+lines.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
-    const link=document.createElement('a');link.href=url;link.download=`성암농장_급이현황_${C.koreanDay(state.rows[0]?.measuredAt||Date.now())}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }
+  function live(){state.generation++;state.rows=[];state.histories={};state.connection='연결 확인 중 · HA 전달 서버를 조회하고 있습니다.';render();poll();}
   document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{state.filter=b.dataset.filter;render();}));
   function saveOperations(ids){
     try{localStorage.setItem(operationKey,JSON.stringify({version:config.version,cleaningDevices:ids}));}
@@ -165,9 +124,5 @@
   $('clearFilters').onclick=()=>{state.filter='all';state.query='';$('search').value='';render();};
   $('connectionButton').onclick=()=>$('connectionDialog').showModal();$('retryConnection').onclick=()=>{live();};
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
-  $('archiveMode').onclick=loadArchive;$('liveMode').onclick=live;
-  for(const id of ['importButton','dialogImport'])$(id).onclick=()=>{$('connectionDialog').close();$('logFiles').click();};
-  $('logFiles').onchange=e=>{importFiles([...e.target.files]).catch(()=>toast('로그를 읽지 못했습니다. 파일 형식을 확인하세요.'));e.target.value='';};
-  $('exportButton').onclick=exportCsv;
-  render();if(state.mode==='archive')loadArchive();else poll();setInterval(poll,15000);setInterval(()=>{if(state.mode==='live')render();},30000);
+  render();poll();setInterval(poll,15000);setInterval(render,30000);
 })();
