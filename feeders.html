@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#142b25"><title>급이기 모니터링 · 성암농장</title><link rel="stylesheet" href="feeders.css"><script defer src="feeder-core.js"></script><script defer src="feeder-config.js"></script><script defer src="feeders.js"></script></head>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#142b25"><title>급이기 모니터링 · 성암농장</title><link rel="stylesheet" href="feeders.css"><script defer src="feeder-core.js"></script><script defer src="feeder-config.js"></script><script defer src="feeder-sows.js"></script><script defer src="feeders.js"></script></head>
 <body>
 <div class="workspace">
 <main>
 <div class="page-heading"><div><h1>한눈에 보는 급이 현황<span class="heading-dot">.</span></h1></div><div class="heading-actions"><button id="operationButton" class="button">운영 상태</button><button id="connectionButton" class="button primary"><span>◉</span> 연결 관리</button></div></div>
 <div class="context-row"><div class="date-label" id="recordDate">데이터 확인 중</div></div>
+<p id="sowSourceStatus" class="sow-source-status" role="status">산차·분만일 · 사육 현황 연결 중</p>
 <div id="sourceBanner" class="source-banner" role="status" aria-live="polite"></div>
 <section id="operatingNotice" class="operating-notice" aria-label="계획된 정지 구간"><div><strong id="cleaningSummary"></strong><p id="cleaningDescription"></p></div><button id="editCleaning" class="button">상태 변경</button></section>
 <section class="overview" aria-label="급이 요약"><article class="overview-main"><div class="overview-label"><span>전체 목표 달성률</span><span class="light-pill" id="coverage">—</span></div><div class="overview-number"><span id="totalPercent">—</span><small>%</small></div><div class="overall-track"><div id="overallBar"></div></div><div class="overview-foot"><span>급이량 <b id="totalAmount">—</b></span><span>목표 <b id="totalTarget">—</b></span></div></article></section>

@@ -10,3 +10,5 @@
 .device-number.batch-1{color:#2863a6}.device-number.batch-2{color:#28764e}.device-number.batch-3{color:#8553ac}
 
 .overview{grid-template-columns:minmax(0,1fr)}
+
+.sow-source-status{font-size:10px;color:#74826d;margin:-5px 0 10px}.sow-source-status.warning{color:#99671c}.sow-info{display:flex;gap:5px 12px;flex-wrap:wrap;font-size:10px;color:#89927f;margin:-10px 0 15px}.sow-info b{font-weight:500;color:#607653;margin-left:3px}.detail-dialog .sow-info{margin:0 0 16px;font-size:12px;gap:18px}.feeder-card:has(.sow-info) .sow-number{margin-bottom:18px}

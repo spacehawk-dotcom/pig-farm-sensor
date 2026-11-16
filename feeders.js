@@ -5,7 +5,7 @@
   const operationKey='sungam.feeder.operations.v1',config=window.FeederConfig;
   let cleaningDevices=[...config.cleaningDevices];
   try{const saved=JSON.parse(localStorage.getItem(operationKey));if(saved?.version===config.version&&Array.isArray(saved.cleaningDevices)&&saved.cleaningDevices.every(id=>Number.isInteger(id)&&id>=1&&id<=C.TOTAL))cleaningDevices=[...new Set(saved.cleaningDevices)];}catch{}
-  const state={rows:[],histories:{},filter:'all',query:'',sort:'device',connection:'연결 확인 중',busy:false,generation:0,selected:null};
+  const state={sows:new Map(),sowStatus:'loading',rows:[],histories:{},filter:'all',query:'',sort:'device',connection:'연결 확인 중',busy:false,generation:0,selected:null};
   const time=ms=>new Date(ms).toLocaleTimeString('ko-KR',{timeZone:'Asia/Seoul',hour12:false,hour:'2-digit',minute:'2-digit'});
   const date=ms=>new Date(ms).toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul',year:'numeric',month:'long',day:'numeric'});
   const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -19,6 +19,11 @@
     $('cleaningDescription').textContent=stats.cleaningReceived?`청소로 지정한 ${stats.cleaningReceived}대에서 데이터가 들어오고 있습니다. 입식했다면 운영 상태를 변경하세요.`:'전원을 끈 청소 구간은 미수신·수신 지연·급이량 확인 집계에서 제외합니다.';
     note.classList.toggle('needs-review',stats.cleaningReceived>0);
   }
+  function sowInfo(row,detail=false){
+    if(!row?.active)return '';
+    const info=window.FeederSows.labels(state.sows,row.sowId,state.sowStatus,detail);
+    return `<div class="sow-info"><span>산차 <b>${escape(info.parity)}</b></span><span>분만일 <b>${escape(info.date)}</b></span></div>`;
+  }
   function render(){
     const stats=C.summary(state.rows,options()),latest=state.rows.length?Math.max(...state.rows.map(r=>r.measuredAt)):null;
     $('recordDate').textContent=latest?date(latest)+' · 최근 기록':'수신된 데이터 없음';
@@ -28,7 +33,10 @@
     operatingNote(stats);
     const banner=$('sourceBanner');banner.className='source-banner';
     banner.classList.add(state.connection.startsWith('연결됨')?'live':'error');banner.textContent=state.connection+(latest?` · 마지막 원본 기록 ${date(latest)} ${time(latest)}`:'');
-    $('connectionStatus').textContent=state.connection;
+    const sowStatus={loading:'사육 현황 연결 중',ready:'사육 현황 연동',cache:'연결 확인 중 · 저장된 정보 표시',error:'연결 실패 · 새로고침하여 다시 확인'}[state.sowStatus];
+    $('sowSourceStatus').textContent='산차·분만일 · '+sowStatus;
+    $('sowSourceStatus').classList.toggle('warning',state.sowStatus==='error'||state.sowStatus==='cache');
+    $('connectionStatus').textContent=state.connection+' / 산차·분만일: '+sowStatus;
     document.querySelectorAll('.filters button').forEach(b=>{b.classList.toggle('active',b.dataset.filter===state.filter);b.setAttribute('aria-pressed',String(b.dataset.filter===state.filter));});
     const map=new Map(state.rows.map(r=>[r.deviceId,r]));
     let cards=Array.from({length:C.TOTAL},(_,i)=>({id:i+1,row:map.get(i+1)}));
@@ -48,7 +56,7 @@
     $('feederGrid').innerHTML=cards.map(({id,row:r})=>{
       const s=C.status(r,options(id)),occupied=r?.active,pct=occupied?r.percent:null;
       if(s==='cleaning')return `<button class="feeder-card cleaning" data-device="${id}" aria-label="${id}번 급이기 청소·입식 대기 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">청소 중</span></div><div class="cleaning-title">입식 대기</div><p class="cleaning-reason">청소를 위해 전원을 꺼두었습니다.</p><div class="cleaning-state">${r&&C.status(r,{})!=='stale'?'데이터 수신 중 · 운영 복귀 확인':'계획된 전원 차단 · 장애 아님'}</div><div class="card-bottom"><span>통신·급이량 확인 집계 제외</span><span>상세 보기 ↗</span></div></button>`;
-      return `<button class="feeder-card ${s}" data-device="${id}" aria-label="${id}번 급이기 ${escape(occupied?r.sowId:names[s])}, ${names[s]} 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">${names[s]}</span></div><div class="sow-number"><strong>${escape(occupied?r.sowId:r?'빈 칸':'—')}</strong><span>모돈</span></div><div class="card-amount"><span><b>${occupied?fmt(r.amount):'—'}</b><small>${occupied?`/ ${fmt(r.target)} g`:'데이터 없음'}</small></span><span class="percent">${pct===null?'—':pct+'%'}</span></div><div class="progress"><div style="width:${Math.min(pct||0,100)}%"></div></div><div class="card-bottom"><span>${r?`◷ ${time(r.measuredAt)} 기록`:'수신 대기'}</span><span>상세 보기 ↗</span></div></button>`;
+      return `<button class="feeder-card ${s}" data-device="${id}" aria-label="${id}번 급이기 ${escape(occupied?r.sowId:names[s])}, ${names[s]} 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">${names[s]}</span></div><div class="sow-number"><strong>${escape(occupied?r.sowId:r?'빈 칸':'—')}</strong><span>모돈</span></div>${sowInfo(r)}<div class="card-amount"><span><b>${occupied?fmt(r.amount):'—'}</b><small>${occupied?`/ ${fmt(r.target)} g`:'데이터 없음'}</small></span><span class="percent">${pct===null?'—':pct+'%'}</span></div><div class="progress"><div style="width:${Math.min(pct||0,100)}%"></div></div><div class="card-bottom"><span>${r?`◷ ${time(r.measuredAt)} 기록`:'수신 대기'}</span><span>상세 보기 ↗</span></div></button>`;
     }).join('');
   }
   function showDetail(id){
@@ -62,7 +70,7 @@
     }
     const history=C.chartHistory(state.histories[id]||[],r);
     const changes=history.filter((x,i)=>i===0||x.amount!==history[i-1].amount||x.target!==history[i-1].target||x.sowId!==history[i-1].sowId);
-    $('detailContent').innerHTML=`<div class="detail-title"><h2>${String(id).padStart(2,'0')}번 급이기</h2><span>${r?.active?`모돈 ${escape(r.sowId)}`:names[s]}</span></div><p class="detail-source">실시간 수신 · ${names[s]}${r?` · ${date(r.measuredAt)} ${time(r.measuredAt)}`:''}</p><div class="detail-metrics"><div>누적 급이량<b>${r?.active?fmt(r.amount)+' g':'—'}</b></div><div>하루 목표량<b>${r?.active?fmt(r.target)+' g':'—'}</b></div><div>하루 달성률<b>${r?.active&&r.percent!==null?r.percent+'%':'—'}</b></div></div>${feedingChart(r,history)}<h3>급이량 변경 기록 <small>최근 12건</small></h3><table class="timeline"><thead><tr><th>기록 시각</th><th>모돈 번호</th><th>누적 급이량</th><th>달성률</th></tr></thead><tbody>${changes.slice(-12).reverse().map(x=>`<tr><td>${time(x.measuredAt)}</td><td>${escape(x.sowId)}</td><td>${fmt(x.amount)} g</td><td>${x.percent===null?'—':x.percent+'%'}</td></tr>`).join('')||'<tr><td colspan="4">추가 기록 없음</td></tr>'}</tbody></table><p class="help-note">급이량은 KOCA 로그의 누적값입니다. 모돈의 실제 섭취 여부나 모터 작동 상태를 뜻하지 않습니다.</p>`;
+    $('detailContent').innerHTML=`<div class="detail-title"><h2>${String(id).padStart(2,'0')}번 급이기</h2><span>${r?.active?`모돈 ${escape(r.sowId)}`:names[s]}</span></div><p class="detail-source">실시간 수신 · ${names[s]}${r?` · ${date(r.measuredAt)} ${time(r.measuredAt)}`:''}</p>${sowInfo(r,true)}<div class="detail-metrics"><div>누적 급이량<b>${r?.active?fmt(r.amount)+' g':'—'}</b></div><div>하루 목표량<b>${r?.active?fmt(r.target)+' g':'—'}</b></div><div>하루 달성률<b>${r?.active&&r.percent!==null?r.percent+'%':'—'}</b></div></div>${feedingChart(r,history)}<h3>급이량 변경 기록 <small>최근 12건</small></h3><table class="timeline"><thead><tr><th>기록 시각</th><th>모돈 번호</th><th>누적 급이량</th><th>달성률</th></tr></thead><tbody>${changes.slice(-12).reverse().map(x=>`<tr><td>${time(x.measuredAt)}</td><td>${escape(x.sowId)}</td><td>${fmt(x.amount)} g</td><td>${x.percent===null?'—':x.percent+'%'}</td></tr>`).join('')||'<tr><td colspan="4">추가 기록 없음</td></tr>'}</tbody></table><p class="help-note">급이량은 KOCA 로그의 누적값입니다. 모돈의 실제 섭취 여부나 모터 작동 상태를 뜻하지 않습니다.</p>`;
     if(!$('detailDialog').open)$('detailDialog').showModal();
   }
   function feedingChart(row,history){
@@ -125,4 +133,8 @@
   $('connectionButton').onclick=()=>$('connectionDialog').showModal();$('retryConnection').onclick=()=>{live();};
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$(b.dataset.close).close());
   render();poll();setInterval(poll,15000);setInterval(render,30000);
+  window.FeederSows.subscribe(({status,records})=>{
+    state.sowStatus=status;if(records)state.sows=records;
+    render();if($('detailDialog').open&&state.selected)showDetail(state.selected);
+  });
 })();

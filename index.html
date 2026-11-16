@@ -2127,7 +2127,7 @@
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-2">
-                                <div class="bg-rose-50 p-3 rounded-xl border border-rose-100"><label class="text-[9px] font-bold text-rose-600 block mb-0.5">최근 종부일</label><input type="date" id="s-mating" value="${s.matingDate || ''}" onchange="const v=this.value; const e=v?utils.getExpectedFarrow(v):''; document.getElementById('s-expected-val').innerText=e||'미입력'; const rs=document.querySelectorAll('.history-row'); if(rs.length>0){ const lr=rs[rs.length-1]; lr.querySelector('.h-mating').value=v?v.substring(5).replace('-','/'):''; lr.querySelector('.h-exp').value=e?e.substring(5).replace('-','/'):''; }" class="w-full bg-transparent font-black text-rose-700 text-[11px]"></div>
+                                <div class="bg-rose-50 p-3 rounded-xl border border-rose-100"><label class="text-[9px] font-bold text-rose-600 block mb-0.5">최근 종부일</label><input type="date" id="s-mating" value="${s.matingDate || ''}" onchange="const v=this.value; const e=v?utils.getExpectedFarrow(v):''; document.getElementById('s-expected-val').innerText=e||'미입력';" class="w-full bg-transparent font-black text-rose-700 text-[11px]"></div>
                                 <div class="bg-rose-50 p-3 rounded-xl border border-rose-100 flex flex-col justify-center"><label class="text-[9px] font-bold text-rose-600 block mb-0.5">분만 예정일</label><span id="s-expected-val" class="font-black text-rose-700 text-sm">${s.matingDate ? utils.getExpectedFarrow(s.matingDate) : '미입력'}</span></div>
                             </div>
                             <div class="pt-2">
