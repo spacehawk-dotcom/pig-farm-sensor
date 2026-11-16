@@ -33,19 +33,23 @@
       if(candidates.length!==1){result.set(id,{duplicate:true});continue;}
       const sow=candidates[0];
       const p=parity(sow.parity);
-      const current=p>0&&Array.isArray(sow.history)?sow.history.filter(h=>h&&parity(h.parity)===p):[];
-      const dates=current.map(h=>key(h.date)).filter(Boolean).map(farrowingDate);
-      const valid=dates.filter(Boolean),distinct=new Set(valid.map(d=>d.full));
-      const invalid=dates.some(d=>!d),conflict=distinct.size>1;
-      result.set(id,{parity:p,date:!invalid&&!conflict&&valid.length?valid[0]:null,dateIssue:invalid||conflict});
+      const current=p!==null&&Array.isArray(sow.history)?sow.history.filter(h=>h&&parity(h.parity)===p):[];
+      const readDate=field=>{
+        const dates=current.map(h=>key(h[field])).filter(Boolean).map(farrowingDate);
+        const valid=dates.filter(Boolean),distinct=new Set(valid.map(d=>d.full));
+        const issue=dates.some(d=>!d)||distinct.size>1;
+        return {date:!issue&&valid.length?valid[0]:null,issue};
+      };
+      const birth=p>0?readDate('date'):{date:null,issue:false},expected=readDate('expDate');
+      result.set(id,{parity:p,date:birth.date,dateIssue:birth.issue,expectedDate:expected.date,expectedIssue:expected.issue});
     }
     return result;
   }
   function labels(records,sowId,status='ready',detail=false){
     const item=records.get(sowKey(sowId));
-    if(item?.duplicate)return {parity:'확인 필요',date:'확인 필요'};
+    if(item?.duplicate)return {parity:'확인 필요',date:'확인 필요',expected:'확인 필요'};
     const absent=status==='loading'?'연결 중':status==='error'||status==='cache'?'연결 확인':'미등록';
-    return {parity:item?.parity!=null?`${item.parity}산`:absent,date:item?.dateIssue?'확인 필요':item?.date?(detail?item.date.full:item.date.short):absent};
+    return {parity:item?.parity!=null?`${item.parity}산`:absent,date:item?.dateIssue?'확인 필요':item?.date?(detail?item.date.full:item.date.short):absent,expected:item?.expectedIssue?'확인 필요':item?.expectedDate?(detail?item.expectedDate.full:item.expectedDate.short):absent};
   }
   function subscribe(onChange){
     let stopped=false,stopAuth,stopSnapshot;

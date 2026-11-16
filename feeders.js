@@ -22,7 +22,7 @@
   function sowInfo(row,detail=false){
     if(!row?.active)return '';
     const info=window.FeederSows.labels(state.sows,row.sowId,state.sowStatus,detail);
-    return `<div class="sow-info"><span>산차 <b>${escape(info.parity)}</b></span><span>분만일 <b>${escape(info.date)}</b></span></div>`;
+    return `<div class="sow-info"><span>산차 <b>${escape(info.parity)}</b></span><span>예정일 <b>${escape(info.expected)}</b></span><span>분만일 <b>${escape(info.date)}</b></span></div>`;
   }
   function render(){
     const stats=C.summary(state.rows,options()),latest=state.rows.length?Math.max(...state.rows.map(r=>r.measuredAt)):null;
@@ -34,9 +34,9 @@
     const banner=$('sourceBanner');banner.className='source-banner';
     banner.classList.add(state.connection.startsWith('연결됨')?'live':'error');banner.textContent=state.connection+(latest?` · 마지막 원본 기록 ${date(latest)} ${time(latest)}`:'');
     const sowStatus={loading:'사육 현황 연결 중',ready:'사육 현황 연동',cache:'연결 확인 중 · 저장된 정보 표시',error:'연결 실패 · 새로고침하여 다시 확인'}[state.sowStatus];
-    $('sowSourceStatus').textContent='산차·분만일 · '+sowStatus;
+    $('sowSourceStatus').textContent='산차·예정일·분만일 · '+sowStatus;
     $('sowSourceStatus').classList.toggle('warning',state.sowStatus==='error'||state.sowStatus==='cache');
-    $('connectionStatus').textContent=state.connection+' / 산차·분만일: '+sowStatus;
+    $('connectionStatus').textContent=state.connection+' / 산차·예정일·분만일: '+sowStatus;
     document.querySelectorAll('.filters button').forEach(b=>{b.classList.toggle('active',b.dataset.filter===state.filter);b.setAttribute('aria-pressed',String(b.dataset.filter===state.filter));});
     const map=new Map(state.rows.map(r=>[r.deviceId,r]));
     let cards=Array.from({length:C.TOTAL},(_,i)=>({id:i+1,row:map.get(i+1)}));
@@ -56,7 +56,7 @@
     $('feederGrid').innerHTML=cards.map(({id,row:r})=>{
       const s=C.status(r,options(id)),occupied=r?.active,pct=occupied?r.percent:null;
       if(s==='cleaning')return `<button class="feeder-card cleaning" data-device="${id}" aria-label="${id}번 급이기 청소·입식 대기 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">청소 중</span></div><div class="cleaning-title">입식 대기</div><p class="cleaning-reason">청소를 위해 전원을 꺼두었습니다.</p><div class="cleaning-state">${r&&C.status(r,{})!=='stale'?'데이터 수신 중 · 운영 복귀 확인':'계획된 전원 차단 · 장애 아님'}</div><div class="card-bottom"><span>통신·급이량 확인 집계 제외</span><span>상세 보기 ↗</span></div></button>`;
-      return `<button class="feeder-card ${s}" data-device="${id}" aria-label="${id}번 급이기 ${escape(occupied?r.sowId:names[s])}, ${names[s]} 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">${names[s]}</span></div><div class="sow-number"><strong>${escape(occupied?r.sowId:r?'빈 칸':'—')}</strong><span>모돈</span></div>${sowInfo(r)}<div class="card-amount"><span><b>${occupied?fmt(r.amount):'—'}</b><small>${occupied?`/ ${fmt(r.target)} g`:'데이터 없음'}</small></span><span class="percent">${pct===null?'—':pct+'%'}</span></div><div class="progress"><div style="width:${Math.min(pct||0,100)}%"></div></div><div class="card-bottom"><span>${r?`◷ ${time(r.measuredAt)} 기록`:'수신 대기'}</span><span>상세 보기 ↗</span></div></button>`;
+      return `<button class="feeder-card ${s}" data-device="${id}" aria-label="${id}번 급이기 ${escape(occupied?r.sowId:names[s])}, ${names[s]} 상세"><div class="card-top"><span class="device-number batch-${Math.ceil(id/C.BATCH_SIZE)}" title="${Math.ceil(id/C.BATCH_SIZE)}배치">${id}</span><span class="status-pill">${names[s]}</span></div><div class="card-identity"><div class="sow-number"><strong>${escape(occupied?r.sowId:r?'빈 칸':'—')}</strong></div>${sowInfo(r)}</div><div class="card-amount"><span><b>${occupied?fmt(r.amount):'—'}</b><small>${occupied?`/ ${fmt(r.target)} g`:'데이터 없음'}</small></span><span class="percent">${pct===null?'—':pct+'%'}</span></div><div class="progress"><div style="width:${Math.min(pct||0,100)}%"></div></div><div class="card-bottom"><span>${r?`◷ ${time(r.measuredAt)} 기록`:'수신 대기'}</span><span>상세 보기 ↗</span></div></button>`;
     }).join('');
   }
   function showDetail(id){
