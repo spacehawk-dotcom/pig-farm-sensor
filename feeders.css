@@ -16,3 +16,6 @@
 .sow-info>span{white-space:nowrap}
 
 .card-identity{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:start;min-height:39px;margin-bottom:8px}.feeder-card .card-identity .sow-number{margin:4px 0 0;min-width:0}.card-identity .sow-number strong{overflow-wrap:anywhere}.card-identity .sow-info{flex-direction:column;flex-wrap:nowrap;gap:5px;margin:0;font-size:10px}.card-identity .sow-info>span{display:flex;justify-content:space-between;gap:6px}.card-identity .sow-info b{margin-left:0}@media(max-width:570px){.card-identity{gap:6px;min-height:36px;margin-bottom:7px}.card-identity .sow-info{font-size:9px;gap:4px}.card-identity .sow-info>span{gap:4px}.card-identity .sow-number strong{font-size:20px}}
+
+/* Cards are read-only summaries, with no popup action. */
+article.feeder-card{cursor:default}article.feeder-card:hover{transform:none;box-shadow:none}
