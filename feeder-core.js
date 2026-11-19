@@ -2,19 +2,12 @@
   'use strict';
   const TOTAL=72,STALE_MS=15*60*1000;
   const BATCH_SIZE=24;
-  function batches(cleaningDevices=[]){
-    const cleaning=new Set(cleaningDevices);
+  function batches(){
     return Array.from({length:TOTAL/BATCH_SIZE},(_,i)=>{
       const start=i*BATCH_SIZE+1,end=(i+1)*BATCH_SIZE;
       const devices=Array.from({length:BATCH_SIZE},(_,j)=>start+j);
-      const cleaningCount=devices.filter(id=>cleaning.has(id)).length;
-      return {id:i+1,label:`${i+1}배치`,start,end,devices,cleaningCount,state:cleaningCount===0?'operating':cleaningCount===BATCH_SIZE?'cleaning':'mixed'};
+      return {id:i+1,label:`${i+1}배치`,start,end,devices};
     });
-  }
-  function cleaningFromBatches(batchIds){
-    if(!Array.isArray(batchIds)||batchIds.some(id=>!Number.isInteger(id)||id<1||id>TOTAL/BATCH_SIZE))throw new Error('올바른 배치를 선택하세요.');
-    const selected=new Set(batchIds);
-    return batches().filter(batch=>selected.has(batch.id)).flatMap(batch=>batch.devices);
   }
   const dayFormat=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'});
   function koreanDay(time=Date.now()){return dayFormat.format(new Date(time));}
@@ -57,8 +50,7 @@
     }
     return rows.sort((a,b)=>a.measuredAt-b.measuredAt);
   }
-  function status(row,{archive=false,now=Date.now(),deviceId=row?.deviceId,cleaningDevices=[]}={}){
-    if(!archive&&cleaningDevices.includes(deviceId))return 'cleaning';
+  function status(row,{archive=false,now=Date.now()}={}){
     if(!row)return 'missing';
     if(!archive&&(now-row.measuredAt>STALE_MS||row.measuredAt>now+60000||koreanDay(row.measuredAt)!==koreanDay(now)))return 'stale';
     if(!row.active)return 'empty';
@@ -68,20 +60,16 @@
     return 'partial';
   }
   function summary(rows,options={}){
-    const result={registered:TOTAL,received:0,active:0,complete:0,low:0,partial:0,stale:0,empty:0,unset:0,missing:0,cleaning:0,cleaningReceived:0,target:0,amount:0};
+    const result={registered:TOTAL,received:0,active:0,complete:0,low:0,partial:0,stale:0,empty:0,unset:0,missing:0,target:0,amount:0};
     const map=new Map(rows.map(row=>[row.deviceId,row]));
     for(let id=1;id<=TOTAL;id++){
       const row=map.get(id),s=status(row,{...options,deviceId:id});result[s]++;
-      if(s==='cleaning'){
-        if(row&&status(row,{...options,cleaningDevices:[]})!=='stale')result.cleaningReceived++;
-        continue;
-      }
       if(row)result.received++;
       if(row?.active&&s!=='stale'){result.active++;result.target+=row.target;result.amount+=row.amount;}
     }
-    result.expected=TOTAL-result.cleaning;
+    result.expected=TOTAL;
     result.percent=result.target?Math.floor(result.amount/result.target*100):0;return result;
   }
   function merge(rows,incoming){const map=new Map(rows.map(r=>[r.deviceId,r]));for(const raw of incoming){const r=normalize(raw),old=map.get(r.deviceId);if(!old||r.measuredAt>=old.measuredAt)map.set(r.deviceId,r);}return [...map.values()].sort((a,b)=>a.deviceId-b.deviceId);}
-  return {TOTAL,BATCH_SIZE,batches,cleaningFromBatches,FEEDING_TIMES,feedingPlan,chartHistory,STALE_MS,koreanDay,timestamp,normalize,parseLog,status,summary,merge};
+  return {TOTAL,BATCH_SIZE,batches,FEEDING_TIMES,feedingPlan,chartHistory,STALE_MS,koreanDay,timestamp,normalize,parseLog,status,summary,merge};
 });
