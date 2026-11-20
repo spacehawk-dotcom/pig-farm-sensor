@@ -907,7 +907,7 @@
             try {
                 let workbook;
                 try {
-                    workbook = XLSX.read(data, { type: 'binary' });
+                    workbook = XLSX.read(data, { type: 'array' });
                 } catch(err1) {
                     const decoder = new TextDecoder('euc-kr');
                     const text = decoder.decode(new Uint8Array(data));
@@ -935,7 +935,83 @@
         return new Date().toISOString().split('T')[0];
     }
 
-    // 이중 탐색 기반(Dual-Anchor) 엑셀 파서 로직
+    // 원패스 보고서는 병합 셀 사이에 빈 열이 많으므로 열 제목의 실제 위치를 사용한다.
+    // 도체번호 1, 2나 결함번호를 등급으로 해석하지 않는다.
+    function parseOnepassDetailRows(rawRows, date) {
+        const text = value => String(value ?? '').trim();
+        const label = value => text(value).replace(/\s+/g, '').toLowerCase();
+        const number = value => {
+            const str = text(value).replace(/,/g, '');
+            return str === '' ? NaN : Number(str);
+        };
+        const grade = value => {
+            const str = label(value).replace(/등급$/, '');
+            return ['1+', '1', '2', '등외'].includes(str) ? str : null;
+        };
+        let columns = null;
+        let headerIndex = -1;
+        for (let i = 0; i < rawRows.length; i++) {
+            if (!Array.isArray(rawRows[i])) continue;
+            const headers = Array.from(rawRows[i], label);
+            const candidate = {
+                id: headers.indexOf('도체번호'),
+                gender: headers.indexOf('성별'),
+                weight: headers.findIndex(v => /^도체중(?:\(kg\))?$/.test(v)),
+                fat: headers.findIndex(v => /^등지방(?:두께)?(?:\(mm\))?$/.test(v)),
+                grade: headers.indexOf('최종등급'),
+                serial: headers.indexOf('일련번호')
+            };
+            if (['id', 'gender', 'weight', 'fat', 'grade'].every(key => candidate[key] >= 0)) {
+                columns = candidate;
+                headerIndex = i;
+                break;
+            }
+        }
+        if (!columns) return null; // 기존 간단 양식은 아래 호환 파서에서 처리
+
+        const details = [];
+        const invalidRows = [];
+        for (let i = headerIndex + 1; i < rawRows.length; i++) {
+            const row = rawRows[i];
+            if (!Array.isArray(row)) continue;
+            const id = text(row[columns.id]);
+            const gender = text(row[columns.gender]);
+            const serial = columns.serial >= 0 ? number(row[columns.serial]) : NaN;
+            const isDetail = (Number.isInteger(serial) && serial > 0) ||
+                (id !== '' && ['암', '수', '거세'].includes(gender));
+            if (!isDetail) continue; // 다단 헤더, 주석, 합계는 개체가 아님
+            const weight = number(row[columns.weight]);
+            const fatText = text(row[columns.fat]);
+            const fat = fatText === '' ? 0 : number(fatText);
+            const finalGrade = grade(row[columns.grade]);
+            if (!id || !Number.isFinite(weight) || weight <= 0 ||
+                !Number.isFinite(fat) || fat < 0 || !finalGrade) {
+                invalidRows.push(i + 1);
+                continue;
+            }
+            details.push({ date, grade: finalGrade, weight, fat, id, gender: gender || '기타' });
+        }
+        if (invalidRows.length) {
+            throw new Error(`세부내역 ${invalidRows.join(', ')}행의 도체번호·중량·등지방·최종등급을 확인해 주세요. 누락을 막기 위해 가져오기를 중단했습니다.`);
+        }
+
+        // 보고서 요약 두수와 대조하여 일부 행만 성공으로 표시되는 것을 방지한다.
+        for (let i = 0; i < headerIndex; i++) {
+            const headers = Array.from(rawRows[i] || [], label);
+            const countColumn = headers.indexOf('소계');
+            if (!headers.includes('1+등급') || countColumn < 0) continue;
+            const total = rawRows.slice(i + 1, Math.min(i + 6, headerIndex))
+                .find(row => Array.isArray(row) && label(row[0]) === '계');
+            const expected = total ? number(total[countColumn]) : NaN;
+            if (Number.isInteger(expected) && expected >= 0 && expected !== details.length) {
+                throw new Error(`엑셀 요약은 ${expected}두이나 세부내역은 ${details.length}두입니다. 파일을 확인해 주세요.`);
+            }
+            break;
+        }
+        return details;
+    }
+
+    // 열 제목 기반 파서를 우선 사용하고, 기존 간단 양식만 호환 탐색한다.
     function interpretAndProcessData(rawRows) {
         let globalDate = '';
         
@@ -960,9 +1036,10 @@
             globalDate = getTodayFormatted();
         }
 
-        const processedList = [];
+        const headerDetails = parseOnepassDetailRows(rawRows, globalDate);
+        const processedList = headerDetails || [];
 
-        for (let i = 0; i < rawRows.length; i++) {
+        for (let i = 0; headerDetails === null && i < rawRows.length; i++) {
             const row = rawRows[i];
             if (!row || !Array.isArray(row) || row.length < 5) continue;
 
