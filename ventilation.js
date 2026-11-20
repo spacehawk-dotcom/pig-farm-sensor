@@ -6,6 +6,11 @@ function ventilationCoefficient(value) {
     return typeof value === 'number' && Number.isFinite(value) && value > 0 && value <= 10
         ? value : DEFAULT_VENTILATION_COEFFICIENT;
 }
+function growerAdjustment(age, roomType, stockDiffDays) {
+    const initialStocking = roomType === '육성사' && Number.isFinite(stockDiffDays) && stockDiffDays >= 0 && stockDiffDays <= 7;
+    const temperatureOffset = roomType !== '육성사' ? 0 : initialStocking || age < 90 ? 2 : age < 110 ? 1 : age < 130 ? 0 : -1;
+    return { initialStocking, temperatureOffset };
+}
 const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.69901082) });
         function calculateWeight(age) {
             let w = 5;
@@ -112,17 +117,19 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
 
             let acclimatizationMsg = "";
 
-            if (roomType === '육성사' && stockDiffDays !== null && stockDiffDays >= 0) {
-                // 앱에 표시하는 입식 경과일 기준: 당일(0일차)~3일차 +2, 4~6일차 +1.
-                if (stockDiffDays <= 3) {
-                    t_500_1 += 2;
-                    acclimatizationMsg = `<li class="text-rose-600 bg-rose-50 p-2 sm:p-3 rounded-lg border border-rose-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 초기 온도 보상 (+2℃)</strong>현재 <strong>${stockDiffDays === 0 ? '입식 당일(0일차)' : '입식 ' + stockDiffDays + '일차'}</strong>입니다. 입식 당일부터 3일차까지 <strong>기준온도 +2℃</strong>를 적용합니다. 4~6일차에는 +1℃, 7일차부터는 기준온도를 적용합니다.</li>`;
-                } else if (stockDiffDays <= 6) {
-                    t_500_1 += 1;
-                    acclimatizationMsg = `<li class="text-orange-600 bg-orange-50 p-2 sm:p-3 rounded-lg border border-orange-100 mt-2 list-none shadow-sm text-[11px] sm:text-xs"><strong class="flex items-center gap-1 mb-1"><span class="text-sm sm:text-lg">🌡️</span> 입식 적응 온도 보상 (+1℃)</strong>현재 <strong>입식 ${stockDiffDays}일차</strong>입니다. 4~6일차에 해당하여 <strong>기준온도 +1℃</strong>를 적용합니다. 7일차부터 입식 보상을 해제하고 기준온도로 복귀합니다. 외기 온도에 따른 추가 보정은 없습니다.</li>`;
-                } else {
-                    acclimatizationMsg = `<li class="text-slate-700 text-[11px] sm:text-xs"><strong>입식 적응 완료 · 기준온도 적용</strong>: 육성사 입식 후 ${stockDiffDays}일이 경과하여 입식 온도 보상 없이 기준온도를 적용합니다. 외기 온도에 따른 추가 보정은 없습니다.</li>`;
-                }
+            const adjustment = growerAdjustment(age, roomType, stockDiffDays);
+            if (roomType === '육성사') {
+                t_500_1 += adjustment.temperatureOffset;
+                const stage = adjustment.initialStocking
+                    ? `입식 ${stockDiffDays}일차 · 기준온도 +2℃ · 적용계수 0.3. 입식 8일차부터 계수는 기존 설정을 적용합니다.`
+                    : age < 90
+                        ? `평균일령 ${age}일 · 90일령 미만은 기준온도 +2℃를 유지하고 계수는 기존 설정을 적용합니다.`
+                        : age < 110
+                            ? `평균일령 ${age}일 · 90~109일령은 기준온도 +1℃를 적용합니다.`
+                            : age < 130
+                                ? `평균일령 ${age}일 · 110~129일령은 기준온도를 적용합니다.`
+                                : `평균일령 ${age}일 · 130일령부터 기준온도 -1℃를 적용합니다.`;
+                acclimatizationMsg = `<li class="text-slate-700 text-[11px] sm:text-xs"><strong>육성사 입식·평균일령 보정</strong>: ${stage} 외기 온도에 따른 추가 보정은 없습니다.</li>`;
             }
 
             let outdoorMsg = "";
@@ -158,7 +165,8 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             const crossSectionArea = (roomType === '육성사' ? length : width) * height;
             const buildingVolume = width * height * length;
 
-            const coefficient = ventilationCoefficient(overrides?.coefficient);
+            // 입식 초기 계수는 일시 적용하며 저장된 계절별 계수를 덮어쓰지 않는다.
+            const coefficient = adjustment.initialStocking ? 0.3 : ventilationCoefficient(overrides?.coefficient);
             let baseMinVentCMH = weight * count * coefficient;
             if (baseMinVentCMH < buildingVolume * 1.5) baseMinVentCMH = buildingVolume * 1.5;
 
@@ -173,7 +181,7 @@ const FAN_AIRFLOW = Object.freeze({ fan500: 6960, fan800: Math.round(10574 * 1.6
             const min_500_2 = fan_500_2_cap > 0 && !group2Off ? minimumRate : 0;
             let max_800_2 = Math.round(Math.max(50.0, Math.min(100.0, 50.0 + (weight * 0.4))));
 
-            let historyMsg = `<li><strong>기본 기준 ${BASE_TEMPERATURE}℃ · 조건별 자동 적용</strong>: 일령에 따른 기준 ${Math.round(Math.max(BASE_TEMPERATURE, Math.min(32, t_500_1_raw)))}℃에 입식 경과일을 반영합니다.</li>`;
+            let historyMsg = `<li><strong>기본 기준 ${BASE_TEMPERATURE}℃ · 조건별 자동 적용</strong>: 일령에 따른 기준 ${Math.round(Math.max(BASE_TEMPERATURE, Math.min(32, t_500_1_raw)))}℃에 입식 경과일과 평균일령을 반영합니다.</li>`;
             if (acclimatizationMsg) historyMsg += acclimatizationMsg;
             if (outdoorMsg) historyMsg += outdoorMsg;
 
@@ -258,6 +266,6 @@ function minimumAirflowDisplay(opt, group, {recommendedOnly = false} = {}) {
         value: cmh.toLocaleString('ko-KR', {maximumFractionDigits: 1}) + ' m³/h (' + rate + '%)'
     };
 }
-root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, FAN_AIRFLOW, calculateWeight, calculateBatchCount, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides, minimumAirflowDisplay });
+root.FarmVentilation = Object.freeze({ BASE_TEMPERATURE, DEFAULT_VENTILATION_COEFFICIENT, ventilationCoefficient, growerAdjustment, FAN_AIRFLOW, calculateWeight, calculateBatchCount, calculatePigAge, calculateOptimalSettings, recentOutdoorTemperatures, applyOverrides, minimumAirflowDisplay });
 if (typeof module === 'object' && module.exports) module.exports = root.FarmVentilation;
 })(globalThis);

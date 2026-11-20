@@ -48,8 +48,9 @@
             input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             input[type="date"] { color: inherit; font-family: inherit; border: 1px solid #e2e8f0; border-radius: 8px; padding: 4px 8px; }
         </style>
-        <script src="ventilation.js?v=20261108-single-group"></script>
+        <script src="ventilation.js?v=20261120-grower-age130"></script>
         <script src="ventilation-save-history.js?v=20261109-highlight-minimum"></script>
+        <script src="stocking-cohorts.js?v=20261120"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -303,7 +304,7 @@
             const COLS = {
                 STOCKS: `farms/${appId}/stocks`, WEANING: `farms/${appId}/weaning`, GROWER: `farms/${appId}/grower`,
                 SOWS: `farms/${appId}/sows`, HISTORY: `farms/${appId}/history`, SHIPMENTS: `farms/${appId}/shipments`,
-                SHIPMENT_SUMMARIES: `farms/${appId}/shipment_summaries`, ACCIDENTS: `farms/${appId}/accidents`, WEANING_RECORDS: `farms/${appId}/weaning_records`
+                SHIPMENT_SUMMARIES: `farms/${appId}/shipment_summaries`, ACCIDENTS: `farms/${appId}/accidents`, WEANING_RECORDS: `farms/${appId}/weaning_records`, STOCKING_RECORDS: `farms/${appId}/stocking_records`
             };
 
             const KOR_STATUS_MAP = {
@@ -580,7 +581,7 @@
                 stocks: { boar: 5, piglet: 0, grower: 0, sow: 0, replacement: 0, gilt_batch: 0 },
                 wBatches: Array.from({ length: 5 }, (_, i) => getEmptyBatch(i + 1)),
                 gBatches: Array.from({ length: 8 }, (_, i) => getEmptyBatch(i + 1, true)),
-                sowList: [], shipments: [], shipmentSummaries: {}, accidents: [], historyList: [], weaningRecords: {},
+                sowList: [], shipments: [], shipmentSummaries: {}, accidents: [], historyList: [], weaningRecords: {}, stockingRecords: {},
                 transfer: { active: false, src: null },
                 sowCache: { returnCount: 0, awaitingCount: 0, nursingCount: 0, nursingSows: 0, sowCount: 0, sowPregnantCount: 0, sowWeaningCount: 0, replacementCount: 0, expectedFarrowingMap: {}, weeklyNursingMap: {} }
             };
@@ -789,6 +790,7 @@
                 db.collection(COLS.ACCIDENTS).onSnapshot(s => { state.accidents = s.docs.map(d => ({ dbId: d.id, ...d.data() })).sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); renderDailyAccidents(); }, errLog);
                 db.collection(COLS.HISTORY).onSnapshot(s => { state.historyList = s.docs.map(d => ({ date: d.id, ...d.data() })).sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))); }, errLog);
                 db.collection(COLS.WEANING_RECORDS).onSnapshot(s => { const records = {}; s.docs.forEach(d => records[d.id] = d.data()); state.weaningRecords = records; renderManualWeaning(); }, errLog);
+                db.collection(COLS.STOCKING_RECORDS).onSnapshot(s => { const records = {}; s.docs.forEach(d => records[d.id] = d.data()); state.stockingRecords = records; }, errLog);
             }
 
             let syncHistoryTimeout = null;
@@ -1411,13 +1413,16 @@
                     allBatches.forEach(b => {
                         if (b.status === 'empty' || b.pigs === 0) return;
                         for (let i = 0; i < b.penDetails.length; i++) {
-                            const count = b.penDetails[i];
+                            const count = Number(b.penDetails[i]) || 0;
                             if (count > 0) {
                                 const penDate = (b.penDates && b.penDates[i]) || b.weaningDate || b.date;
                                 if (penDate) {
                                     const age = utils.getDiffDays(penDate, todayStr) + 20;
-                                    if (!ageGroups[age]) ageGroups[age] = { count: 0, pens: [] };
+                                    if (!Number.isFinite(age)) continue;
+                                    if (!ageGroups[age]) ageGroups[age] = { count: 0, pens: [], dates: new Set() };
                                     ageGroups[age].count += count;
+                                    const parsedDate = utils.parseDate(penDate);
+                                    if (parsedDate) ageGroups[age].dates.add(`${parsedDate.getFullYear()}-${String(parsedDate.getMonth() + 1).padStart(2, '0')}-${String(parsedDate.getDate()).padStart(2, '0')}`);
                                     const stageName = b._stage === 'grower' ? `육성${b.id}` : `이유${b.id}`;
                                     ageGroups[age].pens.push(`${stageName} ${i + 1}칸`);
                                     total += count;
@@ -1431,7 +1436,11 @@
                     const sortedAges = Object.keys(ageGroups).map(Number).sort((a, b) => a - b);
                     let listHtml = sortedAges.map(age => {
                         const g = ageGroups[age];
-                        return `<div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-1.5 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div><div class="flex justify-between items-center pl-2"><span class="text-[14px] font-black text-slate-700">${age}일령</span><span class="text-[18px] font-black text-blue-600">${g.count.toLocaleString()}<span class="text-xs font-bold text-slate-400 ml-0.5">두</span></span></div><div class="pl-2 text-[9px] font-bold text-slate-400 truncate" title="${g.pens.join(', ')}">${g.pens.join(', ')}</div></div>`;
+                        // 최초 돈방 입식 기록만 사용하며 이유 성적과는 별개로 관리한다.
+                        const initialCounts = [...g.dates].map(date => StockingCohorts.initialCount(state.stockingRecords[date]));
+                        const hasInitialCount = initialCounts.length > 0 && initialCounts.every(value => value !== null);
+                        const initialLabel = hasInitialCount ? initialCounts.reduce((sum, value) => sum + Number(value), 0).toLocaleString() : '미등록';
+                        return `<div class="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex flex-col gap-1.5 relative overflow-hidden"><div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-400"></div><div class="flex flex-wrap justify-between items-center gap-x-2 pl-2"><span class="text-[14px] font-black text-slate-700">${age}일령</span><span class="text-[18px] font-black text-blue-600 whitespace-nowrap" aria-label="현재 ${g.count.toLocaleString()}두 / 처음 입식 ${initialLabel}${hasInitialCount ? '두' : ''}">${g.count.toLocaleString()}<span class="text-sm font-bold text-slate-500">/${initialLabel}</span><span class="text-xs font-bold text-slate-400 ml-0.5">두</span></span></div><div class="pl-2 text-[9px] font-bold text-slate-400 truncate" title="${g.pens.join(', ')}">${g.pens.join(', ')}</div><div class="pl-2 flex justify-end">${[...g.dates].map(date => `<button type="button" onclick="window.openModal('stocking_initial', '${date}')" class="text-[10px] font-bold text-blue-500 py-1">처음 두수 ${hasInitialCount ? '수정' : '입력'}</button>`).join('')}</div></div>`;
                     }).join('');
                     if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 50);
                     return {
@@ -1445,9 +1454,15 @@
                             <div class="bg-indigo-50 p-3 rounded-xl text-center border border-indigo-100 shadow-sm"><p class="text-[10px] font-bold text-indigo-600 mb-1">61~120일령</p><p class="text-[17px] font-black text-indigo-700">${count61To120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div>
                             <div class="bg-rose-50 p-3 rounded-xl text-center border border-rose-100 shadow-sm"><p class="text-[10px] font-bold text-rose-600 mb-1">121일령~</p><p class="text-[17px] font-black text-rose-700">${countOver120.toLocaleString()}<span class="text-[10px] ml-0.5 font-bold">두</span></p></div>
                         </div>
+                        <p class="text-[10px] text-slate-500 mb-2 px-1">현재두수/처음 입식 시 두수 · 같은 이유날짜로 처음 돈방에 들어온 두수입니다. 기록이 없는 기존 일령은 실제 최초 두수를 입력해 주세요.</p>
                         <div class="grid grid-cols-2 gap-2 max-h-[45vh] overflow-y-auto no-scrollbar pb-2 px-1">${listHtml || '<div class="col-span-2 text-center py-10 text-slate-400 font-bold text-xs bg-white rounded-2xl border border-dashed border-slate-200">데이터가 없습니다.</div>'}</div>`,
                         hideSave: true
                     };
+                },
+                stocking_initial: (date) => {
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('이유날짜를 확인하세요.');
+                    const initial = StockingCohorts.initialCount(state.stockingRecords[date]);
+                    return { title: '처음 돈방 입식 두수', html: `<input id="m-stocking-date" type="hidden" value="${date}"><p class="text-sm font-bold text-slate-700 mb-3">이유날짜 ${date}</p><p class="text-xs text-slate-500 mb-3">같은 이유날짜로 처음 돈방에 들어온 두수를 모두 합산해 입력하세요. 이유 성적의 이유두수나 현재 남은 두수가 아닙니다. 돈방 간 이동은 중복해서 더하지 않습니다.</p><label class="text-sm font-bold" for="m-stocking-initial">최초 입식 두수</label><input id="m-stocking-initial" type="number" min="0" step="1" inputmode="numeric" value="${initial ?? ''}" placeholder="실제 최초 입식 두수" class="w-full mt-2 p-3 border rounded-xl text-xl font-bold">` };
                 },
                 parity_distribution: () => {
                     const distribution = {};
@@ -2159,6 +2174,15 @@
 
             // 저장 액션 로직
             window.saveActions = {
+                stocking_initial: async () => {
+                    const date = document.getElementById('m-stocking-date').value;
+                    const input = document.getElementById('m-stocking-initial').value.trim();
+                    const initialCount = Number(input);
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || input === '' || !Number.isInteger(initialCount) || initialCount < 0) throw new Error('최초 입식 두수를 0 이상의 정수로 입력하세요.');
+                    const data = { initialCount, complete: true, source: 'manual', updatedAt: new Date().toISOString() };
+                    if (!isLocalEnv) await db.collection(COLS.STOCKING_RECORDS).doc(date).set(data);
+                    state.stockingRecords[date] = data;
+                },
                 piglet_calc: async () => {
                     const avgPiglets = parseFloat(document.getElementById('m-avg-piglets').value) || 0;
                     const nursingSows = state.sowCache.nursingSows;
@@ -2274,8 +2298,18 @@
                     const accDate = accDateEl ? accDateEl.value || utils.getTodayStr() : utils.getTodayStr();
                     const currentPenDate = pDateInput ? pDateInput.value : '';
 
-                    const b = (stg === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(bId));
-                    if (!b) throw new Error("배치 데이터를 찾을 수 없습니다.");
+                    const originalBatch = (stg === 'weaning' ? state.wBatches : state.gBatches).find(x => String(x.id) === String(bId));
+                    if (!originalBatch) throw new Error("배치 데이터를 찾을 수 없습니다.");
+                    const b = { ...originalBatch, penDetails: [...originalBatch.penDetails], penDates: [...(originalBatch.penDates || [])], penIsResidual: [...(originalBatch.penIsResidual || [])], penIsSick: [...(originalBatch.penIsSick || [])], pendingShipments: [...(originalBatch.pendingShipments || [])] };
+                    const previousCount = Number(b.penDetails[pIdx]) || 0;
+                    const enteredCount = cnt;
+                    const captureFirstEntry = previousCount === 0 && enteredCount > 0 && !(stg === 'grower' && bId === 8);
+                    if (captureFirstEntry && !/^\d{4}-\d{2}-\d{2}$/.test(currentPenDate)) throw new Error('처음 입식하는 돈방의 이유날짜를 입력하세요.');
+                    const otherCurrentCount = [...state.wBatches, ...state.gBatches.filter(item => Number(item.id) !== 8)].reduce((sum, item) => sum + (item.penDetails || []).reduce((n, value, index) => {
+                        if (item === originalBatch && index === pIdx) return n;
+                        const date = item.penDates?.[index] || item.weaningDate || item.date;
+                        return n + (date === currentPenDate ? Number(value) || 0 : 0);
+                    }, 0), 0);
 
                     if (!b.penIsResidual) b.penIsResidual = Array(b.penDetails.length).fill(false);
                     b.penIsResidual[pIdx] = resEl ? resEl.checked : false;
@@ -2341,11 +2375,26 @@
                     
                     if (!isLocalEnv) {
                         const col = stg === 'weaning' ? COLS.WEANING : COLS.GROWER;
-                        await db.doc(`${col}/batch_${bId}`).update(updateData);
+                        if (captureFirstEntry) {
+                            const batchRef = db.doc(`${col}/batch_${bId}`);
+                            const initialRef = db.collection(COLS.STOCKING_RECORDS).doc(currentPenDate);
+                            await db.runTransaction(async tx => {
+                                const liveBatch = await tx.get(batchRef);
+                                const initial = await tx.get(initialRef);
+                                if (!liveBatch.exists || Number(liveBatch.data().penDetails?.[pIdx] || 0) !== previousCount) throw new Error('돈방 두수가 변경되었습니다. 다시 열어 확인해 주세요.');
+                                const next = StockingCohorts.capture(initial.exists ? initial.data() : null, previousCount, enteredCount, otherCurrentCount);
+                                tx.update(batchRef, updateData);
+                                if (next) tx.set(initialRef, { ...next, updatedAt: new Date().toISOString() });
+                            });
+                        } else await db.doc(`${col}/batch_${bId}`).update(updateData);
                     } else {
+                        if (captureFirstEntry) {
+                            const next = StockingCohorts.capture(state.stockingRecords[currentPenDate], previousCount, enteredCount, otherCurrentCount);
+                            if (next) state.stockingRecords[currentPenDate] = next;
+                        }
                         const arr = stg === 'weaning' ? state.wBatches : state.gBatches;
                         const idx = arr.findIndex(x => x.id === bId);
-                        if (idx !== -1) arr[idx] = { ...arr[idx], ...updateData };
+                        if (idx !== -1) arr[idx] = { ...arr[idx], ...updateData, pendingShipments: b.pendingShipments };
                     }
                 },
                 batch_settings: async () => {

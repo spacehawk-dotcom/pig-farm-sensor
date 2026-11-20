@@ -127,7 +127,7 @@
                             <span>☁️</span> 4단계 분할 제어 현재 적용 설정
                         </h3>
                     </div>
-                    <p class="text-[11px] sm:text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3 leading-relaxed"><strong>육성사 입식 온도 보정</strong> · 입식 당일은 0일차<br>입식 당일~3일차: 기준온도 +2℃ → 4~6일차: 기준온도 +1℃ → 7일차부터: 기준온도 적용<br><span id="outdoor-daily-range" class="text-slate-500" role="status">외부온도 일교차 (오늘·한국시간): 기록을 불러오는 중입니다.</span></p>
+                    <p class="text-[11px] sm:text-xs text-blue-800 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-3 leading-relaxed"><strong>육성사 입식·평균일령 온도 보정</strong> · 입식 당일은 0일차<br>입식 당일~7일차: 기준온도 +2℃·적용계수 0.3 → 평균일령 90~109일: 기준온도 +1℃ → 평균일령 110~129일: 기준온도 적용 → 평균일령 130일부터: 기준온도 -1℃<br>입식 8일차 이후 평균일령 90일 미만: +2℃ 유지·기존 계수 적용. 입식 0~7일차 규칙을 우선 적용합니다.<br><span id="outdoor-daily-range" class="text-slate-500" role="status">외부온도 일교차 (오늘·한국시간): 기록을 불러오는 중입니다.</span></p>
                     
                     <div class="overflow-x-auto rounded-lg border border-slate-200 shadow-sm relative">
                         <table class="w-full text-center border-collapse min-w-[800px]">
@@ -173,7 +173,7 @@
                         <label>계절별 환기 계수 <select id="ventilation-season" class="border rounded p-2 bg-white"><option value="0.4">농장 기준 (0.4)</option><option value="0.2">동절기 (0.2)</option><option value="0.5">환절기 (0.5)</option><option value="1">하절기 (1.0)</option><option value="custom">직접 입력</option></select></label>
                         <label>적용 계수 <input id="ventilation-coefficient" type="number" min="0.01" max="10" step="0.01" value="0.4" required class="w-20 border rounded p-2 text-right bg-white"></label>
                     </div>
-                    <p class="text-xs text-slate-500 mt-2">현재 농장 기준 0.4 · 하절기 1.0 이상은 직접 입력할 수 있습니다. 아래 입력 버튼으로 배치별 저장합니다. 추천값은 참고용이며 기존 최소 환기 입력값을 바꾸지 않습니다.</p>
+                    <p id="coefficient-policy-hint" class="text-xs text-slate-500 mt-2">농장 기본 계수 0.4 · 육성사 입식 0~7일차는 0.3 자동 적용, 8일차부터 기존 계수 적용. 추천값은 기존 최소 환기 입력값을 바꾸지 않습니다.</p>
                 </div>
                 <div class="overflow-x-auto"><div id="group-settings-editor" class="grid grid-cols-4 gap-2.5 min-w-[760px]">
 <div id="group1_panel" class="bg-blue-50/50 p-2.5 rounded-xl border border-blue-100 flex flex-col"><h3 class="text-xs font-bold text-blue-800 mb-2">1그룹 (500휀 2대 상시)</h3>
@@ -303,7 +303,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js/dist/chart.umd.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <script src="simulation-core.js?v=20261003-weight-cap110"></script>
-    <script src="ventilation.js?v=20261108-single-group"></script>
+    <script src="ventilation.js?v=20261120-grower-age130"></script>
     <script src="ventilation-setting-record.js?v=20261027-pen-weighted-age"></script>
     <script type="module">
         import { createHistoryCharts } from "./ventilation-history-charts.js";
@@ -784,7 +784,9 @@
             }
             const coefficientInput=document.getElementById('ventilation-coefficient');
             if(!coefficientInput.checkValidity()) { coefficientInput.reportValidity(); status.textContent='환기 계수는 0.01~10 범위로 입력하세요.'; return; }
-            updates['ventilationOverrides.coefficient']=Number(coefficientInput.value);
+            const initialStocking=window.FarmVentilation.growerAdjustment(batch.age,batch.type,batch.stockDiffDays).initialStocking;
+            // 0.3을 영구 저장하면 8일차 이후에도 기존 계수로 돌아가지 못하므로 제외한다.
+            if(!initialStocking) updates['ventilationOverrides.coefficient']=Number(coefficientInput.value);
             const recordRef=doc(collection(db,'farms/sungamfarm/ventilation_records'));
             const savedTime=Date.now();
             editorSaving=true;
@@ -809,7 +811,14 @@
                 }
                 renderAllBatchesSummary();
             } catch(error) { status.textContent=`${batch.name} 저장 실패: ${error.message} · 다시 입력 버튼을 눌러주세요.`; }
-            finally {editorSaving=false;button.disabled=false;document.querySelectorAll('#group-settings-editor input, #ventilation-coefficient, #ventilation-season').forEach(input=>input.disabled=false);}
+            finally {
+                editorSaving=false;button.disabled=false;
+                document.querySelectorAll('#group-settings-editor input').forEach(input=>input.disabled=false);
+                const selected=fetchedBatches[currentSelectedBatchId];
+                const locked=selected && window.FarmVentilation.growerAdjustment(selected.age,selected.type,selected.stockDiffDays).initialStocking;
+                document.getElementById('ventilation-coefficient').disabled=!!locked;
+                document.getElementById('ventilation-season').disabled=!!locked;
+            }
         });
 
         function getVentRate(temp, opt) {
@@ -845,10 +854,18 @@
             let outTempHist = getRecentOutdoorTemperatures();
             
             const savedCoefficient=window.FarmVentilation.ventilationCoefficient(batch.sourceData.ventilationOverrides?.coefficient);
+            const initialStocking=window.FarmVentilation.growerAdjustment(age,batch.type,batch.stockDiffDays).initialStocking;
+            if(initialStocking) coefficientDirty=false;
+            const displayedCoefficient=initialStocking ? 0.3 : savedCoefficient;
             if(!coefficientDirty) {
-                document.getElementById('ventilation-coefficient').value=savedCoefficient;
-                document.getElementById('ventilation-season').value=[0.4,0.2,0.5,1].includes(savedCoefficient) ? String(savedCoefficient) : 'custom';
+                document.getElementById('ventilation-coefficient').value=displayedCoefficient;
+                document.getElementById('ventilation-season').value=[0.4,0.2,0.5,1].includes(displayedCoefficient) ? String(displayedCoefficient) : 'custom';
             }
+            document.getElementById('ventilation-coefficient').disabled=editorSaving || initialStocking;
+            document.getElementById('ventilation-season').disabled=editorSaving || initialStocking;
+            document.getElementById('coefficient-policy-hint').textContent=initialStocking
+                ? `입식 0~7일차: 계수 0.3 자동 적용 · 8일차부터 기존 계수 ${savedCoefficient} 적용. 추천값은 기존 최소 환기 입력값을 바꾸지 않습니다.`
+                : '계절별 계수를 직접 입력하고 배치별로 저장할 수 있습니다. 추천값은 기존 최소 환기 입력값을 바꾸지 않습니다.';
             const coefficient=coefficientDirty ? Number(document.getElementById('ventilation-coefficient').value) : savedCoefficient;
             const opt = calculateOptimalSettings(age, weight, count, historyStats, batch.type, batch.stockDiffDays, outTempHist, {...batch.sourceData.ventilationOverrides, coefficient});
             
