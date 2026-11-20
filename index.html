@@ -51,6 +51,7 @@
         <script src="ventilation.js?v=20261120-grower-age130"></script>
         <script src="ventilation-save-history.js?v=20261109-highlight-minimum"></script>
         <script src="stocking-cohorts.js?v=20261120"></script>
+        <script src="batch-transfers.js?v=20261120"></script>
 </head>
     <body class="bg-slate-100 text-slate-900 min-h-screen pb-24">
         <!-- 상단 헤더 -->
@@ -660,6 +661,12 @@
                     document.getElementById('modal-overlay').classList.remove('hidden');
                     if (type === 'batch_settings') {
                         refreshBatchVentilation();
+                        const transferBatch = (target.stage === 'weaning' ? state.wBatches : state.gBatches).find(item => String(item.id) === String(target.batchId));
+                        if (transferBatch) {
+                            if (!transferBatch.localTransferRecords) transferBatch.localTransferRecords = [];
+                            const collection = target.stage === 'weaning' ? COLS.WEANING : COLS.GROWER;
+                            window.BatchTransfers.mount(document.getElementById('batch-transfer-history'), isLocalEnv ? null : db.doc(`${collection}/batch_${target.batchId}`), target, transferBatch.localTransferRecords, utils.getTodayStr());
+                        }
                         const historyNode = document.getElementById('ventilation-save-history');
                         if (historyNode) {
                             const batch = (target.stage === 'weaning' ? state.wBatches : state.gBatches).find(item => String(item.id) === String(target.batchId));
@@ -1943,6 +1950,7 @@
                             ${ventHtml}
                             ${feedHtml}
                             ${vaccineHtml}
+                            <section id="batch-transfer-history" class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm"></section>
                             <div class="bg-slate-50 p-4 rounded-xl"><label class="text-[10px] font-black text-slate-500 block mb-2">현재 배치 메모 사항</label><textarea id="m-memo" rows="3" class="w-full bg-transparent text-sm font-medium resize-none outline-none border border-slate-200 rounded p-2" placeholder="여기에 메모를 입력하세요...">${b.memo || ''}</textarea></div>
                             <div><label class="text-[10px] font-black text-slate-500 block mb-2 flex items-center gap-1"><i data-lucide="skull" class="w-3.5 h-3.5 text-slate-400"></i> 현재 배치 폐사/도태 내역</label>${accHtml}</div>
                             <div class="pt-4 border-t border-slate-100">
@@ -2167,7 +2175,7 @@
                     return {
                         title: '칸 이동',
                         html: `<input type="hidden" id="m-src-stage" value="${t.src.stage}"><input type="hidden" id="m-src-batch" value="${src.id}"><input type="hidden" id="m-src-pen" value="${t.src.penIndex}"><input type="hidden" id="m-dest-stage" value="${t.dest.stage}"><input type="hidden" id="m-dest-batch" value="${t.dest.batchId}"><input type="hidden" id="m-dest-pen" value="${t.dest.penIndex}">
-                        <div class="p-6 bg-indigo-50 rounded-xl text-center"><label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC}두)</label><input id="m-count" type="number" inputmode="numeric" value="${defaultCount}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700"></div>`
+                        <div class="p-6 bg-indigo-50 rounded-xl text-center"><label class="text-[10px] font-bold text-indigo-600 block mb-2">이동 두수 (최대 ${sC}두)</label><input id="m-count" type="number" min="1" max="${sC}" step="1" inputmode="numeric" value="${defaultCount}" class="w-full bg-transparent text-4xl font-black text-center text-indigo-700"></div><label class="block text-xs font-bold text-slate-600 mt-3">이동 날짜<input id="m-transfer-date" type="date" value="${utils.getTodayStr()}" max="${utils.getTodayStr()}" class="w-full border rounded-lg p-3 mt-1"></label><p class="text-[10px] text-slate-500 mt-2">이동 당시 일령·두수·날짜가 양쪽 배치에 자동 기록됩니다.</p>`
                     };
                 }
             };
@@ -2409,32 +2417,34 @@
                     }
                 },
                 transfer_pen: async () => {
-                    const srcStg = document.getElementById('m-src-stage').value, sbId = parseInt(document.getElementById('m-src-batch').value), spIdx = parseInt(document.getElementById('m-src-pen').value);
-                    const destStg = document.getElementById('m-dest-stage').value, dbId = parseInt(document.getElementById('m-dest-batch').value), dpIdx = parseInt(document.getElementById('m-dest-pen').value), cnt = parseInt(document.getElementById('m-count').value) || 0;
-                    const src = (srcStg === 'weaning' ? state.wBatches : state.gBatches).find(b => String(b.id) === String(sbId)), dest = (destStg === 'weaning' ? state.wBatches : state.gBatches).find(b => String(b.id) === String(dbId));
-                    let srcDate = src.penDates[spIdx] || (srcStg === 'weaning' ? src.date : src.weaningDate || src.date), destDate = dest.penDates[dpIdx], finalDate = '';
-                    if (!destDate) finalDate = srcDate; else if (!srcDate) finalDate = destDate; else finalDate = srcDate < destDate ? srcDate : destDate;
-                    
-                    src.penDetails[spIdx] -= cnt;
-                    if (src.penDetails[spIdx] === 0) {
-                        src.penDates[spIdx] = '';
-                        if (src.penIsResidual) src.penIsResidual[spIdx] = false;
-                        if (src.penIsSick) src.penIsSick[spIdx] = false;
-                    }
-                    dest.penDetails[dpIdx] += cnt; dest.penDates[dpIdx] = finalDate;
-                    let updateDestPayload = { penDetails: dest.penDetails, penDates: dest.penDates, pigs: dest.penDetails.reduce((a, c) => a + c, 0), status: 'active' };
-                    if (destStg === 'grower') {
-                        if (!dest.weaningDate || (finalDate && finalDate < dest.weaningDate)) updateDestPayload.weaningDate = finalDate || '';
-                    } else updateDestPayload.weaningDate = finalDate || '';
-                    
+                    const source = {stage: document.getElementById('m-src-stage').value, batchId: Number(document.getElementById('m-src-batch').value), penIndex: Number(document.getElementById('m-src-pen').value)};
+                    const destination = {stage: document.getElementById('m-dest-stage').value, batchId: Number(document.getElementById('m-dest-batch').value), penIndex: Number(document.getElementById('m-dest-pen').value)};
+                    const count = Number(document.getElementById('m-count').value), date = document.getElementById('m-transfer-date')?.value || utils.getTodayStr();
+                    const batches = stage => stage === 'weaning' ? state.wBatches : state.gBatches;
                     if (isLocalEnv) {
-                        const sArr = srcStg === 'weaning' ? state.wBatches : state.gBatches, dArr = destStg === 'weaning' ? state.wBatches : state.gBatches;
-                        const sIdx = sArr.findIndex(x => x.id === sbId), dIdx = dArr.findIndex(x => x.id === dbId);
-                        if (sIdx !== -1) sArr[sIdx] = { ...sArr[sIdx], penDetails: src.penDetails, penDates: src.penDates, pigs: src.penDetails.reduce((a, c) => a + c, 0), status: src.penDetails.some(v => v > 0) ? 'active' : 'empty' };
-                        if (dIdx !== -1) dArr[dIdx] = { ...dArr[dIdx], ...updateDestPayload };
+                        const src = batches(source.stage).find(b => String(b.id) === String(source.batchId));
+                        const dest = batches(destination.stage).find(b => String(b.id) === String(destination.batchId));
+                        const result = BatchTransfers.plan(src, dest, source, destination, count, date, utils.getTodayStr());
+                        Object.assign(src, result.sourceData);
+                        if (!result.sameBatch) Object.assign(dest, result.destinationData);
+                        (src.localTransferRecords ||= []).push(result.record);
+                        if (!result.sameBatch) (dest.localTransferRecords ||= []).push(result.record);
                     } else {
-                        await db.doc(`${srcStg === 'weaning' ? COLS.WEANING : COLS.GROWER}/batch_${sbId}`).update({ penDetails: src.penDetails, penDates: src.penDates, penIsResidual: src.penIsResidual || Array(src.penDetails.length).fill(false), penIsSick: src.penIsSick || Array(src.penDetails.length).fill(false), pigs: src.penDetails.reduce((a, c) => a + c, 0), status: src.penDetails.some(v => v > 0) ? 'active' : 'empty' });
-                        await db.doc(`${destStg === 'weaning' ? COLS.WEANING : COLS.GROWER}/batch_${dbId}`).update(updateDestPayload);
+                        const ref = p => db.doc(`${p.stage === 'weaning' ? COLS.WEANING : COLS.GROWER}/batch_${p.batchId}`);
+                        const srcRef = ref(source), destRef = ref(destination);
+                        const sameBatch = source.stage === destination.stage && source.batchId === destination.batchId;
+                        const recordRef = srcRef.collection('transfer_records').doc();
+                        await db.runTransaction(async tx => {
+                            const srcSnap = await tx.get(srcRef);
+                            const destSnap = sameBatch ? srcSnap : await tx.get(destRef);
+                            const result = BatchTransfers.plan(srcSnap.exists ? srcSnap.data() : null, destSnap.exists ? destSnap.data() : null, source, destination, count, date, utils.getTodayStr());
+                            tx.update(srcRef, result.sourceData);
+                            tx.set(recordRef, result.record);
+                            if (!sameBatch) {
+                                tx.update(destRef, result.destinationData);
+                                tx.set(destRef.collection('transfer_records').doc(recordRef.id), result.record);
+                            }
+                        });
                     }
                 },
                 shipment_detail_confirmed: async () => {
