@@ -35,19 +35,19 @@
     <!-- 메인 컨텐츠 영역 -->
     <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         
-        <!-- 농장 일지 상단 버튼 -->
-        <a href="memo" class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-4 mb-5 active:scale-[0.98] hover:shadow-md hover:border-green-300 transition-all duration-200 group w-full">
+        <!-- 농장 일지 상단 버튼 (클릭 시 일지 관리 모달 오픈) -->
+        <button type="button" onclick="openMemoModal()" class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-4 mb-5 active:scale-[0.98] hover:shadow-md hover:border-green-300 transition-all duration-200 group w-full text-left cursor-pointer">
             <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-500 group-hover:text-white transition-colors duration-300 flex-shrink-0">
                 <i class="fas fa-pen-to-square text-xl"></i>
             </div>
-            <div class="flex-1 text-left">
+            <div class="flex-1">
                 <h2 class="font-bold text-gray-800 text-base sm:text-lg">농장 일지</h2>
-                <p class="text-xs sm:text-sm text-gray-500 mt-0.5">오늘의 작업 내용과 특이사항을 기록하세요.</p>
+                <p class="text-xs sm:text-sm text-gray-500 mt-0.5">오늘의 작업 내용과 특이사항을 기록하고 수정하세요.</p>
             </div>
             <div class="text-gray-300 group-hover:text-green-500 pr-2">
                 <i class="fas fa-chevron-right"></i>
             </div>
-        </a>
+        </button>
 
         <!-- HA CCTV 바로가기 -->
         <a href="http://homeassistant.tail27954d.ts.net/local/sungam-cctv.html" referrerpolicy="no-referrer" class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-teal-200 flex items-center gap-4 mb-5 active:scale-[0.98] hover:shadow-md hover:border-teal-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 transition-all duration-200 group w-full">
@@ -144,6 +144,17 @@
                 </div>
             </a>
 
+            <!-- 근옥 컨트롤러 -->
+            <a href="http://homeassistant.tail27954d.ts.net/local/sungam-kunok.html" referrerpolicy="no-referrer" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-emerald-300 transition-all duration-200 flex flex-col items-center gap-3 group">
+                <div class="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors duration-300">
+                    <i class="fas fa-sliders text-2xl"></i>
+                </div>
+                <div class="text-center w-full">
+                    <h3 class="font-bold text-gray-800 text-sm sm:text-base break-keep">근옥 컨트롤러</h3>
+                    <p class="text-xs text-gray-500 mt-1">시험용 · Tailscale 연결</p>
+                </div>
+            </a>
+
             <!-- 9. 환기 시뮬레이션 -->
             <a href="simu.html" class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 active:scale-95 hover:shadow-md hover:border-teal-300 transition-all duration-200 flex flex-col items-center gap-3 group">
                 <div class="w-14 h-14 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 group-hover:bg-teal-500 group-hover:text-white transition-colors duration-300">
@@ -167,22 +178,288 @@
         </div>
     </main>
 
+    <!-- 농장 일지 모달 (작성 / 목록 / 수정 / 삭제) -->
+    <div id="memo-modal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg max-h-[88vh] flex flex-col shadow-2xl overflow-hidden animate-fade-in">
+            <!-- 모달 헤더 -->
+            <div class="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-green-50/60">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-green-600 text-white flex items-center justify-center">
+                        <i class="fas fa-pen-to-square text-sm"></i>
+                    </div>
+                    <h3 class="font-bold text-lg text-gray-800">성암농장 일지</h3>
+                </div>
+                <button type="button" onclick="closeMemoModal()" class="w-8 h-8 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-lg"></i>
+                </button>
+            </div>
+
+            <!-- 모달 본문 -->
+            <div class="p-5 overflow-y-auto flex-1 space-y-5">
+                <!-- 작성 / 수정 폼 -->
+                <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
+                    <div class="flex justify-between items-center">
+                        <span id="form-mode-label" class="text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-md">새 일지 작성</span>
+                        <input type="date" id="memo-date" class="text-xs sm:text-sm text-gray-700 bg-white border border-gray-300 rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-green-500">
+                    </div>
+                    <textarea id="memo-content" rows="3" placeholder="작업 내용, 사료 급여, 돈사 온도 등 특이사항을 입력하세요..." class="w-full p-3 text-sm bg-white border border-gray-300 rounded-xl focus:outline-none focus:border-green-500 resize-none"></textarea>
+                    
+                    <div class="flex justify-end gap-2">
+                        <button type="button" id="cancel-edit-btn" onclick="resetMemoForm()" class="hidden px-4 py-2 text-xs sm:text-sm font-medium text-gray-600 bg-gray-200 hover:bg-gray-300 rounded-xl transition-colors">
+                            수정 취소
+                        </button>
+                        <button type="button" id="save-memo-btn" onclick="saveMemo()" class="px-5 py-2 text-xs sm:text-sm font-bold text-white bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl shadow-sm transition-all">
+                            저장하기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 저장된 일지 목록 -->
+                <div>
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-sm text-gray-700">기록된 일지 목록</h4>
+                        <span id="memo-count" class="text-xs text-gray-500">총 0건</span>
+                    </div>
+                    <div id="memo-list" class="space-y-3">
+                        <!-- 일지 아이템이 동적으로 렌더링됩니다 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 토스트 알림 및 삭제 확인 바 -->
+    <div id="toast-msg" class="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-800 text-white text-xs sm:text-sm px-4 py-2.5 rounded-full shadow-lg z-50 hidden transition-opacity duration-300"></div>
+
     <script>
+        const STORAGE_KEY = 'sungam_farm_memos';
+        let editingMemoId = null; // 현재 수정 중인 일지 ID (null이면 새 작성 모드)
+        let pendingDeleteId = null; // 삭제 확인 대기 중인 일지 ID
+
         // 오늘 날짜 표시 기능
         function displayCurrentDate() {
             const dateElement = document.getElementById('current-date');
             if (dateElement) {
                 const now = new Date();
                 const year = now.getFullYear();
-                // 월과 일은 1자리 수일 때 앞에 0을 붙여 깔끔하게 정렬
                 const month = String(now.getMonth() + 1).padStart(2, '0');
                 const date = String(now.getDate()).padStart(2, '0');
                 const days = ['일', '월', '화', '수', '목', '금', '토'];
                 const dayName = days[now.getDay()];
                 
-                // 예: 2026. 10. 03 (토)
                 dateElement.textContent = `${year}. ${month}. ${date} (${dayName})`;
             }
+        }
+
+        // YYYY-MM-DD 형식의 오늘 날짜 반환
+        function getTodayString() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const date = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${date}`;
+        }
+
+        // 토스트 메시지 표시 (alert 대체)
+        function showToast(message) {
+            const toast = document.getElementById('toast-msg');
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => {
+                toast.classList.add('hidden');
+            }, 2200);
+        }
+
+        // 모달 열기 / 닫기
+        function openMemoModal() {
+            document.getElementById('memo-modal').classList.remove('hidden');
+            resetMemoForm();
+            renderMemos();
+        }
+
+        function closeMemoModal() {
+            document.getElementById('memo-modal').classList.add('hidden');
+            resetMemoForm();
+        }
+
+        // 로컬스토리지에서 일지 불러오기
+        function getMemos() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                return raw ? JSON.parse(raw) : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        // 로컬스토리지에 일지 저장하기
+        function setMemos(memos) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(memos));
+        }
+
+        // 일지 저장 또는 수정 반영
+        function saveMemo() {
+            const dateInput = document.getElementById('memo-date').value;
+            const contentInput = document.getElementById('memo-content').value.trim();
+
+            if (!contentInput) {
+                showToast('일지 내용을 입력해주세요.');
+                document.getElementById('memo-content').focus();
+                return;
+            }
+
+            const memos = getMemos();
+            const targetDate = dateInput || getTodayString();
+
+            if (editingMemoId) {
+                // 기존 항목 수정
+                const index = memos.findIndex(m => m.id === editingMemoId);
+                if (index !== -1) {
+                    memos[index].date = targetDate;
+                    memos[index].content = contentInput;
+                    memos[index].updatedAt = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+                    showToast('일지 내용이 수정되었습니다.');
+                }
+            } else {
+                // 새 항목 추가
+                const newMemo = {
+                    id: Date.now().toString(),
+                    date: targetDate,
+                    content: contentInput,
+                    updatedAt: null
+                };
+                memos.unshift(newMemo);
+                showToast('새 일지가 저장되었습니다.');
+            }
+
+            // 날짜 최신순 정렬
+            memos.sort((a, b) => b.date.localeCompare(a.date));
+            setMemos(memos);
+            resetMemoForm();
+            renderMemos();
+        }
+
+        // 수정 모드 진입
+        function startEditMemo(id) {
+            const memos = getMemos();
+            const target = memos.find(m => m.id === id);
+            if (!target) return;
+
+            editingMemoId = id;
+            pendingDeleteId = null;
+
+            document.getElementById('memo-date').value = target.date;
+            document.getElementById('memo-content').value = target.content;
+            document.getElementById('form-mode-label').textContent = '일지 수정 중';
+            document.getElementById('form-mode-label').className = 'text-xs font-bold text-amber-700 bg-amber-100 px-2.5 py-1 rounded-md';
+            document.getElementById('save-memo-btn').textContent = '수정 완료';
+            document.getElementById('save-memo-btn').className = 'px-5 py-2 text-xs sm:text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 active:scale-95 rounded-xl shadow-sm transition-all';
+            document.getElementById('cancel-edit-btn').classList.remove('hidden');
+
+            document.getElementById('memo-content').focus();
+            renderMemos();
+        }
+
+        // 입력 폼 초기화 (새 작성 모드로 복귀)
+        function resetMemoForm() {
+            editingMemoId = null;
+            pendingDeleteId = null;
+
+            document.getElementById('memo-date').value = getTodayString();
+            document.getElementById('memo-content').value = '';
+            document.getElementById('form-mode-label').textContent = '새 일지 작성';
+            document.getElementById('form-mode-label').className = 'text-xs font-bold text-green-700 bg-green-100 px-2.5 py-1 rounded-md';
+            document.getElementById('save-memo-btn').textContent = '저장하기';
+            document.getElementById('save-memo-btn').className = 'px-5 py-2 text-xs sm:text-sm font-bold text-white bg-green-600 hover:bg-green-700 active:scale-95 rounded-xl shadow-sm transition-all';
+            document.getElementById('cancel-edit-btn').classList.add('hidden');
+        }
+
+        // 삭제 확인 토글 및 실행 (confirm() 대신 인라인 확인 버튼 사용)
+        function requestDeleteMemo(id) {
+            pendingDeleteId = id;
+            renderMemos();
+        }
+
+        function cancelDeleteMemo() {
+            pendingDeleteId = null;
+            renderMemos();
+        }
+
+        function confirmDeleteMemo(id) {
+            let memos = getMemos();
+            memos = memos.filter(m => m.id !== id);
+            setMemos(memos);
+            if (editingMemoId === id) {
+                resetMemoForm();
+            }
+            pendingDeleteId = null;
+            showToast('일지가 삭제되었습니다.');
+            renderMemos();
+        }
+
+        // HTML 이스케이프 처리
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m];
+            });
+        }
+
+        // 저장된 일지 목록 렌더링
+        function renderMemos() {
+            const listEl = document.getElementById('memo-list');
+            const countEl = document.getElementById('memo-count');
+            const memos = getMemos();
+
+            countEl.textContent = `총 ${memos.length}건`;
+
+            if (memos.length === 0) {
+                listEl.innerHTML = `
+                    <div class="text-center py-8 bg-gray-50 rounded-xl border border-dashed border-gray-200 text-gray-400 text-sm">
+                        아직 작성된 농장 일지가 없습니다.
+                    </div>
+                `;
+                return;
+            }
+
+            listEl.innerHTML = memos.map(memo => {
+                const isEditing = editingMemoId === memo.id;
+                const isDeleting = pendingDeleteId === memo.id;
+                const borderClass = isEditing ? 'border-amber-400 bg-amber-50/40' : 'border-gray-200 bg-white';
+                const editedBadge = memo.updatedAt ? `<span class="text-[11px] text-gray-400 ml-1.5">(수정됨 ${memo.updatedAt})</span>` : '';
+
+                const actionButtons = isDeleting
+                    ? `
+                        <div class="flex items-center gap-1.5">
+                            <span class="text-xs text-red-600 font-medium mr-1">삭제할까요?</span>
+                            <button type="button" onclick="confirmDeleteMemo('${memo.id}')" class="px-2.5 py-1 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-lg">확인</button>
+                            <button type="button" onclick="cancelDeleteMemo()" class="px-2.5 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg">취소</button>
+                        </div>
+                    `
+                    : `
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" onclick="startEditMemo('${memo.id}')" class="px-2.5 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors">
+                                <i class="fas fa-pen mr-1"></i>수정
+                            </button>
+                            <button type="button" onclick="requestDeleteMemo('${memo.id}')" class="px-2.5 py-1 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+                                <i class="fas fa-trash-can mr-1"></i>삭제
+                            </button>
+                        </div>
+                    `;
+
+                return `
+                    <div class="p-3.5 rounded-xl border ${borderClass} shadow-2xs transition-all">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="flex items-center">
+                                <span class="text-xs font-bold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-md">${escapeHtml(memo.date)}</span>
+                                ${editedBadge}
+                            </div>
+                            ${actionButtons}
+                        </div>
+                        <p class="text-sm text-gray-800 whitespace-pre-wrap break-words leading-relaxed">${escapeHtml(memo.content)}</p>
+                    </div>
+                `;
+            }).join('');
         }
         
         // DOM이 모두 로드된 후 날짜를 화면에 뿌려줌
