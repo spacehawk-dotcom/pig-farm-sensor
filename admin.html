@@ -35,8 +35,8 @@
     <!-- 메인 컨텐츠 영역 -->
     <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full">
         
-        <!-- 농장 일지 상단 버튼 (클릭 시 일지 관리 모달 오픈) -->
-        <button type="button" onclick="openMemoModal()" class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-4 mb-5 active:scale-[0.98] hover:shadow-md hover:border-green-300 transition-all duration-200 group w-full text-left cursor-pointer">
+        <!-- 기존 Firebase 농장 일지로 연결 -->
+        <a href="memo.html" class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-4 mb-5 active:scale-[0.98] hover:shadow-md hover:border-green-300 transition-all duration-200 group w-full text-left cursor-pointer">
             <div class="w-12 h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 group-hover:bg-green-500 group-hover:text-white transition-colors duration-300 flex-shrink-0">
                 <i class="fas fa-pen-to-square text-xl"></i>
             </div>
@@ -47,7 +47,8 @@
             <div class="text-gray-300 group-hover:text-green-500 pr-2">
                 <i class="fas fa-chevron-right"></i>
             </div>
-        </button>
+        </a>
+        <button id="local-memos-link" type="button" onclick="openMemoModal()" class="hidden mb-5 text-sm text-gray-600 underline">이 브라우저에 따로 저장된 일지 보기</button>
 
         <!-- HA CCTV 바로가기 -->
         <a href="http://homeassistant.tail27954d.ts.net/local/sungam-cctv.html" referrerpolicy="no-referrer" class="bg-white rounded-2xl p-4 sm:p-5 shadow-sm border border-teal-200 flex items-center gap-4 mb-5 active:scale-[0.98] hover:shadow-md hover:border-teal-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 transition-all duration-200 group w-full">
@@ -187,7 +188,7 @@
                     <div class="w-8 h-8 rounded-lg bg-green-600 text-white flex items-center justify-center">
                         <i class="fas fa-pen-to-square text-sm"></i>
                     </div>
-                    <h3 class="font-bold text-lg text-gray-800">성암농장 일지</h3>
+                    <h3 class="font-bold text-lg text-gray-800">이 브라우저에 저장된 일지</h3>
                 </div>
                 <button type="button" onclick="closeMemoModal()" class="w-8 h-8 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 flex items-center justify-center transition-colors">
                     <i class="fas fa-times text-lg"></i>
@@ -463,7 +464,14 @@
         }
         
         // DOM이 모두 로드된 후 날짜를 화면에 뿌려줌
-        document.addEventListener('DOMContentLoaded', displayCurrentDate);
+        document.addEventListener('DOMContentLoaded', () => {
+            displayCurrentDate();
+            // Preserve notes created by the temporary local-only screen, if any.
+            const memos = getMemos();
+            if (Array.isArray(memos) && memos.length) {
+                document.getElementById('local-memos-link').classList.remove('hidden');
+            }
+        });
     </script>
 </body>
 </html>

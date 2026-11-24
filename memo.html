@@ -13,6 +13,7 @@
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone@7.23.6/babel.min.js"></script>
+    <script src="farm-memo-edit.js"></script>
 
     <style>
         body { 
@@ -72,6 +73,11 @@
             const [title, setTitle] = useState('');
             const [content, setContent] = useState('');
             const [isSubmitting, setIsSubmitting] = useState(false);
+            const [editingMemo, setEditingMemo] = useState(null);
+            const [loadError, setLoadError] = useState('');
+            const [loaded, setLoaded] = useState(false);
+            const submittingRef = useRef(false);
+            const formRef = useRef(null);
             const [toast, setToast] = useState({ show: false, message: '', isError: false });
             
             // Firebase 관련 상태 (전역 변수 참조)
@@ -126,8 +132,8 @@
                                     snapshot.forEach((doc) => {
                                         const data = doc.data();
                                         fetchedMemos.push({
-                                            id: doc.id,
                                             ...data,
+                                            id: doc.id,
                                             // 타임스탬프 처리 (서버 시간이 아직 없으면 로컬 시간)
                                             time: data.createdAt ? data.createdAt.toDate().getTime() : Date.now()
                                         });
@@ -136,16 +142,21 @@
                                     // 클라이언트 메모리에서 최신순 정렬
                                     fetchedMemos.sort((a, b) => b.time - a.time);
                                     setMemos(fetchedMemos);
+                                    setLoaded(true);
+                                    setLoadError('');
                                     setLoading(false);
                                 }, (error) => {
                                     console.error("데이터 수신 오류:", error);
                                     showToast("데이터를 불러오지 못했습니다.", true);
+                                    setLoadError(error.code === 'resource-exhausted'
+                                        ? 'Firebase 사용 한도로 일지를 불러오지 못했습니다. 기존 기록이 삭제된 것은 아닙니다. 잠시 후 다시 확인해 주세요.'
+                                        : '일지를 불러오지 못했습니다. 연결을 확인한 뒤 다시 불러와 주세요.');
                                     setLoading(false);
                                 });
 
                             } else {
                                 setCurrentUserId(null);
-                                setMemos([]);
+                                setLoadError('인증 연결을 확인해 주세요.');
                                 setLoading(false);
                             }
                         });
@@ -153,6 +164,7 @@
                     } catch (error) {
                         console.error("Firebase 초기화 에러:", error);
                         showToast("시스템 연결에 실패했습니다.", true);
+                        setLoadError('일지 저장소에 연결하지 못했습니다. 연결을 확인한 뒤 다시 불러와 주세요.');
                         setLoading(false);
                     }
                 };
@@ -167,6 +179,7 @@
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
+                if (submittingRef.current) return;
                 
                 if (!title.trim() || !content.trim()) {
                     showToast("제목과 내용을 모두 입력해주세요.", true);
@@ -178,36 +191,64 @@
                     return;
                 }
 
+                submittingRef.current = true;
                 setIsSubmitting(true);
 
                 try {
                     // 동적 임포트로 쓰기 함수 가져오기
-                    const { collection, addDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                    const sdk = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
+                    const { collection, addDoc, serverTimestamp } = sdk;
                     
                     // 성암농장 전용 공용 경로로 수정
                     const memosRef = collection(db, 'farms', 'sungamfarm', 'farmMemos');
                     
-                    await addDoc(memosRef, {
-                        title: title.trim(),
-                        content: content.trim(),
-                        createdAt: serverTimestamp()
-                    });
+                    if (editingMemo) {
+                        await FarmMemoEdit.save({db, sdk, original: editingMemo, title, content});
+                    } else {
+                        await addDoc(memosRef, {
+                            title: title.trim(), content: content.trim(), createdAt: serverTimestamp()
+                        });
+                    }
 
                     // 폼 초기화
                     setTitle('');
                     setContent('');
-                    showToast("성공적으로 저장되었습니다.");
+                    setEditingMemo(null);
+                    showToast(editingMemo ? '일지가 수정되었습니다.' : '성공적으로 저장되었습니다.');
                     
                 } catch (error) {
                     console.error("저장 오류:", error);
-                    showToast("저장 중 문제가 발생했습니다.", true);
+                    const message = error.message === 'memo-conflict'
+                        ? '다른 곳에서 변경된 기록입니다. 입력 내용을 복사한 뒤 수정 취소 후 다시 열어주세요.'
+                        : error.message === 'memo-missing'
+                        ? '원래 기록을 찾을 수 없어 수정하지 않았습니다. 입력 내용은 유지됩니다.'
+                        : error.code === 'resource-exhausted'
+                        ? 'Firebase 사용 한도로 저장하지 못했습니다. 입력 내용은 유지됩니다.'
+                        : '저장하지 못했습니다. 입력 내용은 유지됩니다. 연결을 확인한 뒤 다시 시도해 주세요.';
+                    showToast(message, true);
                 } finally {
+                    submittingRef.current = false;
                     setIsSubmitting(false);
                 }
             };
 
+            const startEdit = (memo) => {
+                if (submittingRef.current) return;
+                if ((title.trim() || content.trim()) && !window.confirm('작성 중인 내용을 바꾸고 선택한 일지를 수정할까요?')) return;
+                setEditingMemo({...memo});
+                setTitle(memo.title || '');
+                setContent(memo.content || '');
+                formRef.current?.scrollIntoView({behavior: 'smooth', block: 'start'});
+                document.getElementById('title')?.focus({preventScroll: true});
+            };
+            const cancelEdit = () => {
+                if (submittingRef.current) return;
+                setEditingMemo(null); setTitle(''); setContent('');
+            };
+
             const handleDelete = async (id) => {
-                if (!db || !currentUserId) return;
+                if (!db || !currentUserId || submittingRef.current || editingMemo) return;
+                if (!window.confirm('이 기록을 삭제할까요?')) return;
                 
                 try {
                     const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
@@ -255,12 +296,18 @@
                     </header>
 
                     <main className="max-w-2xl mx-auto p-4 animate-slide-up">
+                        {loadError && <div role="alert" className="mb-4 rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-900">
+                            <p>{loadError}</p>
+                            {loaded && <p className="mt-1">마지막으로 불러온 기록을 표시합니다.</p>}
+                            <button type="button" onClick={() => window.location.reload()} disabled={isSubmitting || !!title || !!content} className="mt-2 underline disabled:opacity-50">다시 불러오기</button>
+                        </div>}
                         {/* 입력 폼 영역 */}
-                        <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 mb-8">
+                        <div ref={formRef} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-200 mb-8 scroll-mt-24">
                             <div className="flex items-center gap-2 mb-4">
                                 <Edit3 c="w-5 h-5 text-indigo-600" />
-                                <h2 className="text-sm font-black text-slate-800">새로운 기록 남기기</h2>
+                                <h2 className="text-sm font-black text-slate-800">{editingMemo ? '저장된 일지 수정' : '새로운 기록 남기기'}</h2>
                             </div>
+                            {editingMemo && <p className="text-sm text-slate-500 mb-4">작성일 {formatDate(editingMemo.time)} · 제목과 내용만 수정합니다.</p>}
                             
                             <form onSubmit={handleSubmit} className="space-y-4">
                                 <div>
@@ -294,8 +341,9 @@
                                     disabled={isSubmitting || !currentUserId}
                                     className="w-full bg-slate-800 text-white font-black text-sm py-3.5 rounded-xl shadow-md hover:bg-slate-700 active:scale-[0.98] transition-all disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed"
                                 >
-                                    {isSubmitting ? '저장 중...' : '기록 저장하기'}
+                                    {isSubmitting ? '저장 중...' : editingMemo ? '수정 저장하기' : '기록 저장하기'}
                                 </button>
+                                {editingMemo && <button type="button" onClick={cancelEdit} disabled={isSubmitting} className="w-full py-3 text-sm font-bold text-slate-600 bg-slate-100 rounded-xl disabled:opacity-50">수정 취소</button>}
                             </form>
                         </div>
 
@@ -304,7 +352,7 @@
                             <h2 className="text-sm font-black text-slate-800 mb-4 px-1 flex items-center justify-between">
                                 최근 기록
                                 <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">
-                                    총 {memos.length}건
+                                    {loaded ? `총 ${memos.length}건` : loading ? '조회 중' : '조회 실패'}
                                 </span>
                             </h2>
 
@@ -313,6 +361,8 @@
                                     <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-3"></div>
                                     <p className="text-xs font-bold text-slate-400 animate-pulse">데이터를 불러오는 중입니다...</p>
                                 </div>
+                            ) : !loaded ? (
+                                <p className="text-sm text-slate-600 py-8 text-center">저장된 기록을 확인하지 못했습니다.</p>
                             ) : memos.length === 0 ? (
                                 <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 border-dashed">
                                     <Leaf c="w-10 h-10 text-slate-300 mx-auto mb-3" />
@@ -324,14 +374,17 @@
                                     {memos.map(memo => (
                                         <div key={memo.id} className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 border-l-4 border-l-emerald-500 shadow-sm relative group transition-all hover:shadow-md animate-fade-in">
                                             
-                                            {/* 삭제 버튼 (우측 상단) */}
+                                            <div className="flex justify-end gap-2 mb-3">
+                                            <button type="button" onClick={() => startEdit(memo)} disabled={isSubmitting || !currentUserId} aria-label={`${memo.title} 수정`} className="px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 text-sm font-bold disabled:opacity-50">수정</button>
                                             <button 
                                                 onClick={() => handleDelete(memo.id)}
-                                                className="absolute top-4 right-4 p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                                disabled={isSubmitting || !!editingMemo || !currentUserId}
+                                                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-30"
                                                 title="기록 삭제"
                                             >
                                                 <Trash2 c="w-4 h-4" />
                                             </button>
+                                            </div>
 
                                             <h3 className="text-base font-black text-slate-800 pr-8 mb-2 leading-tight">
                                                 {memo.title}
@@ -343,6 +396,7 @@
                                             <div className="flex justify-between items-center border-t border-slate-100 pt-3">
                                                 <span className="text-[11px] font-bold text-slate-400">
                                                     {formatDate(memo.time)}
+                                                    {memo.updatedAt?.toDate && <span className="ml-2">수정 {formatDate(memo.updatedAt.toDate().getTime())}</span>}
                                                 </span>
                                             </div>
                                         </div>
