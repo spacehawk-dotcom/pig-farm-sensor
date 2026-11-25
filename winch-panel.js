@@ -171,7 +171,10 @@
   async function operate(id, action) {
     const batch = batches.get(id);
     if (!controlsReady || !batch || (action !== 'stop' && !canMove(batch))) return;
-    if (action !== 'stop' && !window.confirm(`육성 ${id}배치 윈치를 ${batch[action + 'Seconds']}초 ${action === 'up' ? '올림' : '내림'} 신호를 보낼까요? 실제 움직임은 현장에서 판단합니다. 자동 운전 중이면 5분 뒤 새 온도부터 다시 감시합니다.`)) return;
+    const afterManual = String(id) === '1'
+      ? '자동 운전 중이면 5분 뒤 현재 온도가 기준을 벗어났는지 한 번 판단하여 작동한 뒤, 온도 경계 통과를 감시합니다.'
+      : '자동 운전 중이면 5분 뒤 새 온도부터 다시 감시합니다.';
+    if (action !== 'stop' && !window.confirm(`육성 ${id}배치 윈치를 ${batch[action + 'Seconds']}초 ${action === 'up' ? '올림' : '내림'} 신호를 보낼까요? 실제 움직임은 현장에서 판단합니다. ${afterManual}`)) return;
     const ticket = epoch, version = ++batch.version;
     batch.busy = true; batch.message = '신호 요청 중…'; render();
     try {

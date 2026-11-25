@@ -2228,6 +2228,26 @@
                         matingDate: document.getElementById('s-mating').value,
                         history
                     };
+                    if (data.matingDate) {
+                        const matingMMDD = data.matingDate.substring(5).replace('-', '/');
+                        const sameMatingDate = value => {
+                            const text = String(value || '').trim();
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text === data.matingDate;
+                            const parts = text.match(/^(\d{1,2})[\/-](\d{1,2})$/);
+                            return !!parts && `${parts[1].padStart(2, '0')}/${parts[2].padStart(2, '0')}` === matingMMDD;
+                        };
+                        // Keep earlier cycles intact; repeated saves must not add the same mating twice.
+                        const recorded = history.some(h => h.parity === data.parity && sameMatingDate(h.matingDate));
+                        if (!recorded) {
+                            history.push({
+                                parity: data.parity,
+                                matingDate: matingMMDD,
+                                expDate: utils.getExpectedFarrow(data.matingDate).substring(5).replace('-', '/'),
+                                date: '', weaningDate: '', total: 0, born: 0, weaned: '', move: ''
+                            });
+                            history.sort((a, b) => a.parity - b.parity);
+                        }
+                    }
                     if (isLocalEnv) {
                         if (id === 'new') {
                             state.sowList.push({ dbId: 'sow_' + Date.now(), ...data });
