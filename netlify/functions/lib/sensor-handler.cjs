@@ -93,7 +93,8 @@ exports.handler = async (event, context) => {
         { id: 'bf01ce94b23576b9696uld', name: '이유_3배치', fbCol: 'weaning', fbBatch: 3 },
         { id: 'bfc20cd2af7ace2e1ashgo', name: '이유_4배치', fbCol: 'weaning', fbBatch: 4 },
         { id: 'bfb02f9bdb0fbb1ba2vcev', name: '이유_5배치', fbCol: 'weaning', fbBatch: 5 },
-        { id: 'bffc0e9933819a679cmvch', name: '육성_1배치', fbCol: 'grower',  fbBatch: 1 },
+        // 육성 1은 HA가 근옥 CH1 온도와 기존 습도를 전송한다.
+        // 이 레거시 Tuya 조회로 해당 구역을 덮어쓰지 않는다.
         { id: 'bf58ee06fc0c104896tv51', name: '육성_2배치', fbCol: 'grower',  fbBatch: 2 },
         { id: 'bf14f794614a16cc024n1z', name: '육성_3배치', fbCol: 'grower',  fbBatch: 3 },
         { id: 'bf1faaae7e5072f78fhyzr', name: '육성_4배치', fbCol: 'grower',  fbBatch: 4 },
@@ -132,7 +133,7 @@ exports.handler = async (event, context) => {
             }
         }
 
-        await axios.put(`https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json`, results);
+        await axios.patch(`https://sungamfarm-default-rtdb.firebaseio.com/sensor_logs.json`, results);
         await axios.put(`https://sungamfarm-default-rtdb.firebaseio.com/history_logs/${Date.now()}.json`, results);
         
         return { statusCode: 200, body: JSON.stringify({ message: "완료", data: results }) };
