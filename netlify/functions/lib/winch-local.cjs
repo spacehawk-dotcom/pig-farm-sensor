@@ -1,4 +1,5 @@
 const crypto=require('node:crypto');
+const {validTiming,timerFor}=require('./winch-timing.cjs');
 const {WINCHES}=require('./winch-control');
 const freshMs=90000,validMs=10000;
 const batchOK=id=>typeof id==='string' && Object.hasOwn(WINCHES,id);
@@ -29,17 +30,21 @@ function stateFrom(report,id,env,now=Date.now(),diagnostic=false){
   const bridgeFresh=Number.isFinite(report?.receivedAt) && now-report.receivedAt<freshMs && now>=report.receivedAt;
   const online=bridgeFresh && s?.online===true && typeof s.up==='boolean' && typeof s.down==='boolean';
   const snap={switch_inching:s?.timer??null};
-  return {batchId:id,source:'ha-localtuya',checkedAt:report?.receivedAt||0,upSeconds:cfg.upSeconds,downSeconds:cfg.downSeconds,
+  const timing=validTiming(report?.timings?.[id])?report.timings[id]:{upSeconds:5,downSeconds:6,revision:0};
+  const expected=timerFor(cfg,timing);
+  const timingSupported=report?.capabilities?.includes('timing-v1')===true;
+  const timingPending=timing.pending===true;
+  return {batchId:id,source:'ha-localtuya',checkedAt:report?.receivedAt||0,upSeconds:timing.upSeconds,downSeconds:timing.downSeconds,timingRevision:timing.revision,timingSupported,timingPending,
     enabled:env[cfg.enabledEnv]==='true',bridgeFresh,online,up:online?s.up:null,down:online?s.down:null,
-    safetyMatches:online && snap.switch_inching===cfg.safety.switch_inching,
-    safetyIssues:online && snap.switch_inching!==cfg.safety.switch_inching?
+    safetyMatches:online && !timingPending && snap.switch_inching===expected,
+    safetyIssues:online && (timingPending || snap.switch_inching!==expected)?
       ['자동 꺼짐'+(snap.switch_inching==null?' 응답 없음':' 설정 불일치')+timerDetail(snap.switch_inching,cfg)]:[],
     ...(diagnostic?{safetySnapshot:snap}:{})};
 }
 function ensureReady(s){
   if(!s.enabled)throw fail('배치 제어가 활성화되지 않았습니다.');
 }
-function waitResult(ref,ticket,timeout){
+function waitResult(ref,ticket,timeout,details=false){
   return new Promise((resolve,reject)=>{
     const done=(fn,value)=>{clearTimeout(timer);unsubscribe();fn(value);};
     let unsubscribe=()=>{};
@@ -47,7 +52,7 @@ function waitResult(ref,ticket,timeout){
     unsubscribe=ref.onSnapshot(doc=>{
       const m=doc.data();
       if(m?.ticket===ticket && m.phase==='done'){
-        done(resolve,m.ok);
+        done(resolve,details?m:m.ok);
       }
     },()=>done(reject,fail('HA 명령 확인 연결이 끊겼습니다.',502)));
   });
@@ -62,9 +67,9 @@ function createLocalControl({database,env,notify}){
     return {...stateFrom(status,id,env,Date.now(),diagnostic),signalHistory:history};
   };
   const move=async(action,id,context={})=>{
-    if(!batchOK(id)||!['up','down','stop','check','resume'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
+    if(!batchOK(id)||!['up','down','stop','check','resume','timing'].includes(action))throw fail('허용되지 않은 윈치 명령입니다.');
     const r=await read(),s=stateFrom(r,id,env);
-    if(['up','down','resume'].includes(action))ensureReady(s);
+    if(['up','down','resume','timing'].includes(action))ensureReady(s);
     if(action==='resume' && r?.protocol!==2)throw fail('HA 자동 운전 업데이트가 필요합니다.');
     if(!r?.session)throw fail('농장 HA에 등록된 신호 수신 세션이 없습니다.');
     const ref=mailbox(database(),id);
@@ -77,21 +82,32 @@ function createLocalControl({database,env,notify}){
         await waitResult(ref,previous.ticket,remaining);
       }
     }
+    if(action==='timing'){
+      if(!validTiming(context.timing))throw fail('작동시간 입력값 오류',400);
+      if(!s.timingSupported||!s.bridgeFresh||!s.online)throw fail('HA 작동시간 기능 업데이트와 최신 장치 연결이 필요합니다.');
+      if(context.timing.revision!==s.timingRevision)throw fail('다른 곳에서 시간이 변경됐습니다. 저장값을 다시 불러오세요.');
+    }
     const ticket=crypto.randomUUID(),expires=Date.now()+validMs;
     const priorHistory=signalHistory(previous);
     const event={at:Date.now(),action,mode:context.mode==='auto'?'auto':'manual',status:'registered',
+      ...(['up','down'].includes(action)?{seconds:s[action+'Seconds']}:{}),
       ...(Number.isFinite(context.temperature)?{temperature:context.temperature}:{})};
-    const history=['check','resume'].includes(action)?priorHistory:[event,...priorHistory].slice(0,20);
+    const history=['check','resume','timing'].includes(action)?priorHistory:[event,...priorHistory].slice(0,20);
     await ref.set({action,ticket,expires,session:r.session,phase:'waiting',history,protocol:r.protocol===2?2:1});
     // This public RTDB leaf is only a signed wake-up. It cannot authorize a command.
     if(r.protocol===2){
-      const payload=JSON.stringify({v:2,id,ticket,action,expires,...(context.settings?{settings:context.settings}:{})});
+      const payload=JSON.stringify({v:2,id,ticket,action,expires,...(context.settings?{settings:context.settings}:{}),...(context.timing?{timing:context.timing}:{})});
       await notify(id,{payload,mac:signPayload(r.session,payload)});
     }else await notify(id,{ticket,mac:sign(r.session,id,ticket)});
-    if(!['check','resume'].includes(action)){
+    if(!['check','resume','timing'].includes(action)){
       event.status='sent';
       // Updating only history preserves any concurrent HA claim or acknowledgement.
       await ref.update({history});
+    }
+    if(action==='timing'){
+      const ack=await waitResult(ref,ticket,Math.max(1,expires-Date.now()+10000),true);
+      if(!ack?.ok||!validTiming(ack.timing))throw fail('작동시간 적용을 확인하지 못했습니다. 재전송하지 않았습니다. 저장값을 다시 불러오세요.',504);
+      return {timing:ack.timing,message:'릴레이 작동시간 저장·재확인 완료'};
     }
     if((action==='check'||r.protocol===2&&['resume','stop'].includes(action)) &&
        !await waitResult(ref,ticket,Math.max(1,expires-Date.now()+3500))){
@@ -100,7 +116,7 @@ function createLocalControl({database,env,notify}){
     return {accepted:true,batchId:id,action,signalHistory:history,
       message:action==='check'?'HA 연결 진단 완료':'신호 요청을 보냈습니다.'};
   };
-  return {source:'ha-localtuya/signals',getState,ensureReady,move,check:id=>move('check',id)};
+  return {source:'ha-localtuya/signals',getState,ensureReady,move,check:id=>move('check',id),saveTiming:(id,timing)=>move('timing',id,{timing})};
 }
 async function workerApi(db,body){
   const {op,session,id,ticket}=body;
@@ -113,7 +129,7 @@ async function workerApi(db,body){
         (s.timer!==null&&(typeof s.timer!=='string'||s.timer.length>128)))throw fail('invalid state',400);
       states[id]={online:s.online,up:s.up,down:s.down,timer:s.timer};
     }
-    const extra=body.protocol===2?{protocol:2,autos:body.autos||{},autoHistory:body.autoHistory||{},temperatures:body.temperatures||{}}:{};
+    const extra=body.protocol===2?{protocol:2,capabilities:Array.isArray(body.capabilities)?body.capabilities.filter(v=>v==='timing-v1'):[],timings:body.timings||{},autos:body.autos||{},autoHistory:body.autoHistory||{},temperatures:body.temperatures||{}}:{};
     if(JSON.stringify(extra).length>48000)throw fail('report too large',400);
     await worker(db).set({session,states,receivedAt:Date.now(),...extra});
     return {ok:true};
@@ -129,7 +145,7 @@ async function workerApi(db,body){
       return {command:{action:m.action,expires:m.expires}};
     }
     if((m.phase==='claimed'||m.protocol===2&&m.phase==='waiting') && typeof body.ok==='boolean')
-      tx.update(ref,{phase:'done',ok:body.ok,...(m.protocol===2&&body.auto&&JSON.stringify(body.auto).length<4096?{auto:body.auto}:{})});
+      tx.update(ref,{phase:'done',ok:body.ok,...(m.action==='timing'&&validTiming(body.timing)?{timing:body.timing}:{}),...(m.protocol===2&&body.auto&&JSON.stringify(body.auto).length<4096?{auto:body.auto}:{})});
     return {ok:true};
   });
 }

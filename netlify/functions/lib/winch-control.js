@@ -1,6 +1,6 @@
 const DEVICE = 'bfb4be1d3b42f4b899zcv2';
 // Grower 2 read on 2026-10-22: channel 3 ON/5s, channel 2 ON/6s.
-// Confirmed Smart Life configuration snapshot; never rewrite these settings.
+// Commissioned defaults; explicit timing updates preserve unrelated channels.
 const SAFETY = {switch_inching:'AAAFAwAGBQAFBgAC'};
 // Observed on growers 3/4 (Oct 20), corrected 1 (Oct 21), and 5/6/7 (Oct 22).
 const CHANNEL_12_SAFETY = {switch_inching:'AQAFAwAGBAACBgAC'};
@@ -63,8 +63,8 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
   const reply=(statusCode,data)=>({statusCode,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'},body:JSON.stringify(data)});
   return async event=>{
     if(event.httpMethod!=='POST')return reply(405,{error:'POST 요청만 지원합니다.'});
-    let action,batchId,offsets,revision;
-    try{({action,batchId,offsets,revision}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
+    let action,batchId,offsets,revision,timing;
+    try{({action,batchId,offsets,revision,timing}=JSON.parse(event.body||'{}'));}catch{return reply(400,{error:'요청 형식 오류'});}
     // Monitoring is read-only. Never route this action through command handlers.
     if(action==='monitor'){
       const batches={};
@@ -83,7 +83,7 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
     }
     // The farm owner explicitly allows all site visitors to use these controls.
     // HA worker authentication is separate and remains required.
-    if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics','offsets_get','offsets_save'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
+    if(!['status_all','status','up','down','stop','auto_status','auto_on','auto_off','diagnostics','offsets_get','offsets_save','timing_get','timing_save'].includes(action))return reply(400,{error:'지원하지 않는 동작입니다.'});
     // Preserve requests from the previous single-winch UI during deployment.
     if(batchId===undefined)batchId='2';
     if(!['string','number'].includes(typeof batchId)||!Object.hasOwn(registry,String(batchId)))
@@ -107,6 +107,13 @@ function createHandler({env, request, withLock, sleep, automation,offsetStore,re
           catch(error){batches[id]={batchId:id,enabled:env[config.enabledEnv]==='true',upSeconds:config.upSeconds,downSeconds:config.downSeconds,error:error.status?error.message:'장치 상태를 확인하지 못했습니다.'};}
         }));
         return reply(200,{batches});
+      }
+      if(action==='timing_get')return reply(200,await control.getState(batchId,true));
+      if(action==='timing_save'){
+        const {validTiming}=require('./winch-timing.cjs');
+        if(!validTiming(timing))return reply(400,{error:'올림 1~5초·내림 1~6초를 정수로 입력하고 저장값을 다시 확인하세요.'});
+        if(!control.saveTiming)throw fail('작동시간 설정 서버가 준비되지 않았습니다.',503);
+        return reply(200,await withLock('timing',()=>control.saveTiming(batchId,timing),batchId));
       }
       if(action==='status')return reply(200,await getBatchState(batchId));
       if(action==='diagnostics'){

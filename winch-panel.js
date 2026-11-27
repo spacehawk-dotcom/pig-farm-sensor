@@ -18,8 +18,18 @@
       <div class="flex justify-between items-center gap-3"><h3 id="winch-auto-title" class="font-bold text-lg">자동 운전 설정</h3><button id="winch-auto-close" class="border rounded px-3 py-1">닫기</button></div>
       <p id="winch-auto-settings" role="status" class="text-sm mt-3 font-bold"></p>
       <table class="w-full text-sm my-4 text-left"><thead><tr class="border-b"><th class="py-2">온도 기준</th><th>온도</th><th>작동</th></tr></thead><tbody>
-        ${[1,2,3].map(n=>`<tr><td class="py-1">올림 ${n}차</td><td id="winch-auto-up${n}">올림 ${n}차 편차</td><td>올림 5초</td></tr>`).join('')}
-        ${[1,2,3].map(n=>`<tr><td class="py-1">내림 ${n}차</td><td id="winch-auto-down${n}">내림 ${n}차 편차</td><td>내림 6초</td></tr>`).join('')}</tbody></table>
+        ${[1,2,3].map(n=>`<tr><td class="py-1">올림 ${n}차</td><td id="winch-auto-up${n}">올림 ${n}차 편차</td><td id="winch-auto-duration-up${n}">올림 —초</td></tr>`).join('')}
+        ${[1,2,3].map(n=>`<tr><td class="py-1">내림 ${n}차</td><td id="winch-auto-down${n}">내림 ${n}차 편차</td><td id="winch-auto-duration-down${n}">내림 —초</td></tr>`).join('')}</tbody></table>
+      <form id="winch-timing-form" class="border rounded-xl p-3 mb-3">
+        <h4 class="font-bold text-sm">1회 작동시간</h4>
+        <p class="text-xs text-slate-600 mt-1">이 배치의 수동·자동 운전에 함께 적용됩니다. 릴레이 자체의 자동 꺼짐 시간을 저장합니다.</p>
+        <div class="grid grid-cols-2 gap-3 mt-3">
+          <label class="text-sm">올림 (1~5초)<input id="winch-timing-up" type="number" min="1" max="5" step="1" required disabled class="block w-full border rounded p-2 mt-1"></label>
+          <label class="text-sm">내림 (1~6초)<input id="winch-timing-down" type="number" min="1" max="6" step="1" required disabled class="block w-full border rounded p-2 mt-1"></label>
+        </div>
+        <div class="flex gap-2 mt-3"><button id="winch-timing-save" disabled class="bg-green-700 text-white rounded px-3 py-2 text-sm disabled:opacity-40">작동시간 저장</button><button id="winch-timing-load" type="button" class="border rounded px-3 py-2 text-sm disabled:opacity-40">저장값 확인</button></div>
+        <p id="winch-timing-status" role="status" class="text-sm mt-2">저장값 확인 중…</p>
+      </form>
       <p id="winch-auto-state" role="status" class="bg-slate-50 rounded p-3 text-sm break-words"></p>
       <p id="winch-auto-sensor" class="text-sm mt-2 break-words"></p>
       <section class="mt-4 border-t border-slate-200 pt-3" aria-labelledby="winch-auto-history-title"><h4 id="winch-auto-history-title" class="text-sm font-bold">신호 요청 기록 · 최근 20건</h4><div id="winch-auto-history" class="max-h-32 overflow-y-auto whitespace-pre-line text-xs leading-relaxed text-slate-600 mt-2">신호 기록 없음</div></section>
@@ -32,6 +42,7 @@
   const batches = new Map();
   let autoBatch = null, autoBusy = false, autoReady = false, autoView = 0;
   let offsetBusy=false,offsetRevision=null;
+  let timingBusy=false,timingRevision=null,timingReady=false;
   const offsetInputs=()=>['up','down'].flatMap(direction=>[1,2,3].map(n=>$(`offset-${direction}-${n}`)));
   function offsetButtons(){
     offsetInputs().forEach(input=>input.disabled=!controlsReady||offsetBusy);
@@ -70,7 +81,7 @@
     pollDelay=failed?ERROR_POLL_MS:STATUS_POLL_MS;
     status(`${controlsReady?'제어 연결됨':'연결 중'} · 등록된 윈치 ${batches.size}개`);
   }
-  const canMove = batch => controlsReady && batch?.enabled && !batch.busy;
+  const canMove = batch => controlsReady && batch?.enabled && !batch.busy && !batch.state?.timingPending;
   function showNote(element, text) {
     element.textContent = text;
     element.hidden = !text;
@@ -78,8 +89,9 @@
   function historyText(history) {
     if(!Array.isArray(history) || !history.length)return '신호 기록 없음';
     return history.slice(0,20).map(event=>{
-      const direction={up:'올림 5초',down:'내림 6초',stop:'정지'}[event.action];
-      if(!direction || !Number.isFinite(event.at))return '';
+      const label={up:'올림',down:'내림',stop:'정지'}[event.action];
+      const direction=label+(event.action!=='stop'&&Number.isInteger(event.seconds)?` ${event.seconds}초`:'');
+      if(!label || !Number.isFinite(event.at))return '';
       const at=new Date(event.at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',
         hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
       const temperature=Number.isFinite(event.temperature)?` · ${event.temperature}℃`:'';
@@ -106,7 +118,12 @@
         autoButton.onclick=event=>{event.stopPropagation();openAuto(id);};
       }
     });
-    if(autoBatch)$('auto-history').textContent=historyText(batches.get(autoBatch)?.state?.signalHistory);
+    if(autoBatch){
+      const batch=batches.get(autoBatch);
+      $('auto-history').textContent=historyText(batch?.state?.signalHistory);
+      for(const direction of ['up','down'])for(let n=1;n<=3;n++)
+        $('auto-duration-'+direction+n).textContent=`${direction==='up'?'올림':'내림'} ${batch?.[direction+'Seconds']??'—'}초`;
+    }
     document.dispatchEvent(new Event('winch-history-updated'));
   }
   function cardHtml(id) {
@@ -198,11 +215,12 @@
   function autoSummary(auto){
     return auto.enabled?(auto.paused?'자동 보류':'자동 운전 중'):'자동 설정 대기';
   }
-  function closeAuto(){autoView++;autoBatch=null;autoReady=false;autoBusy=false;$('auto-dialog').close();}
+  function closeAuto(){autoView++;autoBatch=null;autoReady=false;autoBusy=false;timingReady=false;$('auto-dialog').close();}
   function autoButtons(){
-    $('auto-start').disabled=autoBusy||!autoReady;
-    $('auto-stop').disabled=autoBusy||!controlsReady||!autoBatch;
-    $('auto-check').disabled=autoBusy;
+    $('auto-start').disabled=autoBusy||timingBusy||!autoReady;
+    $('auto-stop').disabled=autoBusy||timingBusy||!controlsReady||!autoBatch;
+    $('auto-check').disabled=autoBusy||timingBusy;
+    timingButtons();
   }
   async function checkAuto(){
     const id=autoBatch,ticket=epoch,view=++autoView;
@@ -228,15 +246,17 @@
   }
   async function openAuto(id){
     if(!controlsReady||!batches.has(id))return;
+    if(timingBusy)return;
+    timingRevision=null;timingReady=false;
     autoBatch=id;$('auto-title').textContent=`육성 ${id}배치 자동 운전`;
     render();
-    $('auto-state').textContent='상태 확인 중…';$('auto-dialog').showModal();await checkAuto();
+    $('auto-state').textContent='상태 확인 중…';$('auto-dialog').showModal();await checkAuto();if(autoBatch===id)await loadTiming();
   }
   async function changeAuto(action){
-    if(autoBusy||!controlsReady||!autoBatch)return;
+    if(autoBusy||timingBusy||!controlsReady||!autoBatch)return;
     if(action==='auto_on'&&!autoReady)return;
     const id=autoBatch;
-    if(action==='auto_on'&&!window.confirm(`육성 ${id}배치의 온도 자동 운전을 시작·재개하시겠습니까? 현재 온도부터 감시하며, 브라우저를 닫아도 5분마다 기준 온도 통과 여부를 확인하여 올림 5초·내림 6초씩 작동합니다.`))return;
+    if(action==='auto_on'&&!window.confirm(`육성 ${id}배치의 온도 자동 운전을 시작·재개하시겠습니까? 현재 온도부터 감시하며, 브라우저를 닫아도 5분마다 기준 온도 통과 여부를 확인하여 올림 ${batches.get(id)?.upSeconds}초·내림 ${batches.get(id)?.downSeconds}초씩 작동합니다.`))return;
     const ticket=epoch,view=++autoView;
     const batch=batches.get(id),version=++batch.version;
     let succeeded=false;
@@ -258,6 +278,62 @@
       }
     }
   }
+  function timingButtons(){
+    const blocked=timingBusy||autoBusy||!controlsReady||!autoBatch||!!batches.get(autoBatch)?.busy;
+    for(const key of ['timing-up','timing-down','timing-save'])$(key).disabled=blocked||!timingReady;
+    $('timing-load').disabled=blocked;
+  }
+  async function loadTiming(){
+    const id=autoBatch,ticket=epoch;
+    if(!id||timingBusy)return;
+    timingBusy=true;timingReady=false;timingRevision=null;autoButtons();
+    $('timing-status').textContent='릴레이 저장값 확인 중…';
+    try{
+      const data=await api('timing_get',id);
+      if(ticket!==epoch||id!==autoBatch)return;
+      $('timing-up').value=data.upSeconds??'';$('timing-down').value=data.downSeconds??'';
+      timingRevision=Number.isSafeInteger(data.timingRevision)?data.timingRevision:null;
+      timingReady=data.timingSupported&&data.bridgeFresh&&data.online&&data.enabled&&timingRevision!==null;
+      $('timing-status').textContent=!data.timingSupported?'HA 작동시간 기능 업데이트가 필요합니다.':
+        !timingReady?'HA 또는 릴레이 연결을 확인한 뒤 저장값을 다시 확인하세요.':
+        data.timingPending?'이전 저장 결과 미확인 · 작동이 차단되어 있습니다. 시간을 확인하고 다시 저장하세요.':
+        !data.safetyMatches?'릴레이 설정이 저장값과 다릅니다. Smart Life 설정을 확인하세요.':
+        '저장값 확인 완료 · 1초 단위로 조절합니다. 저장만으로 윈치를 움직이지 않습니다.';
+      const batch=batches.get(id);
+      Object.assign(batch,{upSeconds:data.upSeconds,downSeconds:data.downSeconds,state:{...batch.state,...data},version:batch.version+1});
+      render();
+    }catch(error){if(ticket===epoch&&id===autoBatch)$('timing-status').textContent=error.message;}
+    finally{timingBusy=false;autoButtons();}
+  }
+  async function saveTiming(event){
+    event.preventDefault();
+    if(timingBusy||autoBusy||!timingReady||!autoBatch)return;
+    const upSeconds=Number($('timing-up').value),downSeconds=Number($('timing-down').value);
+    if(!Number.isInteger(upSeconds)||upSeconds<1||upSeconds>5||!Number.isInteger(downSeconds)||downSeconds<1||downSeconds>6){
+      $('timing-status').textContent='올림 1~5초, 내림 1~6초를 정수로 입력하세요.';return;
+    }
+    const id=autoBatch,ticket=epoch,batch=batches.get(id),version=++batch.version;
+    timingBusy=true;batch.busy=true;autoButtons();render();
+    $('timing-status').textContent='릴레이 작동시간 저장·재확인 중…';
+    try{
+      const result=await api('timing_save',id,{timing:{upSeconds,downSeconds,revision:timingRevision}});
+      if(ticket!==epoch)return;
+      const applied=result.timing;
+      if(!applied||applied.upSeconds!==upSeconds||applied.downSeconds!==downSeconds||applied.revision!==timingRevision+1)
+        throw Error('저장 결과를 확인하지 못했습니다. 저장값을 다시 확인하세요.');
+      Object.assign(batch,{upSeconds,downSeconds,state:{...batch.state,timingPending:false,timingRevision:applied.revision}});
+      timingRevision=applied.revision;
+      if(id===autoBatch)$('timing-status').textContent=`올림 ${upSeconds}초 · 내림 ${downSeconds}초 저장·재확인 완료`;
+    }catch(error){
+      timingReady=false;timingRevision=null;
+      if(ticket===epoch&&id===autoBatch)$('timing-status').textContent=error.message;
+    }finally{
+      if(batch.version===version)batch.busy=false;
+      timingBusy=false;autoButtons();render();
+    }
+  }
+  $('timing-form').onsubmit=saveTiming;
+  $('timing-load').onclick=loadTiming;
   $('auto-close').onclick=closeAuto;
   $('offset-form').onsubmit=saveOffsets;
   $('offset-load').onclick=loadOffsets;
