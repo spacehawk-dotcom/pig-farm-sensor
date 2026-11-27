@@ -83,7 +83,8 @@
       const at=new Date(event.at).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',
         hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
       const temperature=Number.isFinite(event.temperature)?` · ${event.temperature}℃`:'';
-      return `${at}\n${event.mode==='auto'?'자동':'수동'} ${direction}${temperature} · ${event.status==='sent'?'신호 요청':'요청 등록'}`;
+      const result={sent:'신호 요청',unconfirmed:'전송 확인 실패 · 재전송 안 함',registered:'요청 등록'}[event.status]||'결과 확인 필요';
+      return `${at}\n${event.mode==='auto'?'자동':'수동'} ${direction}${temperature} · ${result}`;
     }).filter(Boolean).join('\n\n');
   }
   function render() {
