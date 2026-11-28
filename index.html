@@ -1040,6 +1040,23 @@
 
             function renderBatchList(targetId, batches, type, stage, typeCls, bgCls, txtCls) {
                 const iptCls = "text-[11px] font-bold text-slate-600 bg-slate-100/50 border border-slate-200 rounded px-2 py-0.5 w-full focus:bg-white outline-none";
+                const weaningDateKey = value => {
+                    const date = utils.parseDate(value);
+                    return date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : '';
+                };
+                const weaningCountColors = new Map();
+                if (stage === 'weaning') {
+                    // Share one date-to-color map across all weaning batches, not per batch.
+                    const dates = new Set();
+                    batches.forEach(batch => batch.penDetails.forEach((count, index) => {
+                        const key = weaningDateKey(batch.penDates[index] || batch.weaningDate || batch.date);
+                        if (count > 0 && key) dates.add(key);
+                    }));
+                    const palette = ['#172554', '#701a3b', '#422006', '#3b0764', '#083344', '#1a2e05'];
+                    [...dates].sort().forEach((date, index) => {
+                        weaningCountColors.set(date, palette[index] || `hsl(${Math.round(index * 137.508) % 360}, 75%, 18%)`);
+                    });
+                }
                 document.getElementById(targetId).innerHTML = batches.map(b => {
                     const isEmpty = b.status === 'empty' || b.pigs === 0, isRes = stage === 'grower' && b.id === 8;
                     const title = isRes ? '후보사' : `${type} ${b.id}배치`, actualCls = isRes ? 'pen-residual' : typeCls,
@@ -1072,14 +1089,21 @@
                     let pensHtml = '';
                     for (let i = 0; i < b.penDetails.length; i++) {
                         const c = b.penDetails[i] || 0, isFill = c > 0;
-                        let txt = isFill ? `<div>${c}</div>` : '', penClass = isFill ? actualCls : 'pen-empty';
+                        const countColor = stage === 'weaning'
+                            ? weaningCountColors.get(weaningDateKey(b.penDates[i] || b.weaningDate || b.date)) : null;
+                        let txt = isFill ? `<div${countColor ? ` style="color:${countColor}"` : ''}>${c}</div>` : '', penClass = isFill ? actualCls : 'pen-empty';
                         if (isFill && (b.penDates[i] || b.weaningDate || b.date)) {
-                            const ageVal = utils.getDiffDays(b.penDates[i] || b.weaningDate || b.date, utils.getTodayStr()) + (isRes ? 1 : 20);
+                            const penDate = b.penDates[i] || b.weaningDate || b.date;
+                            const ageVal = utils.getDiffDays(penDate, utils.getTodayStr()) + (isRes ? 1 : 20);
                             const isSick = b.penIsSick && b.penIsSick[i];
                             let displayStr = `${ageVal}일령`;
+                            if (stage === 'weaning') {
+                                const weaningDate = utils.parseDate(penDate);
+                                if (weaningDate) displayStr = `${weaningDate.getMonth() + 1}/${weaningDate.getDate()} <span class="whitespace-nowrap">(${ageVal}일령)</span>`;
+                            }
                             if (stage === 'grower' && b.penIsResidual && b.penIsResidual[i]) penClass = 'pen-pink';
                             if (isSick) displayStr += '<span class="text-orange-300 ml-0.5">(환)</span>';
-                            txt += `<div class="text-[9px] font-normal opacity-90 mt-0.5">${displayStr}</div>`;
+                            txt += `<div class="text-[9px] font-normal opacity-90 mt-0.5 text-center">${displayStr}</div>`;
                         }
                         pensHtml += `<div onclick="window.handlePenClick(event, '${stage}', ${b.id}, ${i})" class="pen-box ${penClass}">${txt}</div>`;
                     }

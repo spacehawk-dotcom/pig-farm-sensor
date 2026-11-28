@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#142b25"><title>급이기 모니터링 · 성암농장</title><link rel="stylesheet" href="feeders.css"><script defer src="feeder-core.js"></script><script defer src="feeder-sows.js"></script><script defer src="feeders.js"></script></head>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#142b25"><title>급이기 모니터링 · 성암농장</title><link rel="stylesheet" href="feeders.css?v=20261128-history"><script defer src="feeder-core.js"></script><script defer src="feeder-sows.js"></script><script defer src="feeder-history.js?v=20261128-history"></script><script defer src="feeders.js?v=20261128-history"></script></head>
 <body>
 <div class="workspace">
 <main>
@@ -11,4 +11,18 @@
 <section class="equipment"><div class="section-heading"><h2>급이기 현황 <span>72</span></h2><div class="legend"><span><i class="green-dot"></i>목표 달성</span><span><i class="amber-dot"></i>50% 미만</span><span><i class="gray-dot"></i>미수신·빈 칸</span></div></div><div class="toolbar"><div class="filters" role="group" aria-label="급이 상태 필터"><button class="active" data-filter="all">전체</button><button data-filter="low">확인 필요</button><button data-filter="partial">50~99%</button><button data-filter="complete">목표 달성</button><button data-filter="missing">미수신</button><button data-filter="empty">빈 칸</button><button data-filter="stale">수신 지연</button></div><div class="search-sort"><label class="search"><span>⌕</span><input id="search" type="search" placeholder="기기·모돈 번호 검색" aria-label="기기 또는 모돈 번호 검색"></label><select id="sort" aria-label="정렬"><option value="device">기기 번호순</option><option value="percent">급이율 낮은순</option><option value="recent">최근 수신순</option></select></div></div><div class="results-line"><span id="resultsCount"></span></div><div id="feederGrid" class="feeder-grid"></div><div id="emptyResults" class="empty-results" hidden>검색 조건에 맞는 급이기가 없습니다.<button id="clearFilters" class="button">필터 초기화</button></div></section>
 <footer><span><span class="footer-mark">성</span> 성암농장 <span class="footer-separator">/</span> 급이기 모니터링</span><span>KOCA 기록값 기준 · 실제 섭취량을 별도로 측정하지 않습니다.</span></footer>
 </main></div>
+<dialog id="historyDialog" class="history-dialog" aria-labelledby="historyTitle" aria-describedby="historyPeriod">
+<div class="dialog-top"><div><p class="history-eyebrow" id="historyDevice"></p><h2 id="historyTitle">입실 모돈 급이 기록</h2></div><button id="historyClose" class="icon-button" aria-label="급이 기록 닫기" autofocus>×</button></div>
+<p id="historyPeriod" class="history-period"></p>
+<p id="historyStatus" class="history-status" role="status" aria-live="polite"></p>
+<button id="historyRetry" class="button" hidden>다시 불러오기</button>
+<div id="historyContent" hidden>
+<div class="history-summary" id="historySummary"></div>
+<div class="history-key"><span><i class="history-target-key"></i>일별 목표량</span><span><i class="history-amount-key"></i>섭취량 · KOCA 기록</span><span>단위: kg</span></div>
+<div id="historyChart" class="history-chart"></div>
+<p class="history-scroll-hint">그래프를 좌우로 밀어 전체 날짜를 볼 수 있습니다.</p>
+<p id="historyNotice" class="history-notice"></p>
+<details class="history-table-wrap"><summary>일별 수치 보기</summary><div class="history-table-scroll"><table class="history-table"><thead><tr><th scope="col">날짜</th><th scope="col">목표량</th><th scope="col">섭취량</th><th scope="col">달성률</th><th scope="col">마지막 기록</th></tr></thead><tbody id="historyTable"></tbody></table></div></details>
+<p class="history-footnote">섭취량은 KOCA에 기록된 급이량입니다. 실제로 먹은 양을 별도로 계측한 값은 아닙니다. 오늘은 현재까지 수신된 양이며, 과거 날짜도 마지막 수신값을 표시합니다.</p>
+</div></dialog>
 </body></html>
