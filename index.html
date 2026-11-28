@@ -35,7 +35,8 @@
             .pen-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; flex: 1; }
             .pen-box { aspect-ratio: 1; border-radius: 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: white; transition: all 0.2s; border: 1px solid rgba(0,0,0,0.05); position: relative; overflow: hidden; cursor: pointer; }
             .pen-empty { background-color: #f1f5f9; color: #cbd5e1; border: 1px dashed #cbd5e1; }
-            .pen-wean { background-color: #10b981; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1); }
+            .pen-wean { background-color: #10b981; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1); min-height: 54px; }
+            .pen-wean .pen-count, #grower-list .pen-count { text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
             .pen-grow { background-color: #6366f1; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1); }
             .pen-residual { background-color: #f59e0b; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1); }
             .pen-pink { background-color: #ec4899; box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1); }
@@ -1045,16 +1046,17 @@
                     return date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : '';
                 };
                 const weaningCountColors = new Map();
-                if (stage === 'weaning') {
-                    // Share one date-to-color map across all weaning batches, not per batch.
+                const colorCountsByDate = stage === 'weaning' || targetId === 'grower-list';
+                if (colorCountsByDate) {
+                    // Share one date-to-color map across all batches in this list.
                     const dates = new Set();
                     batches.forEach(batch => batch.penDetails.forEach((count, index) => {
                         const key = weaningDateKey(batch.penDates[index] || batch.weaningDate || batch.date);
                         if (count > 0 && key) dates.add(key);
                     }));
-                    const palette = ['#172554', '#701a3b', '#422006', '#3b0764', '#083344', '#1a2e05'];
+                    const palette = ['#ffffff', '#000000', '#fff176', '#ffdab9'];
                     [...dates].sort().forEach((date, index) => {
-                        weaningCountColors.set(date, palette[index] || `hsl(${Math.round(index * 137.508) % 360}, 75%, 18%)`);
+                        weaningCountColors.set(date, palette[index % palette.length]);
                     });
                 }
                 document.getElementById(targetId).innerHTML = batches.map(b => {
@@ -1089,9 +1091,9 @@
                     let pensHtml = '';
                     for (let i = 0; i < b.penDetails.length; i++) {
                         const c = b.penDetails[i] || 0, isFill = c > 0;
-                        const countColor = stage === 'weaning'
+                        const countColor = colorCountsByDate
                             ? weaningCountColors.get(weaningDateKey(b.penDates[i] || b.weaningDate || b.date)) : null;
-                        let txt = isFill ? `<div${countColor ? ` style="color:${countColor}"` : ''}>${c}</div>` : '', penClass = isFill ? actualCls : 'pen-empty';
+                        let txt = isFill ? `<div class="pen-count"${countColor ? ` style="color:${countColor}"` : ''}>${c}</div>` : '', penClass = isFill ? actualCls : 'pen-empty';
                         if (isFill && (b.penDates[i] || b.weaningDate || b.date)) {
                             const penDate = b.penDates[i] || b.weaningDate || b.date;
                             const ageVal = utils.getDiffDays(penDate, utils.getTodayStr()) + (isRes ? 1 : 20);
@@ -1099,11 +1101,11 @@
                             let displayStr = `${ageVal}일령`;
                             if (stage === 'weaning') {
                                 const weaningDate = utils.parseDate(penDate);
-                                if (weaningDate) displayStr = `${weaningDate.getMonth() + 1}/${weaningDate.getDate()} <span class="whitespace-nowrap">(${ageVal}일령)</span>`;
+                                if (weaningDate) displayStr = `${weaningDate.getMonth() + 1}/${weaningDate.getDate()}<br>(${ageVal}일령)`;
                             }
                             if (stage === 'grower' && b.penIsResidual && b.penIsResidual[i]) penClass = 'pen-pink';
                             if (isSick) displayStr += '<span class="text-orange-300 ml-0.5">(환)</span>';
-                            txt += `<div class="text-[9px] font-normal opacity-90 mt-0.5 text-center">${displayStr}</div>`;
+                            txt += `<div class="text-[9px] font-normal opacity-90 mt-0.5 text-center${stage === 'weaning' ? ' whitespace-nowrap leading-tight' : ''}">${displayStr}</div>`;
                         }
                         pensHtml += `<div onclick="window.handlePenClick(event, '${stage}', ${b.id}, ${i})" class="pen-box ${penClass}">${txt}</div>`;
                     }
